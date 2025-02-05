@@ -5,9 +5,14 @@ const FOOD_SCENE = preload("res://scenes/food.tscn")
 const SPAWN_AREA_SIZE = Vector2(8, 8)  # Keep within camera view
 const BASE_CAMERA_SIZE = 15.0  # This is our reference size for 1:1 aspect ratio
 const SAVE_FILE = "user://save_game.dat"
+const CAMERA_HEIGHT = 10.0
+const CAMERA_FOLLOW_SPEED = 5.0
+const CAMERA_TILT_ANGLE = 15.0  # Maximum tilt in degrees
 
 var score: int = 0
 var is_paused: bool = false
+var target_camera_pos: Vector3
+var target_camera_rot: Vector3
 @onready var camera = $Camera3D
 @onready var ui = $UI
 
@@ -21,10 +26,21 @@ func _ready():
 	get_tree().root.size_changed.connect(_on_window_resize)
 	_on_window_resize()
 	update_score(0)
+	target_camera_pos = camera.position
+	target_camera_rot = camera.rotation_degrees
 
 func _unhandled_input(event):
 	if event.is_action_pressed("ui_cancel"):  # ESC key
 		toggle_pause()
+
+func _process(delta):
+	var player = get_node_or_null("Player")
+	if player:
+		# Update target position to follow player
+		target_camera_pos = Vector3(player.position.x, CAMERA_HEIGHT, player.position.z)
+		
+		# Smoothly interpolate camera position and rotation
+		camera.position = camera.position.lerp(target_camera_pos, delta * CAMERA_FOLLOW_SPEED)
 
 func toggle_pause():
 	is_paused = !is_paused
