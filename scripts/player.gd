@@ -1,4 +1,3 @@
-
 extends CharacterBody3D
 
 const SPEED = 5.0
@@ -11,3 +10,9 @@ func _physics_process(delta):
 	
 	velocity = input_dir * SPEED
 	move_and_slide()
+	
+	# Check for food collection
+	for area in get_tree().get_nodes_in_group("food"):
+		if area.global_position.distance_to(global_position) < 0.75:
+			area.queue_free()
+			get_parent().on_food_collected()
