@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://b6s0if4c7k0x"]
 
-[ext_resource type="PackedScene" uid="uid://dx8j5p2kqv4ur" path="res://scenes/player.tscn" id="1_ytehl"]
+[ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_script"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1"]
 size = Vector2(20, 20)
@@ -10,6 +10,7 @@ albedo_color = Color(0.2, 0.4, 0.2, 1)
 metallic_specular = 0.0
 
 [node name="Main" type="Node3D"]
+script = ExtResource("1_script")
 
 [node name="Ground" type="MeshInstance3D" parent="."]
 mesh = SubResource("PlaneMesh_1")
@@ -28,5 +29,3 @@ omni_range = 17.2911
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 0)
 projection = 1
 size = 15.0
-
-[node name="Player" parent="." instance=ExtResource("1_ytehl")]
