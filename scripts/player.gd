@@ -10,11 +10,12 @@ func _physics_process(delta):
 	input_dir.z = Input.get_axis("move_up", "move_down")
 	
 	if input_dir != Vector3.ZERO:
-		facing_direction = input_dir.normalized()
-	
-	input_dir = input_dir.normalized()
-	
-	velocity = input_dir * SPEED
+		input_dir = input_dir.normalized()  # Normalize before storing facing direction
+		facing_direction = input_dir
+		velocity = input_dir * SPEED
+	else:
+		velocity = Vector3.ZERO
+		
 	move_and_slide()
 	
 	# Check for food collection

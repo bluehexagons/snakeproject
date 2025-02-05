@@ -9,10 +9,22 @@ const CAMERA_HEIGHT = 10.0
 const CAMERA_FOLLOW_SPEED = 5.0
 const CAMERA_TILT_ANGLE = 15.0  # Maximum tilt in degrees
 
+const INITIAL_CAMERA_HEIGHT = 20.0  # Starting height
+const FINAL_CAMERA_HEIGHT = 10.0    # Height to zoom to
+const INITIAL_CAMERA_SIZE = 30.0    # Starting orthographic size
+const FINAL_CAMERA_SIZE = 15.0      # Size to zoom to
+const ZOOM_DURATION = 1.5           # How long the zoom takes
+const ZOOM_DELAY = 0.5              # Wait before starting zoom
+
 var score: int = 0
 var is_paused: bool = false
 var target_camera_pos: Vector3
 var target_camera_rot: Vector3
+var zoom_timer: float = 0.0
+var is_zooming: bool = false
+var camera_height: float = INITIAL_CAMERA_HEIGHT
+var camera_size: float = INITIAL_CAMERA_SIZE
+
 @onready var camera = $Camera3D
 @onready var ui = $UI
 
@@ -28,16 +40,35 @@ func _ready():
 	update_score(0)
 	target_camera_pos = camera.position
 	target_camera_rot = camera.rotation_degrees
+	
+	camera.position.y = INITIAL_CAMERA_HEIGHT
+	camera.size = INITIAL_CAMERA_SIZE
+	target_camera_pos = camera.position
+	target_camera_rot = camera.rotation_degrees
+	
+	await get_tree().create_timer(ZOOM_DELAY).timeout
+	is_zooming = true
 
 func _unhandled_input(event):
 	if event.is_action_pressed("ui_cancel"):  # ESC key
 		toggle_pause()
 
 func _process(delta):
+	if is_zooming:
+		zoom_timer = min(zoom_timer + delta, ZOOM_DURATION)
+		var t = ease(zoom_timer / ZOOM_DURATION, 0.5)  # Smooth easing
+		
+		camera_height = lerp(INITIAL_CAMERA_HEIGHT, FINAL_CAMERA_HEIGHT, t)
+		camera_size = lerp(INITIAL_CAMERA_SIZE, FINAL_CAMERA_SIZE, t)
+		
+		if zoom_timer >= ZOOM_DURATION:
+			is_zooming = false
+	
 	var player = get_node_or_null("Player")
 	if player:
 		# Update target position to follow player
-		target_camera_pos = Vector3(player.position.x, CAMERA_HEIGHT, player.position.z)
+		target_camera_pos = Vector3(player.position.x, camera_height, player.position.z)
+		camera.size = camera_size
 		
 		# Smoothly interpolate camera position and rotation
 		camera.position = camera.position.lerp(target_camera_pos, delta * CAMERA_FOLLOW_SPEED)
@@ -75,10 +106,10 @@ func _on_window_resize():
 	
 	# If window is wider than tall, maintain vertical size
 	if aspect_ratio > 1.0:
-		camera.size = BASE_CAMERA_SIZE
+		camera.size = camera_size
 	# If window is taller than wide, maintain horizontal size
 	else:
-		camera.size = BASE_CAMERA_SIZE / aspect_ratio
+		camera.size = camera_size / aspect_ratio
 
 func update_score(points: int):
 	score += points
