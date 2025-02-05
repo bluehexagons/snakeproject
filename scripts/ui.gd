@@ -25,7 +25,8 @@ func on_resume_pressed():
 	get_parent().toggle_pause()
 
 func on_quit_pressed():
-	get_tree().quit()
+	get_tree().paused = false
+	get_parent().save_and_quit()
 
 func on_retry_pressed():
 	get_tree().paused = false

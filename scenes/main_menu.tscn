@@ -43,6 +43,11 @@ theme_override_font_sizes/font_size = 32
 text = "SNAKE 3D"
 horizontal_alignment = 1
 
+[node name="ContinueButton" type="Button" parent="Panel/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Continue"
+
 [node name="NewGameButton" type="Button" parent="Panel/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
