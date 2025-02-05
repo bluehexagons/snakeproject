@@ -6,6 +6,7 @@ const SPAWN_AREA_SIZE = Vector2(8, 8)  # Keep within camera view
 const BASE_CAMERA_SIZE = 15.0  # This is our reference size for 1:1 aspect ratio
 
 var score: int = 0
+var is_paused: bool = false
 @onready var camera = $Camera3D
 @onready var ui = $UI
 
@@ -15,6 +16,15 @@ func _ready():
 	get_tree().root.size_changed.connect(_on_window_resize)
 	_on_window_resize()
 	update_score(0)
+
+func _unhandled_input(event):
+	if event.is_action_pressed("ui_cancel"):  # ESC key
+		toggle_pause()
+
+func toggle_pause():
+	is_paused = !is_paused
+	get_tree().paused = is_paused
+	ui.toggle_pause_menu(is_paused)
 
 func spawn_player():
 	var player = PLAYER_SCENE.instantiate()

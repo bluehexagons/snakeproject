@@ -32,3 +32,4 @@ projection = 1
 size = 15.0
 
 [node name="UI" parent="." instance=ExtResource("2_ui")]
+process_mode = 3
