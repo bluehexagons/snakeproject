@@ -6,6 +6,7 @@ extends Control
 
 func _ready():
 	$PauseMenu/VBoxContainer/ResumeButton.pressed.connect(on_resume_pressed)
+	$PauseMenu/VBoxContainer/MainMenuButton.pressed.connect(on_main_menu_pressed)
 	$PauseMenu/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
 	$GameOverMenu/VBoxContainer/RetryButton.pressed.connect(on_retry_pressed)
 	$GameOverMenu/VBoxContainer/MainMenuButton.pressed.connect(on_main_menu_pressed)
@@ -31,4 +32,5 @@ func on_retry_pressed():
 	get_tree().reload_current_scene()
 
 func on_main_menu_pressed():
+	get_tree().paused = false
 	get_parent().return_to_main_menu()

@@ -1,4 +1,4 @@
-[gd_scene load_steps=2 format=3 uid="uid://c8p4q8r2ys6mv"]
+[gd_scene load_steps=2 format=3 uid="uid://dbkt4gaf6xf28"]
 
 [ext_resource type="Script" path="res://scripts/ui.gd" id="1_script"]
 
@@ -62,6 +62,11 @@ layout_mode = 2
 size_flags_vertical = 3
 text = "Resume"
 
+[node name="MainMenuButton" type="Button" parent="PauseMenu/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Main Menu"
+
 [node name="QuitButton" type="Button" parent="PauseMenu/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -93,7 +98,6 @@ offset_right = -10.0
 offset_bottom = -10.0
 grow_horizontal = 2
 grow_vertical = 2
-spacing = 10
 
 [node name="GameOverLabel" type="Label" parent="GameOverMenu/VBoxContainer"]
 layout_mode = 2
@@ -114,5 +118,3 @@ text = "Retry"
 layout_mode = 2
 size_flags_vertical = 3
 text = "Main Menu"
-
-

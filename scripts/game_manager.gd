@@ -71,4 +71,6 @@ func game_over():
 
 func return_to_main_menu():
 	get_tree().paused = false
+	# Remove pause state before changing scene
+	is_paused = false
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
