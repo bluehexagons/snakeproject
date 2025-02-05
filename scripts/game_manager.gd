@@ -63,3 +63,12 @@ func update_score(points: int):
 	score += points
 	if ui:
 		ui.update_score(score)
+
+func game_over():
+	is_paused = true
+	get_tree().paused = true
+	ui.show_game_over(score)
+
+func return_to_main_menu():
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")

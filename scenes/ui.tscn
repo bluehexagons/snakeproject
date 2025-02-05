@@ -67,4 +67,52 @@ layout_mode = 2
 size_flags_vertical = 3
 text = "Quit"
 
+[node name="GameOverMenu" type="Panel" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -100.0
+offset_top = -100.0
+offset_right = 100.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="GameOverMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+spacing = 10
+
+[node name="GameOverLabel" type="Label" parent="GameOverMenu/VBoxContainer"]
+layout_mode = 2
+text = "GAME OVER"
+horizontal_alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="GameOverMenu/VBoxContainer"]
+layout_mode = 2
+text = "Final Score: 0"
+horizontal_alignment = 1
+
+[node name="RetryButton" type="Button" parent="GameOverMenu/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Retry"
+
+[node name="MainMenuButton" type="Button" parent="GameOverMenu/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Main Menu"
+
 
