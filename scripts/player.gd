@@ -9,6 +9,7 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const LUNGE_FORCE = 0.2
 const SEGMENT_PUSHBACK = 0.1
 const VELOCITY_SMOOTHING = 0.15
+const IDLE_SPEED = 1.0
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 
 var facing_direction: Vector3 = Vector3.FORWARD
@@ -46,7 +47,7 @@ func _physics_process(delta):
 		target_velocity = target_velocity.limit_length(MAX_SPEED)
 	
 	# Handle idle timeout
-	if has_started_moving and velocity.length() < MIN_SPEED_THRESHOLD:
+	if has_started_moving and velocity.length() < IDLE_SPEED:
 		idle_timer += delta
 		if idle_timer >= IDLE_TIMEOUT:
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
