@@ -14,6 +14,7 @@ var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
 var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
+var current_scale: float = 1.0  # Add this for consistent scaling behavior
 
 @onready var head_mesh = $MeshInstance3D
 
@@ -73,22 +74,23 @@ func add_segment():
 	segment.set_script(load("res://scripts/segment.gd"))
 	get_parent().add_child(segment)
 	
+	# Calculate safe spawn position
+	var spawn_pos: Vector3
 	if segments.is_empty():
-		# If this is the first segment, place it behind player
-		segment.global_position = global_position - facing_direction * 2.0
+		# Place behind player with offset based on scales
+		spawn_pos = global_position - facing_direction * (1.0 + segment.INITIAL_SCALE)
+	else:
+		# Place at a safe distance behind the player
+		spawn_pos = global_position - facing_direction * segment.INITIAL_SCALE * 2.0
+		
+	segment.global_position = spawn_pos
+	
+	# Update targeting
+	if segments.is_empty():
 		segment.target = self
 	else:
-		# Push first existing segment back
-		var first_segment = segments[0]
-		var push_dir = (first_segment.global_position - global_position).normalized()
-		first_segment.global_position += push_dir * SEGMENT_PUSHBACK
-		
-		# Place new segment between player and pushed-back segment
-		segment.global_position = global_position + (first_segment.global_position - global_position) * 0.5
-		
-		# Update targeting
 		segment.target = self
-		first_segment.target = segment
+		segments[0].target = segment
 	
 	segments.push_front(segment)
 
