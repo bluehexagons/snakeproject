@@ -16,6 +16,10 @@ const FINAL_CAMERA_SIZE = 15.0      # Size to zoom to
 const ZOOM_DURATION = 1.5           # How long the zoom takes
 const ZOOM_DELAY = 0.5              # Wait before starting zoom
 
+const CAMERA_HORIZONTAL_SMOOTHING = 3.0  # Lower = smoother horizontal movement
+const CAMERA_VERTICAL_SMOOTHING = 2.0    # Separate smoothing for height changes
+const CAMERA_PREDICTION_STRENGTH = 0.3   # How much to look ahead based on velocity
+
 var score: int = 0
 var is_paused: bool = false
 var target_camera_pos: Vector3
@@ -24,6 +28,7 @@ var zoom_timer: float = 0.0
 var is_zooming: bool = false
 var camera_height: float = INITIAL_CAMERA_HEIGHT
 var camera_size: float = INITIAL_CAMERA_SIZE
+var camera_velocity: Vector3 = Vector3.ZERO
 
 @onready var camera = $Camera3D
 @onready var ui = $UI
@@ -66,12 +71,26 @@ func _process(delta):
 	
 	var player = get_node_or_null("Player")
 	if player:
-		# Update target position to follow player
-		target_camera_pos = Vector3(player.position.x, camera_height, player.position.z)
-		camera.size = camera_size
+			# Calculate predicted position based on player velocity
+		var prediction = Vector3.ZERO
+		if player.velocity.length() > 0.1:
+			prediction = player.velocity.normalized() * CAMERA_PREDICTION_STRENGTH
 		
-		# Smoothly interpolate camera position and rotation
-		camera.position = camera.position.lerp(target_camera_pos, delta * CAMERA_FOLLOW_SPEED)
+		# Update target position to follow player with prediction
+		var target_x = player.position.x + prediction.x
+		var target_z = player.position.z + prediction.z
+		var target_y = camera_height  # Height changes are handled separately
+		
+		target_camera_pos = Vector3(target_x, target_y, target_z)
+		
+		# Separate axis smoothing
+		var new_pos = camera.position
+		new_pos.x = lerp(new_pos.x, target_camera_pos.x, delta * CAMERA_HORIZONTAL_SMOOTHING)
+		new_pos.z = lerp(new_pos.z, target_camera_pos.z, delta * CAMERA_HORIZONTAL_SMOOTHING)
+		new_pos.y = lerp(new_pos.y, target_camera_pos.y, delta * CAMERA_VERTICAL_SMOOTHING)
+		
+		camera.position = new_pos
+		camera.size = camera_size
 
 func toggle_pause():
 	is_paused = !is_paused
