@@ -99,18 +99,20 @@ func _process(delta):
 func add_segment():
 	var segment = SEGMENT_SCENE.instantiate()
 	segment.set_script(load("res://scripts/segment.gd"))
-	get_parent().add_child(segment)
 	
-	# Calculate safe spawn position
+	# Calculate spawn position before adding to scene tree
 	var spawn_pos: Vector3
 	if segments.is_empty():
-		# Place behind player with offset based on scales
 		spawn_pos = global_position - facing_direction * (1.0 + segment.INITIAL_SCALE)
 	else:
-		# Place at a safe distance behind the player
 		spawn_pos = global_position - facing_direction * segment.INITIAL_SCALE * 2.0
-		
+	
+	# Set initial position before adding to scene tree
 	segment.global_position = spawn_pos
+	segment.physics_pos = spawn_pos
+	segment.visual_pos = spawn_pos
+	
+	get_parent().add_child(segment)
 	
 	# Update targeting
 	if segments.is_empty():

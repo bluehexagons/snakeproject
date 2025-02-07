@@ -20,11 +20,14 @@ var visual_pos: Vector3
 @onready var collision = $CollisionShape3D
 
 func _ready():
-	# Set initial scale
+	# Set initial scale and positions
 	current_scale = INITIAL_SCALE
 	update_scale(current_scale)
+	# Initialize both positions to spawn position to prevent interpolation from origin
 	physics_pos = global_position
 	visual_pos = global_position
+	# Ensure mesh starts at the correct position
+	mesh.global_position = global_position
 
 func update_scale(new_scale: float):
 	mesh.scale = Vector3.ONE * new_scale
