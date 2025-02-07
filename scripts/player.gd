@@ -142,6 +142,16 @@ func get_save_data() -> Dictionary:
 			"y": global_position.y,
 			"z": global_position.z
 		},
+			"physics_pos": {
+			"x": physics_pos.x,
+			"y": physics_pos.y,
+			"z": physics_pos.z
+		},
+		"visual_pos": {
+			"x": visual_pos.x,
+			"y": visual_pos.y,
+			"z": visual_pos.z
+		},
 		"velocity": {
 			"x": velocity.x,
 			"y": velocity.y,
@@ -166,32 +176,40 @@ func get_save_data() -> Dictionary:
 	}
 
 func restore_from_save(data: Dictionary):
-	if data.has("player_position"):  # Access the correctly named field
+	var state = data.player_state  # Get complete player state
+	if state:
 		position = Vector3(
-			float(data.player_position.x),
-			float(data.player_position.y),
-			float(data.player_position.z)
+			float(state.position.x),
+			float(state.position.y),
+			float(state.position.z)
 		)
-	
-	# Maybe these need to be under a player_state field too?
-	if data.has("velocity"):
+		physics_pos = Vector3(
+			float(state.physics_pos.x),
+			float(state.physics_pos.y),
+			float(state.physics_pos.z)
+		)
+		visual_pos = Vector3(
+			float(state.visual_pos.x),
+			float(state.visual_pos.y),
+			float(state.visual_pos.z)
+		)
 		velocity = Vector3(
-			float(data.velocity.x),
-			float(data.velocity.y),
-			float(data.velocity.z)
+			float(state.velocity.x),
+			float(state.velocity.y),
+			float(state.velocity.z)
 		)
 		target_velocity = Vector3(
-			float(data.target_velocity.x),
-			float(data.target_velocity.y),
-			float(data.target_velocity.z)
+			float(state.target_velocity.x),
+			float(state.target_velocity.y),
+			float(state.target_velocity.z)
 		)
 		smoothed_velocity = Vector3(
-			float(data.smoothed_velocity.x),
-			float(data.smoothed_velocity.y),
-			float(data.smoothed_velocity.z)
+			float(state.smoothed_velocity.x),
+			float(state.smoothed_velocity.y),
+			float(state.smoothed_velocity.z)
 		)
 		facing_direction = Vector3(
-			float(data.facing_direction.x),
-			float(data.facing_direction.y),
-			float(data.facing_direction.z)
+			float(state.facing_direction.x),
+			float(state.facing_direction.y),
+			float(state.facing_direction.z)
 		)

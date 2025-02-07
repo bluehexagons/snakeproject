@@ -164,17 +164,12 @@ func save_game_state():
 	
 	var save_data = {
 		"score": score,
-		"player_position": {
-			"x": player.position.x,
-			"y": player.position.y,
-			"z": player.position.z
-		},
+		"player_state": player.get_save_data(),  # Now saving all player state
 		"food_position": {
 			"x": food.position.x,
 			"y": food.position.y,
 			"z": food.position.z
-		},
-		"segments": player.get_segment_positions()
+		}
 	}
 	GameState.save_game_state(save_data)
 
@@ -199,9 +194,9 @@ func load_game_state():
 	player.restore_from_save(save_data)
 	
 	# Then restore segments with their growth states in reverse order
-	if save_data.has("segments"):
+	if save_data["player_state"].has("segments"):
 		# Process segments in reverse order for proper chain formation
-		var segments = save_data["segments"] as Array
+		var segments = save_data["player_state"]["segments"] as Array
 		for i in range(segments.size() - 1, -1, -1):
 			var segment_data = segments[i]
 			# Create position vector from position dictionary
