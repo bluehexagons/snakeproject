@@ -31,8 +31,9 @@ var camera_height: float = INITIAL_CAMERA_HEIGHT
 var camera_size: float = INITIAL_CAMERA_SIZE
 var camera_velocity: Vector3 = Vector3.ZERO
 
-@onready var camera = $Camera3D
+@onready var camera = $GameplayContainer/Camera3D
 @onready var ui = $UI
+@onready var gameplay_container = $GameplayContainer
 
 func _ready():
 	if GameState.has_saved_game():
@@ -57,10 +58,9 @@ func _ready():
 
 func _unhandled_input(event):
 	if event.is_action_pressed("ui_cancel"):  # ESC key
-		if !is_gameplay_paused:  # Only allow menu pause when not in gameplay pause
-			toggle_pause()
+		toggle_pause()
 	elif event.is_action_pressed("gameplay_pause"):
-		if !is_paused:  # Only allow gameplay pause when not in menu pause
+		if !is_paused:  # Only toggle gameplay pause when menu isn't open
 			toggle_gameplay_pause()
 
 func _process(delta):
@@ -74,7 +74,7 @@ func _process(delta):
 		if zoom_timer >= ZOOM_DURATION:
 			is_zooming = false
 	
-	var player = get_node_or_null("Player")
+	var player = gameplay_container.get_node_or_null("Player")
 	if player:
 			# Calculate predicted position based on player velocity
 		var prediction = Vector3.ZERO
@@ -99,18 +99,22 @@ func _process(delta):
 
 func toggle_gameplay_pause():
 	is_gameplay_paused = !is_gameplay_paused
-	get_tree().paused = is_gameplay_paused
+	update_pause_state()
 	if ui:
 		ui.set_gameplay_paused(is_gameplay_paused)
 
 func toggle_pause():
 	is_paused = !is_paused
-	get_tree().paused = is_paused
+	update_pause_state()
 	ui.toggle_pause_menu(is_paused)
+
+func update_pause_state():
+	# Only pause the gameplay container
+	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if (is_paused || is_gameplay_paused) else Node.PROCESS_MODE_INHERIT
 
 func spawn_player():
 	var player = PLAYER_SCENE.instantiate()
-	add_child(player)
+	gameplay_container.add_child(player)
 	
 	# Random position within spawn area
 	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
@@ -119,7 +123,7 @@ func spawn_player():
 
 func spawn_food():
 	var food = FOOD_SCENE.instantiate()
-	add_child(food)
+	gameplay_container.add_child(food)
 	
 	# Random position within spawn area
 	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
@@ -166,7 +170,7 @@ func save_and_quit():
 	get_tree().quit()
 
 func save_game_state():
-	var player = get_node_or_null("Player")
+	var player = gameplay_container.get_node_or_null("Player")
 	var food = get_tree().get_first_node_in_group("food")
 	
 	if not player or not food:
@@ -192,14 +196,14 @@ func load_game_state():
 		return false
 		
 	# Clear existing entities
-	if has_node("Player"):
-		$Player.queue_free()
-	if has_node("Food"):
-		$Food.queue_free()
+	if gameplay_container.has_node("Player"):
+		gameplay_container.get_node("Player").queue_free()
+	if gameplay_container.has_node("Food"):
+		gameplay_container.get_node("Food").queue_free()
 	
 	# Spawn and setup player
 	var player = PLAYER_SCENE.instantiate()
-	add_child(player)
+	gameplay_container.add_child(player)
 	
 	# First set the player's position and state
 	player.restore_from_save(save_data)
@@ -224,7 +228,7 @@ func load_game_state():
 	
 	# Spawn and setup food
 	var food = FOOD_SCENE.instantiate()
-	add_child(food)
+	gameplay_container.add_child(food)
 	food.position = Vector3(
 		float(save_data["food_position"]["x"]),
 		float(save_data["food_position"]["y"]),

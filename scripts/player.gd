@@ -82,7 +82,10 @@ func _physics_process(delta):
 		if area.global_position.distance_to(global_position) < 0.75:
 			area.queue_free()
 			add_segment()
-			get_parent().on_food_collected()
+			# Find game manager and notify it
+			var game_manager = get_tree().get_first_node_in_group("game_manager")
+			if game_manager:
+				game_manager.on_food_collected()
 			# Add extra momentum when collecting food
 			velocity += facing_direction * LUNGE_FORCE
 
@@ -101,7 +104,7 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	segment.set_script(load("res://scripts/segment.gd"))
 	
 	# First add to scene tree so transforms work properly
-	get_parent().add_child(segment)
+	get_parent().add_child(segment)  # This was correct, but ensure food has group
 	
 	# Now set position after it's in the tree
 	var spawn_pos: Vector3
