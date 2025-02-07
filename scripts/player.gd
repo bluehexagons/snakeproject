@@ -9,13 +9,15 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const LUNGE_FORCE = 0.2
 const SEGMENT_PUSHBACK = 0.1
 const VELOCITY_SMOOTHING = 0.15
-const IDLE_SPEED = 1.0
+const IDLE_SPEED_BASE = 1.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const WARNING_COLOR = Color(1.0, 0.2, 0.2)  # Red warning color
 const NORMAL_COLOR = Color(0.2, 0.7, 0.2)   # Original green color
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
+const IDLE_SPEED_INCREASE = 1.0  # Speed increase per food eaten
+const MAX_IDLE_SPEED = 5.0  # Cap on how fast the minimum speed can get
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -25,6 +27,8 @@ var current_scale: float = 1.0  # Add this for consistent scaling behavior
 var idle_timer: float = 0.0
 var has_started_moving: bool = false
 var current_color: Color = NORMAL_COLOR
+var food_eaten: int = 0
+var current_idle_speed: float = IDLE_SPEED_BASE
 
 var physics_pos: Vector3
 var physics_basis: Basis
@@ -57,7 +61,7 @@ func _physics_process(delta):
 		target_velocity = target_velocity.limit_length(MAX_SPEED)
 	
 	# Handle idle timeout
-	if has_started_moving and velocity.length() < IDLE_SPEED:
+	if has_started_moving and velocity.length() < current_idle_speed:
 		idle_timer += delta
 		if idle_timer >= IDLE_TIMEOUT:
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
@@ -108,7 +112,7 @@ func _physics_process(delta):
 		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 	
 	# Update color based on speed
-	var target_color = WARNING_COLOR if velocity.length() < IDLE_SPEED else NORMAL_COLOR
+	var target_color = WARNING_COLOR if velocity.length() < current_idle_speed else NORMAL_COLOR
 	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
 	head_material.albedo_color = current_color
 	
@@ -121,8 +125,14 @@ func _physics_process(delta):
 		if area.global_position.distance_to(global_position) < 0.75:
 			area.queue_free()
 			add_segment()
+			food_eaten += 1
+			# Update minimum speed requirement
+			current_idle_speed = min(
+				IDLE_SPEED_BASE + (food_eaten * IDLE_SPEED_INCREASE),
+				MAX_IDLE_SPEED
+			)
 			 # Calculate score based on speed
-			var current_speed = min(max(velocity.length(), IDLE_SPEED) / IDLE_SPEED, MAX_SPEED_IDLE_MULTIPLIER)
+			var current_speed = min(max(velocity.length(), current_idle_speed) / current_idle_speed, MAX_SPEED_IDLE_MULTIPLIER)
 			var speed_points = int(current_speed * SPEED_SCORE_MULTIPLIER)
 			# Find game manager and notify it
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
@@ -217,6 +227,8 @@ func get_save_data() -> Dictionary:
 			"y": facing_direction.y,
 			"z": facing_direction.z
 		},
+		"food_eaten": food_eaten,
+		"current_idle_speed": current_idle_speed,
 		"segments": get_segment_positions()
 	}
 
@@ -258,3 +270,5 @@ func restore_from_save(data: Dictionary):
 			float(state.facing_direction.y),
 			float(state.facing_direction.z)
 		)
+		food_eaten = state.get("food_eaten", 0)
+		current_idle_speed = state.get("current_idle_speed", IDLE_SPEED_BASE)
