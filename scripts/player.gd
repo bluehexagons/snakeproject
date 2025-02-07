@@ -8,6 +8,8 @@ const SEGMENT_PUSHBACK = 0.5  # How far to push first segment back
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
 
+@onready var head_mesh = $MeshInstance3D
+
 func _physics_process(delta):
 	var input_dir = Vector3.ZERO
 	input_dir.x = Input.get_axis("move_left", "move_right")
@@ -21,6 +23,29 @@ func _physics_process(delta):
 		velocity = Vector3.ZERO
 		
 	move_and_slide()
+	
+	# Update head rotation
+	if velocity != Vector3.ZERO:
+		# Get direction to first segment or use velocity if no segments
+		var look_direction = -facing_direction
+		if not segments.is_empty():
+			look_direction = (segments[0].global_position - global_position).normalized()
+		
+		# Calculate rotation to face movement direction, but tilt based on segment position
+		var forward = velocity.normalized()
+		var right = forward.cross(Vector3.UP)
+		var up = right.cross(forward)  # Corrected up vector
+		
+		# Create basis from our vectors
+		var target_basis = Basis(right, up, -forward)  # Note: forward is negated to face movement
+		
+		# Add tilt based on look_direction
+		var tilt_angle = look_direction.y * 0.5  # Adjust tilt strength
+		var tilt = Transform3D(Basis.from_euler(Vector3(deg_to_rad(-15 + tilt_angle), 0, 0)))
+		target_basis = target_basis * tilt.basis
+		
+		# Smoothly interpolate rotation
+		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * 15.0)  # Increased interpolation speed
 	
 	# Check for food collection
 	for area in get_tree().get_nodes_in_group("food"):
