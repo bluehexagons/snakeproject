@@ -8,10 +8,12 @@ const ROTATION_SPEED = 15.0
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const LUNGE_FORCE = 0.2
 const SEGMENT_PUSHBACK = 0.1
+const VELOCITY_SMOOTHING = 0.15
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
-var stored_momentum: Vector3 = Vector3.ZERO
+var target_velocity: Vector3 = Vector3.ZERO
+var smoothed_velocity: Vector3 = Vector3.ZERO
 
 @onready var head_mesh = $MeshInstance3D
 
@@ -22,43 +24,39 @@ func _physics_process(delta):
 	
 	if input_dir != Vector3.ZERO:
 		input_dir = input_dir.normalized()
-		# Apply acceleration based on input
-		velocity += input_dir * ACCELERATION * delta
-		facing_direction = velocity.normalized()
-		
-		# Clamp to max speed
-		if velocity.length() > MAX_SPEED:
-			velocity = velocity.normalized() * MAX_SPEED
+		 # Calculate target velocity
+		target_velocity += input_dir * ACCELERATION * delta
+		target_velocity = target_velocity.limit_length(MAX_SPEED)
 	
-	# Apply drag force
-	var speed = velocity.length()
+	# Apply drag to target velocity
+	var speed = target_velocity.length()
 	if speed > 0:
-		var drag_force = -velocity.normalized() * speed * speed * DRAG_COEFFICIENT * delta
-		velocity += drag_force
+		var drag_force = -target_velocity.normalized() * speed * speed * DRAG_COEFFICIENT * delta
+		target_velocity += drag_force
 		
-		# Stop if moving very slowly
-		if velocity.length() < MIN_SPEED_THRESHOLD:
-			velocity = Vector3.ZERO
+		if target_velocity.length() < MIN_SPEED_THRESHOLD:
+			target_velocity = Vector3.ZERO
 	
-	# Store momentum for visual effects
-	stored_momentum = velocity
+	# Smooth velocity transition
+	smoothed_velocity = smoothed_velocity.lerp(target_velocity, VELOCITY_SMOOTHING)
+	velocity = smoothed_velocity
+	
+	if velocity != Vector3.ZERO:
+		facing_direction = velocity.normalized()
 	
 	move_and_slide()
 	
-	# Update head rotation with momentum-based tilt
+	# Update head rotation
 	if velocity != Vector3.ZERO:
 		var speed_factor = clamp(velocity.length() / MAX_SPEED, 0.0, 1.0)
-		var momentum_tilt = -deg_to_rad(20.0 * speed_factor) # Tilt forward based on speed
-		
 		var forward = velocity.normalized()
 		var right = forward.cross(Vector3.UP)
 		var up = right.cross(forward)
 		
 		var target_basis = Basis(right, up, -forward)
-		var tilt = Transform3D(Basis.from_euler(Vector3(momentum_tilt, 0, 0)))
+		var tilt = Transform3D(Basis.from_euler(Vector3(deg_to_rad(-15 * speed_factor), 0, 0)))
 		target_basis = target_basis * tilt.basis
 		
-		# Smoother rotation interpolation
 		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED)
 	
 	# Food collection

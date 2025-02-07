@@ -1,11 +1,12 @@
 extends CharacterBody3D
 
-const SPRING_STIFFNESS = 1000.0
-const SPRING_DAMPING = 1.1
-const TARGET_DISTANCE = 0.6
+const SPRING_STIFFNESS = 2500.0
+const SPRING_DAMPING = 4.01
+const TARGET_DISTANCE = 0.666
+const VELOCITY_SMOOTHING = 0.35
 
 var target: Node3D
-var velocity_smoothing: Vector3
+var smoothed_velocity: Vector3
 
 func _physics_process(delta):
 	if not target:
@@ -16,14 +17,16 @@ func _physics_process(delta):
 	
 	# Spring force calculation
 	var displacement = target_pos - global_position
-	var spring_force = displacement * SPRING_STIFFNESS
+	var spring_force = displacement * SPRING_STIFFNESS * delta
 	
 	# Damping force to prevent oscillation
-	var damping_force = -velocity * SPRING_DAMPING
+	var damping_force = -velocity * SPRING_DAMPING * delta
 	
-	# Apply forces
-	var acceleration = spring_force + damping_force
-	velocity = velocity.lerp(acceleration * delta, 0.5)
+	# Calculate target velocity
+	var target_velocity = spring_force + damping_force
 	
-	# Move segment
+	# Smooth velocity transition
+	smoothed_velocity = smoothed_velocity.lerp(target_velocity, VELOCITY_SMOOTHING)
+	velocity = smoothed_velocity
+	
 	move_and_slide()
