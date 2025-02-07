@@ -11,6 +11,9 @@ const SEGMENT_PUSHBACK = 0.1
 const VELOCITY_SMOOTHING = 0.15
 const IDLE_SPEED = 1.0
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
+const WARNING_COLOR = Color(1.0, 0.2, 0.2)  # Red warning color
+const NORMAL_COLOR = Color(0.2, 0.7, 0.2)   # Original green color
+const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -19,6 +22,7 @@ var smoothed_velocity: Vector3 = Vector3.ZERO
 var current_scale: float = 1.0  # Add this for consistent scaling behavior
 var idle_timer: float = 0.0
 var has_started_moving: bool = false
+var current_color: Color = NORMAL_COLOR
 
 var physics_pos: Vector3
 var physics_basis: Basis
@@ -26,12 +30,16 @@ var visual_pos: Vector3
 var visual_basis: Basis
 
 @onready var head_mesh = $MeshInstance3D
+@onready var head_material = head_mesh.mesh.surface_get_material(0)
 
 func _ready():
 	physics_pos = global_position
 	visual_pos = global_position
 	physics_basis = head_mesh.basis
 	visual_basis = head_mesh.basis
+	# Clone the material so we don't affect other instances
+	head_material = head_material.duplicate()
+	head_mesh.mesh.surface_set_material(0, head_material)
 
 func _physics_process(delta):
 	var input_dir = Vector3.ZERO
@@ -96,6 +104,11 @@ func _physics_process(delta):
 		
 		# Apply the rotation with normalized basis
 		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
+	
+	# Update color based on speed
+	var target_color = WARNING_COLOR if velocity.length() < IDLE_SPEED else NORMAL_COLOR
+	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
+	head_material.albedo_color = current_color
 	
 	# Store physics state
 	physics_pos = global_position
