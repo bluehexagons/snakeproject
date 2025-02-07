@@ -154,7 +154,8 @@ func save_game_state():
 			"x": food.position.x,
 			"y": food.position.y,
 			"z": food.position.z
-		}
+		},
+		"segments": player.get_segment_positions()
 	}
 	GameState.save_game_state(save_data)
 
@@ -179,6 +180,17 @@ func load_game_state():
 		float(save_data.player_position.y),
 		float(save_data.player_position.z)
 	)
+	
+	# Restore segments
+	if save_data.has("segments"):
+		for segment_pos in save_data.segments:
+			player.add_segment()
+			var last_segment = player.segments[-1]
+			last_segment.global_position = Vector3(
+				float(segment_pos.x),
+				float(segment_pos.y),
+				float(segment_pos.z)
+			)
 	
 	# Spawn and setup food
 	var food = FOOD_SCENE.instantiate()
