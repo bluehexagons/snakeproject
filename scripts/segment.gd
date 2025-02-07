@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
-const SPRING_STIFFNESS = 600.0
-const SPRING_DAMPING = 2.0
+const SPRING_STIFFNESS = 1000.0
+const SPRING_DAMPING = 1.1
 const TARGET_DISTANCE = 0.6
 
 var target: Node3D
