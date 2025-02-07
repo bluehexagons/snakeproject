@@ -50,3 +50,9 @@ move_down={
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+
+[physics]
+
+common/physics_ticks_per_second=120
+common/physics_jitter_fix=1.0
+common/enable_physics_interpolation=true

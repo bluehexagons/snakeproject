@@ -13,6 +13,9 @@ var growth_timer: float = 0.0
 var is_growing: bool = true
 var current_scale: float = INITIAL_SCALE
 
+var physics_pos: Vector3
+var visual_pos: Vector3
+
 @onready var mesh = $MeshInstance3D
 @onready var collision = $CollisionShape3D
 
@@ -20,6 +23,8 @@ func _ready():
 	# Set initial scale
 	current_scale = INITIAL_SCALE
 	update_scale(current_scale)
+	physics_pos = global_position
+	visual_pos = global_position
 
 func update_scale(new_scale: float):
 	mesh.scale = Vector3.ONE * new_scale
@@ -62,3 +67,17 @@ func _physics_process(delta):
 	velocity = smoothed_velocity
 	
 	move_and_slide()
+	
+	# Store physics state
+	physics_pos = global_position
+
+func _process(delta):
+	# Interpolate visual position between physics updates
+	var fraction = Engine.get_physics_interpolation_fraction()
+	visual_pos = physics_pos.lerp(global_position, fraction)
+	
+	# Update visual representation
+	mesh.global_position = visual_pos
+	
+	# Keep collision shape at physics position
+	collision.global_position = global_position

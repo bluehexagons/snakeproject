@@ -16,7 +16,18 @@ var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
 var current_scale: float = 1.0  # Add this for consistent scaling behavior
 
+var physics_pos: Vector3
+var physics_basis: Basis
+var visual_pos: Vector3
+var visual_basis: Basis
+
 @onready var head_mesh = $MeshInstance3D
+
+func _ready():
+	physics_pos = global_position
+	visual_pos = global_position
+	physics_basis = head_mesh.basis
+	visual_basis = head_mesh.basis
 
 func _physics_process(delta):
 	var input_dir = Vector3.ZERO
@@ -62,6 +73,10 @@ func _physics_process(delta):
 		# Apply the rotation with normalized basis
 		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 	
+	# Store physics state
+	physics_pos = global_position
+	physics_basis = head_mesh.basis
+	
 	# Food collection
 	for area in get_tree().get_nodes_in_group("food"):
 		if area.global_position.distance_to(global_position) < 0.75:
@@ -70,6 +85,16 @@ func _physics_process(delta):
 			get_parent().on_food_collected()
 			# Add extra momentum when collecting food
 			velocity += facing_direction * LUNGE_FORCE
+
+func _process(delta):
+	# Interpolate visual position between physics updates
+	var fraction = Engine.get_physics_interpolation_fraction()
+	visual_pos = physics_pos.lerp(global_position, fraction)
+	visual_basis = physics_basis.slerp(head_mesh.basis, fraction)
+	
+	# Update visual representation
+	head_mesh.global_position = visual_pos
+	head_mesh.basis = visual_basis
 
 func add_segment():
 	var segment = SEGMENT_SCENE.instantiate()
