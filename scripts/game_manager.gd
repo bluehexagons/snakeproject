@@ -22,6 +22,7 @@ const CAMERA_PREDICTION_STRENGTH = 0.3   # How much to look ahead based on veloc
 
 var score: int = 0
 var is_paused: bool = false
+var is_gameplay_paused: bool = false  # New variable for gameplay pause
 var target_camera_pos: Vector3
 var target_camera_rot: Vector3
 var zoom_timer: float = 0.0
@@ -56,7 +57,11 @@ func _ready():
 
 func _unhandled_input(event):
 	if event.is_action_pressed("ui_cancel"):  # ESC key
-		toggle_pause()
+		if !is_gameplay_paused:  # Only allow menu pause when not in gameplay pause
+			toggle_pause()
+	elif event.is_action_pressed("gameplay_pause"):
+		if !is_paused:  # Only allow gameplay pause when not in menu pause
+			toggle_gameplay_pause()
 
 func _process(delta):
 	if is_zooming:
@@ -91,6 +96,12 @@ func _process(delta):
 		
 		camera.position = new_pos
 		camera.size = camera_size
+
+func toggle_gameplay_pause():
+	is_gameplay_paused = !is_gameplay_paused
+	get_tree().paused = is_gameplay_paused
+	if ui:
+		ui.set_gameplay_paused(is_gameplay_paused)
 
 func toggle_pause():
 	is_paused = !is_paused

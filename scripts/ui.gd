@@ -3,8 +3,10 @@ extends Control
 @onready var score_label = $ScoreLabel
 @onready var pause_menu = $PauseMenu
 @onready var game_over_menu = $GameOverMenu
+@onready var gameplay_pause_label = $GameplayPauseLabel  # Reference to new label
 
 func _ready():
+	gameplay_pause_label.visible = false
 	$PauseMenu/VBoxContainer/ResumeButton.pressed.connect(on_resume_pressed)
 	$PauseMenu/VBoxContainer/MainMenuButton.pressed.connect(on_main_menu_pressed)
 	$PauseMenu/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
@@ -13,6 +15,9 @@ func _ready():
 
 func update_score(new_score: int):
 	score_label.text = "Score: %d" % new_score
+
+func set_gameplay_paused(is_paused: bool):
+	gameplay_pause_label.visible = is_paused
 
 func toggle_pause_menu(is_paused: bool):
 	pause_menu.visible = is_paused
