@@ -33,6 +33,46 @@ func update_scale(new_scale: float):
 	mesh.scale = Vector3.ONE * new_scale
 	collision.scale = Vector3.ONE * new_scale
 
+func init_with_growth(initial_growth: float):
+	growth_timer = GROWTH_DURATION * initial_growth
+	current_scale = lerp(INITIAL_SCALE, 1.0, ease(initial_growth, 0.7))
+	is_growing = initial_growth < 1.0
+	update_scale(current_scale)
+
+func get_save_data() -> Dictionary:
+	return {
+		"position": {
+			"x": global_position.x,
+			"y": global_position.y,
+			"z": global_position.z
+		},
+		"velocity": {
+			"x": velocity.x,
+			"y": velocity.y,
+			"z": velocity.z
+		},
+		"smoothed_velocity": {
+			"x": smoothed_velocity.x,
+			"y": smoothed_velocity.y,
+			"z": smoothed_velocity.z
+		},
+		"growth": min(growth_timer / GROWTH_DURATION, 1.0),
+		"current_scale": current_scale
+	}
+
+func init_from_save_data(data: Dictionary):
+	if data.has("velocity"):
+		velocity = Vector3(data.velocity.x, data.velocity.y, data.velocity.z)
+	if data.has("smoothed_velocity"):
+		smoothed_velocity = Vector3(data.smoothed_velocity.x, data.smoothed_velocity.y, data.smoothed_velocity.z)
+	
+	# Initialize transforms after velocity
+	physics_pos = global_position
+	visual_pos = global_position
+	
+	# Initialize growth last
+	init_with_growth(data.growth)
+
 func _physics_process(delta):
 	if is_growing:
 		growth_timer += delta

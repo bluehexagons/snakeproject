@@ -194,33 +194,38 @@ func load_game_state():
 	# Spawn and setup player
 	var player = PLAYER_SCENE.instantiate()
 	add_child(player)
-	player.position = Vector3(
-		float(save_data.player_position.x),
-		float(save_data.player_position.y),
-		float(save_data.player_position.z)
-	)
 	
-	# Restore segments
+	# First set the player's position and state
+	player.restore_from_save(save_data)
+	
+	# Then restore segments with their growth states in reverse order
 	if save_data.has("segments"):
-		for segment_pos in save_data.segments:
-			player.add_segment()
-			var last_segment = player.segments[-1]
-			last_segment.global_position = Vector3(
-				float(segment_pos.x),
-				float(segment_pos.y),
-				float(segment_pos.z)
+		# Process segments in reverse order for proper chain formation
+		var segments = save_data["segments"] as Array
+		for i in range(segments.size() - 1, -1, -1):
+			var segment_data = segments[i]
+			# Create position vector from position dictionary
+			var pos = Vector3(
+				float(segment_data["position"]["x"]),
+				float(segment_data["position"]["y"]),
+				float(segment_data["position"]["z"])
 			)
+			# Create and position segment
+			var segment = player.add_segment(0.0, pos)  # Initial growth of 0
+			# Initialize segment data after it's properly in the scene tree
+			await get_tree().process_frame
+			segment.init_from_save_data(segment_data)
 	
 	# Spawn and setup food
 	var food = FOOD_SCENE.instantiate()
 	add_child(food)
 	food.position = Vector3(
-		float(save_data.food_position.x),
-		float(save_data.food_position.y),
-		float(save_data.food_position.z)
+		float(save_data["food_position"]["x"]),
+		float(save_data["food_position"]["y"]),
+		float(save_data["food_position"]["z"])
 	)
 	
-	score = save_data.score
+	score = save_data["score"]
 	update_score(0)
 	return true
 

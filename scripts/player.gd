@@ -96,23 +96,28 @@ func _process(delta):
 	head_mesh.global_position = visual_pos
 	head_mesh.basis = visual_basis
 
-func add_segment():
+func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> CharacterBody3D:
 	var segment = SEGMENT_SCENE.instantiate()
 	segment.set_script(load("res://scripts/segment.gd"))
 	
-	# Calculate spawn position before adding to scene tree
-	var spawn_pos: Vector3
-	if segments.is_empty():
-		spawn_pos = global_position - facing_direction * (1.0 + segment.INITIAL_SCALE)
-	else:
-		spawn_pos = global_position - facing_direction * segment.INITIAL_SCALE * 2.0
+	# First add to scene tree so transforms work properly
+	get_parent().add_child(segment)
 	
-	# Set initial position before adding to scene tree
+	# Now set position after it's in the tree
+	var spawn_pos: Vector3
+	if saved_pos != Vector3.ZERO:
+		spawn_pos = saved_pos
+	else:
+		if segments.is_empty():
+			spawn_pos = global_position - facing_direction * (1.0 + segment.INITIAL_SCALE)
+		else:
+			spawn_pos = global_position - facing_direction * segment.INITIAL_SCALE * 2.0
+	
 	segment.global_position = spawn_pos
 	segment.physics_pos = spawn_pos
 	segment.visual_pos = spawn_pos
 	
-	get_parent().add_child(segment)
+	segment.init_with_growth(growth_state)
 	
 	# Update targeting
 	if segments.is_empty():
@@ -122,13 +127,71 @@ func add_segment():
 		segments[0].target = segment
 	
 	segments.push_front(segment)
+	return segment  # Return the segment for further initialization
 
 func get_segment_positions() -> Array:
 	var positions = []
 	for segment in segments:
-		positions.append({
-			"x": segment.global_position.x,
-			"y": segment.global_position.y,
-			"z": segment.global_position.z
-		})
+		positions.append(segment.get_save_data())
 	return positions
+
+func get_save_data() -> Dictionary:
+	return {
+		"position": {
+			"x": global_position.x,
+			"y": global_position.y,
+			"z": global_position.z
+		},
+		"velocity": {
+			"x": velocity.x,
+			"y": velocity.y,
+			"z": velocity.z
+		},
+		"target_velocity": {
+			"x": target_velocity.x,
+			"y": target_velocity.y,
+			"z": target_velocity.z
+		},
+		"smoothed_velocity": {
+			"x": smoothed_velocity.x,
+			"y": smoothed_velocity.y,
+			"z": smoothed_velocity.z
+		},
+		"facing_direction": {
+			"x": facing_direction.x,
+			"y": facing_direction.y,
+			"z": facing_direction.z
+		},
+		"segments": get_segment_positions()
+	}
+
+func restore_from_save(data: Dictionary):
+	if data.has("player_position"):  # Access the correctly named field
+		position = Vector3(
+			float(data.player_position.x),
+			float(data.player_position.y),
+			float(data.player_position.z)
+		)
+	
+	# Maybe these need to be under a player_state field too?
+	if data.has("velocity"):
+		velocity = Vector3(
+			float(data.velocity.x),
+			float(data.velocity.y),
+			float(data.velocity.z)
+		)
+		target_velocity = Vector3(
+			float(data.target_velocity.x),
+			float(data.target_velocity.y),
+			float(data.target_velocity.z)
+		)
+		smoothed_velocity = Vector3(
+			float(data.smoothed_velocity.x),
+			float(data.smoothed_velocity.y),
+			float(data.smoothed_velocity.z)
+		)
+		facing_direction = Vector3(
+			float(data.facing_direction.x),
+			float(data.facing_direction.y),
+			float(data.facing_direction.z)
+		)
