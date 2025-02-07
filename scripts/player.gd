@@ -9,12 +9,15 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const LUNGE_FORCE = 0.2
 const SEGMENT_PUSHBACK = 0.1
 const VELOCITY_SMOOTHING = 0.15
+const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
 var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
 var current_scale: float = 1.0  # Add this for consistent scaling behavior
+var idle_timer: float = 0.0
+var has_started_moving: bool = false
 
 var physics_pos: Vector3
 var physics_basis: Basis
@@ -35,10 +38,21 @@ func _physics_process(delta):
 	input_dir.z = Input.get_axis("move_up", "move_down")
 	
 	if input_dir != Vector3.ZERO:
+		has_started_moving = true
+		idle_timer = 0.0  # Reset timer when there's input
 		input_dir = input_dir.normalized()
 		 # Calculate target velocity
 		target_velocity += input_dir * ACCELERATION * delta
 		target_velocity = target_velocity.limit_length(MAX_SPEED)
+	
+	# Handle idle timeout
+	if has_started_moving and velocity.length() < MIN_SPEED_THRESHOLD:
+		idle_timer += delta
+		if idle_timer >= IDLE_TIMEOUT:
+			var game_manager = get_tree().get_first_node_in_group("game_manager")
+			if game_manager:
+				game_manager.game_over()
+				return
 	
 	# Apply drag to target velocity
 	var speed = target_velocity.length()

@@ -152,7 +152,8 @@ func update_score(points: int):
 
 func game_over():
 	is_paused = true
-	get_tree().paused = true
+	is_gameplay_paused = false  # Ensure gameplay pause is cleared
+	update_pause_state()
 	ui.show_game_over(score)
 
 func return_to_main_menu():
