@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-const SPRING_STIFFNESS = 500.0
+const SPRING_STIFFNESS = 600.0
 const SPRING_DAMPING = 2.0
 const TARGET_DISTANCE = 0.6
 

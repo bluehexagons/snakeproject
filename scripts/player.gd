@@ -2,6 +2,8 @@ extends CharacterBody3D
 
 const SPEED = 5.0
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
+const LUNGE_FORCE = 0.8  # How far to push player forward
+const SEGMENT_PUSHBACK = 0.5  # How far to push first segment back
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -32,22 +34,27 @@ func add_segment():
 	segment.set_script(load("res://scripts/segment.gd"))
 	get_parent().add_child(segment)
 	
-	# Set the segment's target
+	# Push player forward
+	global_position += facing_direction * LUNGE_FORCE
+	
 	if segments.is_empty():
+		# If this is the first segment, place it behind player
+		segment.global_position = global_position - facing_direction * 2.0
 		segment.target = self
 	else:
-		segment.target = segments[-1]
+		# Push first existing segment back
+		var first_segment = segments[0]
+		var push_dir = (first_segment.global_position - global_position).normalized()
+		first_segment.global_position += push_dir * SEGMENT_PUSHBACK
+		
+		# Place new segment between player and pushed-back segment
+		segment.global_position = global_position + (first_segment.global_position - global_position) * 0.5
+		
+		# Update targeting
+		segment.target = self
+		first_segment.target = segment
 	
-	# Place segment behind its target
-	var spawn_pos: Vector3
-	if segments.is_empty():
-		spawn_pos = global_position - facing_direction
-	else:
-		var last_segment = segments[-1]
-		spawn_pos = last_segment.global_position - facing_direction
-	
-	segment.global_position = spawn_pos
-	segments.append(segment)
+	segments.push_front(segment)
 
 func get_segment_positions() -> Array:
 	var positions = []
