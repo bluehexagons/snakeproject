@@ -51,14 +51,16 @@ func _physics_process(delta):
 	if velocity != Vector3.ZERO:
 		var speed_factor = clamp(velocity.length() / MAX_SPEED, 0.0, 1.0)
 		var forward = velocity.normalized()
-		var right = forward.cross(Vector3.UP)
-		var up = right.cross(forward)
+		var right = forward.cross(Vector3.UP).normalized()  # Normalize the right vector
+		var up = right.cross(forward).normalized()  # Normalize the up vector
 		
-		var target_basis = Basis(right, up, -forward)
+		# Create and normalize the basis
+		var target_basis = Basis(right, up, -forward).orthonormalized()
 		var tilt = Transform3D(Basis.from_euler(Vector3(deg_to_rad(-15 * speed_factor), 0, 0)))
-		target_basis = target_basis * tilt.basis
+		target_basis = (target_basis * tilt.basis).orthonormalized()
 		
-		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED)
+		# Apply the rotation with normalized basis
+		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 	
 	# Food collection
 	for area in get_tree().get_nodes_in_group("food"):
