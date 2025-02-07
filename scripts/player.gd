@@ -14,6 +14,8 @@ const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const WARNING_COLOR = Color(1.0, 0.2, 0.2)  # Red warning color
 const NORMAL_COLOR = Color(0.2, 0.7, 0.2)   # Original green color
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
+const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
+const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -119,10 +121,13 @@ func _physics_process(delta):
 		if area.global_position.distance_to(global_position) < 0.75:
 			area.queue_free()
 			add_segment()
+			 # Calculate score based on speed
+			var current_speed = min(max(velocity.length(), IDLE_SPEED) / IDLE_SPEED, MAX_SPEED_IDLE_MULTIPLIER)
+			var speed_points = int(current_speed * SPEED_SCORE_MULTIPLIER)
 			# Find game manager and notify it
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
 			if game_manager:
-				game_manager.on_food_collected()
+				game_manager.on_food_collected(speed_points)
 			# Add extra momentum when collecting food
 			velocity += facing_direction * LUNGE_FORCE
 

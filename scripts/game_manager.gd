@@ -130,8 +130,8 @@ func spawn_food():
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
 	food.position = Vector3(random_x, 0, random_z)
 
-func on_food_collected():
-	update_score(10)
+func on_food_collected(points: int = 10):  # Default value for compatibility
+	update_score(points)
 	spawn_food()
 
 func _on_window_resize():
