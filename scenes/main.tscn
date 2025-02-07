@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://b6s0if4c7k0x"]
+[gd_scene load_steps=6 format=3 uid="uid://b6s0if4c7k0x"]
 
 [ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://dbkt4gaf6xf28" path="res://scenes/ui.tscn" id="2_ui"]
+[ext_resource type="PackedScene" path="res://scenes/barrier.tscn" id="3_barrier"]
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_1"]
 size = Vector2(20, 20)
@@ -33,6 +34,20 @@ omni_range = 17.2911
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 0)
 projection = 1
 size = 15.0
+
+[node name="Barriers" type="Node3D" parent="GameplayContainer"]
+
+[node name="BarrierNorth" parent="GameplayContainer/Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(22, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -11)
+
+[node name="BarrierSouth" parent="GameplayContainer/Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(22, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 11)
+
+[node name="BarrierEast" parent="GameplayContainer/Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(-9.61651e-08, 0, 1, 0, 1, 0, -22, 0, -4.37114e-08, 11, 0, 0)
+
+[node name="BarrierWest" parent="GameplayContainer/Barriers" instance=ExtResource("3_barrier")]
+transform = Transform3D(-9.61651e-08, 0, 1, 0, 1, 0, -22, 0, -4.37114e-08, -11, 0, 0)
 
 [node name="UI" parent="." instance=ExtResource("2_ui")]
 process_mode = 3

@@ -72,6 +72,15 @@ func _physics_process(delta):
 	
 	move_and_slide()
 	
+	# Check for collisions with barriers after move_and_slide
+	for i in get_slide_collision_count():
+		var collision = get_slide_collision(i)
+		if collision.get_collider().is_in_group("barrier"):
+			var game_manager = get_tree().get_first_node_in_group("game_manager")
+			if game_manager:
+				game_manager.game_over()
+				return
+	
 	# Update head rotation
 	if velocity != Vector3.ZERO:
 		var speed_factor = clamp(velocity.length() / MAX_SPEED, 0.0, 1.0)

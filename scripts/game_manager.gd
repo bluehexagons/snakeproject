@@ -2,7 +2,7 @@ extends Node3D
 
 const PLAYER_SCENE = preload("res://scenes/player.tscn")
 const FOOD_SCENE = preload("res://scenes/food.tscn")
-const SPAWN_AREA_SIZE = Vector2(8, 8)  # Keep within camera view
+const SPAWN_AREA_SIZE = Vector2(8, 8)  # Reduced from previous size to account for barriers
 const BASE_CAMERA_SIZE = 15.0  # This is our reference size for 1:1 aspect ratio
 const SAVE_FILE = "user://save_game.dat"
 const CAMERA_HEIGHT = 10.0
