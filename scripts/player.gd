@@ -30,10 +30,12 @@ const DEATH_COLORS = [                         # Colors to cycle through when de
 const FLASH_TIME = 0.2                        # How long before death to flash
 const DEATH_COLOR_SPEED = 3.0                 # Speed of color cycling when dead
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
-const PLAYER_MASS = 1.0  # Player is lighter than segments
-const COLLISION_BOUNCE = 0.5  # How bouncy the player is
-const COLLISION_STUN_TIME = 0.2  # Brief period where input is reduced after collision
-const STUN_CONTROL_REDUCTION = 0.3  # How much control player has while stunned
+const PLAYER_MASS = 0.5  # Reduced from 1.0 to make segments more dominant
+const COLLISION_BOUNCE = 0.3  # Reduced from 0.5 for less bouncy collisions
+const COLLISION_STUN_TIME = 0.15  # Reduced from 0.2 for quicker recovery
+const MINIMUM_SEPARATION = 0.8  # Minimum distance to maintain from segments
+const SEPARATION_FORCE = 20.0  # Force to apply when too close
+const STUN_CONTROL_REDUCTION = 0.5  # Amount by which to reduce control while stunned
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -123,7 +125,7 @@ func _physics_process(delta):
 	if collision:
 		var collider = collision.get_collider()
 		if collider.is_in_group("segment"):
-			handle_collision(collision.get_normal(), collider.velocity.length(), collider.SEGMENT_MASS)
+			handle_collision(collision.get_normal(), collider.velocity.length(), collider.SEGMENT_MASS, delta)
 		elif collider.is_in_group("barrier"):
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
 			if game_manager:
@@ -337,16 +339,19 @@ func die():
 	if game_manager:
 		game_manager.game_over()
 
-func handle_collision(normal: Vector3, incoming_velocity: float, other_mass: float):
+func handle_collision(normal: Vector3, incoming_velocity: float, other_mass: float, delta: float):
 	# Calculate collision response using conservation of momentum
 	var relative_mass = PLAYER_MASS / (PLAYER_MASS + other_mass)
 	var impact_force = incoming_velocity * (1.0 - relative_mass)
 	
-	# Apply bounce effect
+	# Apply bounce effect with reduced bounciness
 	velocity = velocity.bounce(normal) * COLLISION_BOUNCE
+	
+	# Add separation force when too close
+	velocity += normal * SEPARATION_FORCE * delta
 	
 	# Add impact force
 	velocity += normal * impact_force
 	
-	# Apply stun effect
+	# Apply reduced stun effect
 	stun_timer = COLLISION_STUN_TIME

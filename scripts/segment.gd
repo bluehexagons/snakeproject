@@ -6,8 +6,11 @@ const TARGET_DISTANCE = 0.666
 const VELOCITY_SMOOTHING = 0.35
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2  # Increased from 0.01 to avoid disappearing
-const SEGMENT_MASS = 5.0  # Mass of segment for collision calculations
-const SEGMENT_BOUNCE = 0.3  # Bounciness when colliding
+const SEGMENT_MASS = 3.0  # Reduced from 5.0 to be less dominant
+const SEGMENT_BOUNCE = 0.2  # Reduced from 0.3 for less bouncy collisions
+const MINIMUM_SEPARATION = 0.8  # Minimum distance to maintain from other segments
+const SEPARATION_FORCE = 15.0  # Force to apply when too close
+const MAX_SEGMENT_SPEED = 20.0  # Prevent segments from moving too fast
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -111,16 +114,36 @@ func _physics_process(delta):
 	smoothed_velocity = smoothed_velocity.lerp(target_velocity, VELOCITY_SMOOTHING)
 	velocity = smoothed_velocity
 	
+	# Limit segment speed
+	velocity = velocity.limit_length(MAX_SEGMENT_SPEED)
+	
 	var movement_collision = move_and_collide(velocity * delta)
 	if movement_collision:
-		# Apply bounce effect
-		var bounce_force = movement_collision.get_normal() * velocity.length() * SEGMENT_BOUNCE
-		velocity = velocity.bounce(movement_collision.get_normal()) * SEGMENT_BOUNCE
-		
-		# If we hit the player, apply opposing force
 		var collider = movement_collision.get_collider()
+		var normal = movement_collision.get_normal()
+		
+		# Apply bounce effect with reduced bounciness
+		velocity = velocity.bounce(normal) * SEGMENT_BOUNCE
+		
+		# Add separation force
+		velocity += normal * SEPARATION_FORCE * delta
+		
+		# Handle player collision
 		if collider and collider.is_in_group("player") and collider.has_method("handle_collision"):
-			collider.handle_collision(movement_collision.get_normal(), velocity.length(), SEGMENT_MASS)
+			collider.handle_collision(normal, velocity.length(), SEGMENT_MASS, delta)
+		# Handle segment-segment collision
+		elif collider and collider.is_in_group("segment"):
+			# Add extra separation force between segments
+			velocity += normal * SEPARATION_FORCE * 1.5 * delta
+	
+	# Check for nearby segments and apply separation
+	for segment in get_tree().get_nodes_in_group("segment"):
+		if segment != self:
+			var segment_direction = global_position - segment.global_position
+			var distance = segment_direction.length()
+			if distance < MINIMUM_SEPARATION:
+				var separation = segment_direction.normalized() * (MINIMUM_SEPARATION - distance) * SEPARATION_FORCE * delta
+				velocity += separation
 	
 	# Store physics state
 	physics_pos = global_position
