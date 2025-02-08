@@ -6,9 +6,12 @@
 process_mode = 3
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 billboard = 1
+no_depth_test = true
 fixed_size = true
 render_priority = 1
+modulate = Color(0.3, 1, 0.3, 0)
+outline_modulate = Color(0, 0, 0, 0)
 text = "+10"
-font_size = 12
+font_size = 16
 outline_size = 2
 script = ExtResource("1_script")
