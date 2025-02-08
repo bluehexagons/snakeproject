@@ -1,0 +1,23 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/score_popup.gd" id="1_script"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_1"]
+font_size = 12
+outline_size = 6
+outline_color = Color(0, 0, 0, 1)
+
+[node name="ScorePopup" type="Label3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+process_mode = 3
+billboard = 1
+double_sided = true
+fixed_size = true
+render_priority = 1
+outline_modulate = Color(0, 0, 0, 1)
+text = "+10"
+font_size = 12
+outline_size = 2
+label_settings = SubResource("LabelSettings_1")
+script = ExtResource("1_script")
+

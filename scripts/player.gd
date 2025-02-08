@@ -9,7 +9,7 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const LUNGE_FORCE = 0.2
 const SEGMENT_PUSHBACK = 0.1
 const VELOCITY_SMOOTHING = 0.15
-const IDLE_SPEED_BASE = 1.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
+const IDLE_SPEED_BASE = 3.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const NORMAL_COLOR = Color(0.2, 0.4, 1.0)    # Blue
 const WARNING_COLOR = Color(0.5, 0.5, 0.5)    # Gray
@@ -19,7 +19,7 @@ const WARNING_SPEED_THRESHOLD = 1.1            # When to start showing warning c
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
-const IDLE_SPEED_INCREASE = 1.0  # Speed increase per food eaten
+const IDLE_SPEED_INCREASE = 5.0  # Speed increase per food eaten
 const MAX_IDLE_SPEED = 5.0  # Cap on how fast the minimum speed can get
 const FLASH_COLOR = Color(1.0, 0.0, 0.0)      # Bright Red for final flash
 const DEATH_COLORS = [                         # Colors to cycle through when dead
@@ -29,6 +29,7 @@ const DEATH_COLORS = [                         # Colors to cycle through when de
 ]
 const FLASH_TIME = 0.2                        # How long before death to flash
 const DEATH_COLOR_SPEED = 3.0                 # Speed of color cycling when dead
+const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -180,6 +181,12 @@ func _physics_process(delta):
 				game_manager.on_food_collected(speed_points)
 			# Add extra momentum when collecting food
 			velocity += facing_direction * LUNGE_FORCE
+			
+			# Spawn score popup
+			var popup = SCORE_POPUP.instantiate()
+			popup.position = global_position + Vector3(0, 1.5, 0)  # Raise the spawn point
+			popup.text = "+" + str(speed_points)
+			get_parent().add_child(popup)
 
 func _process(delta):
 	# Interpolate visual position between physics updates
