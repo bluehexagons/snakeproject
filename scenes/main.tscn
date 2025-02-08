@@ -22,8 +22,16 @@ mesh = SubResource("PlaneMesh_1")
 surface_material_override/0 = SubResource("StandardMaterial3D_1")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="GameplayContainer"]
-transform = Transform3D(0.866025, -0.383022, 0.321394, 0, 0.642788, 0.766044, -0.5, -0.663414, 0.556671, 0, 5, 0)
+transform = Transform3D(-0.999935, 0.00875719, -0.00734812, -0.00523492, 0.220651, 0.975339, 0.0101627, 0.975313, -0.220592, 0, 5, 0)
 shadow_enabled = true
+shadow_bias = 0.02
+shadow_normal_bias = 1.5
+shadow_blur = 1.5
+directional_shadow_mode = 0
+directional_shadow_split_2 = 0.4
+directional_shadow_split_3 = 0.6
+directional_shadow_max_distance = 30.0
+directional_shadow_pancake_size = 40.0
 sky_mode = 1
 
 [node name="OmniLight3D" type="OmniLight3D" parent="GameplayContainer"]
