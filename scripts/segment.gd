@@ -118,32 +118,21 @@ func _physics_process(delta):
 	velocity = velocity.limit_length(MAX_SEGMENT_SPEED)
 	
 	var movement_collision = move_and_collide(velocity * delta)
+	var collision_handler = get_node("/root/CollisionHandler")
 	if movement_collision:
 		var collider = movement_collision.get_collider()
-		var normal = movement_collision.get_normal()
+		if collider and collider.is_in_group("barrier"):
+			var game_manager = get_tree().get_first_node_in_group("game_manager")
+			if game_manager:
+				game_manager.game_over()
+				return
 		
-		# Apply bounce effect with reduced bounciness
-		velocity = velocity.bounce(normal) * SEGMENT_BOUNCE
-		
-		# Add separation force
-		velocity += normal * SEPARATION_FORCE * delta
-		
-		# Handle player collision
-		if collider and collider.is_in_group("player") and collider.has_method("handle_collision"):
-			collider.handle_collision(normal, velocity.length(), SEGMENT_MASS, delta)
-		# Handle segment-segment collision
-		elif collider and collider.is_in_group("segment"):
-			# Add extra separation force between segments
-			velocity += normal * SEPARATION_FORCE * 1.5 * delta
+		# Let the collision handler manage the collision
+		collision_handler.handle_collision(self, collider, movement_collision.get_normal(), delta)
 	
-	# Check for nearby segments and apply separation
-	for segment in get_tree().get_nodes_in_group("segment"):
-		if segment != self:
-			var segment_direction = global_position - segment.global_position
-			var distance = segment_direction.length()
-			if distance < MINIMUM_SEPARATION:
-				var separation = segment_direction.normalized() * (MINIMUM_SEPARATION - distance) * SEPARATION_FORCE * delta
-				velocity += separation
+	# Handle proximity with other segments
+	var nearby_segments = get_tree().get_nodes_in_group("segment")
+	collision_handler.handle_proximity(self, nearby_segments, delta)
 	
 	# Store physics state
 	physics_pos = global_position

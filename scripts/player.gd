@@ -122,15 +122,21 @@ func _physics_process(delta):
 		facing_direction = velocity.normalized()
 	
 	var collision = move_and_collide(velocity * delta)
+	var collision_handler = get_node("/root/CollisionHandler")
 	if collision:
 		var collider = collision.get_collider()
-		if collider.is_in_group("segment"):
-			handle_collision(collision.get_normal(), collider.velocity.length(), collider.SEGMENT_MASS, delta)
-		elif collider.is_in_group("barrier"):
+		if collider.is_in_group("barrier"):
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
 			if game_manager:
 				game_manager.game_over()
 				return
+				
+		# Let the collision handler manage the collision
+		collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
+	
+	# Handle proximity with segments
+	var nearby_segments = get_tree().get_nodes_in_group("segment")
+	collision_handler.handle_proximity(self, nearby_segments, delta)
 	
 	# Update head rotation
 	if velocity != Vector3.ZERO:
@@ -338,20 +344,3 @@ func die():
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		game_manager.game_over()
-
-func handle_collision(normal: Vector3, incoming_velocity: float, other_mass: float, delta: float):
-	# Calculate collision response using conservation of momentum
-	var relative_mass = PLAYER_MASS / (PLAYER_MASS + other_mass)
-	var impact_force = incoming_velocity * (1.0 - relative_mass)
-	
-	# Apply bounce effect with reduced bounciness
-	velocity = velocity.bounce(normal) * COLLISION_BOUNCE
-	
-	# Add separation force when too close
-	velocity += normal * SEPARATION_FORCE * delta
-	
-	# Add impact force
-	velocity += normal * impact_force
-	
-	# Apply reduced stun effect
-	stun_timer = COLLISION_STUN_TIME
