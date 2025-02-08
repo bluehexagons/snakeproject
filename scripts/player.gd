@@ -11,13 +11,24 @@ const SEGMENT_PUSHBACK = 0.1
 const VELOCITY_SMOOTHING = 0.15
 const IDLE_SPEED_BASE = 1.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
-const WARNING_COLOR = Color(1.0, 0.2, 0.2)  # Red warning color
-const NORMAL_COLOR = Color(0.2, 0.7, 0.2)   # Original green color
+const NORMAL_COLOR = Color(0.2, 0.4, 1.0)    # Blue
+const WARNING_COLOR = Color(0.5, 0.5, 0.5)    # Gray
+const DANGER_COLOR = Color(1.0, 0.9, 0.2)     # Yellow
+const DYING_COLOR = Color(1.0, 0.2, 0.2)      # Red
+const WARNING_SPEED_THRESHOLD = 1.1            # When to start showing warning color (multiplier of idle speed)
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
 const IDLE_SPEED_INCREASE = 1.0  # Speed increase per food eaten
 const MAX_IDLE_SPEED = 5.0  # Cap on how fast the minimum speed can get
+const FLASH_COLOR = Color(1.0, 0.0, 0.0)      # Bright Red for final flash
+const DEATH_COLORS = [                         # Colors to cycle through when dead
+	Color(1.0, 0.0, 0.0),  # Red
+	Color(0.0, 0.0, 0.0),  # Black
+	Color(0.3, 0.3, 0.3),  # Gray
+]
+const FLASH_TIME = 0.2                        # How long before death to flash
+const DEATH_COLOR_SPEED = 3.0                 # Speed of color cycling when dead
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -29,6 +40,8 @@ var has_started_moving: bool = false
 var current_color: Color = NORMAL_COLOR
 var food_eaten: int = 0
 var current_idle_speed: float = IDLE_SPEED_BASE
+var is_dead: bool = false
+var death_color_time: float = 0.0
 
 var physics_pos: Vector3
 var physics_basis: Basis
@@ -48,6 +61,16 @@ func _ready():
 	head_mesh.mesh.surface_set_material(0, head_material)
 
 func _physics_process(delta):
+	if is_dead:
+		# Cycle through death colors
+		death_color_time += delta * DEATH_COLOR_SPEED
+		var color_index = int(death_color_time) % DEATH_COLORS.size()
+		var next_index = (color_index + 1) % DEATH_COLORS.size()
+		var color_fraction = fmod(death_color_time, 1.0)
+		current_color = DEATH_COLORS[color_index].lerp(DEATH_COLORS[next_index], color_fraction)
+		head_material.albedo_color = current_color
+		return
+
 	var input_dir = Vector3.ZERO
 	input_dir.x = Input.get_axis("move_left", "move_right")
 	input_dir.z = Input.get_axis("move_up", "move_down")
@@ -111,8 +134,25 @@ func _physics_process(delta):
 		# Apply the rotation with normalized basis
 		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 	
-	# Update color based on speed
-	var target_color = WARNING_COLOR if velocity.length() < current_idle_speed else NORMAL_COLOR
+	# Update color based on speed and idle timer
+	var speed_ratio = velocity.length() / current_idle_speed
+	var target_color
+	
+	if velocity.length() < current_idle_speed:
+		 # Flash red right before death
+		if IDLE_TIMEOUT - idle_timer <= FLASH_TIME:
+			target_color = FLASH_COLOR
+		else:
+			# Interpolate between yellow and red based on remaining time
+			var time_ratio = idle_timer / (IDLE_TIMEOUT - FLASH_TIME)  # Adjust ratio to account for flash time
+			target_color = DANGER_COLOR.lerp(DYING_COLOR, time_ratio)
+	elif speed_ratio < WARNING_SPEED_THRESHOLD:
+		# Interpolate between yellow and blue based on how close to warning threshold
+		var warning_ratio = (speed_ratio - 1.0) / (WARNING_SPEED_THRESHOLD - 1.0)
+		target_color = WARNING_COLOR.lerp(NORMAL_COLOR, warning_ratio)
+	else:
+		target_color = NORMAL_COLOR
+	
 	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
 	head_material.albedo_color = current_color
 	
@@ -272,3 +312,10 @@ func restore_from_save(data: Dictionary):
 		)
 		food_eaten = state.get("food_eaten", 0)
 		current_idle_speed = state.get("current_idle_speed", IDLE_SPEED_BASE)
+
+func die():
+	is_dead = true
+	death_color_time = 0.0
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager:
+		game_manager.game_over()
