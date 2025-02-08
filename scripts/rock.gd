@@ -1,6 +1,8 @@
 extends CharacterBody3D
 
 const MASS = 5.0  # Heavier than segments
+const STATIC_FRICTION = 2.0  # Resistance to initial movement
+const DRAG_COEFFICIENT = 0.5  # How quickly rocks come to rest
 
 var physics_pos: Vector3
 var visual_pos: Vector3
@@ -10,6 +12,12 @@ func _ready():
 	visual_pos = global_position
 
 func _physics_process(delta):
+	# Apply drag to slow down moving rocks
+	if velocity.length_squared() > 0.01:
+		velocity = velocity.lerp(Vector3.ZERO, DRAG_COEFFICIENT * delta)
+	elif velocity.length_squared() > 0:
+		velocity = Vector3.ZERO
+	
 	var collision = move_and_collide(velocity * delta)
 	var collision_handler = get_node("/root/CollisionHandler")
 	

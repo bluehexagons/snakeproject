@@ -2,78 +2,75 @@ extends Node
 
 const MINIMUM_SEPARATION = 0.8
 const SEPARATION_FORCE = 80.0
-const COLLISION_BOUNCE = 0.6  # Increased for more energetic collisions
+const COLLISION_BOUNCE = 0.4  # Reduced bounce for more stable collisions
 const PLAYER_MASS = 0.5
 const SEGMENT_MASS = 3.0
-const ROCK_MASS = 5.0  # Added rock mass
-const FRICTION_COEFFICIENT = 0.05  # Reduced to allow more sliding
-const ENERGY_TRANSFER = 0.8  # How much kinetic energy is preserved in collisions
-const PERSISTENT_COLLISION_DAMPING = 0.95  # Reduce velocity when objects stay in contact
-const MAX_COLLISION_SPEED = 20.0  # Cap the maximum collision response
-const REST_THRESHOLD = 0.1  # Speed below which objects are considered at rest
+const ROCK_MASS = 5.0
+const FRICTION_COEFFICIENT = 0.1
+const ENERGY_TRANSFER = 0.95  # Increased energy transfer
+const PERSISTENT_COLLISION_DAMPING = 0.8  # Less aggressive damping
+const MAX_COLLISION_SPEED = 20.0
+const REST_THRESHOLD = 0.1
+const STATIC_BREAKAWAY_FORCE = 2.0  # Force needed to start moving a static object
 
 func handle_collision(body_a: CharacterBody3D, body_b: CharacterBody3D, collision_normal: Vector3, delta: float) -> void:
 	var mass_a = get_body_mass(body_a)
 	var mass_b = get_body_mass(body_b)
 	
-	# Calculate relative velocity and its components
+	# Calculate velocities and energies
 	var relative_velocity = body_b.velocity - body_a.velocity
 	var normal_speed = relative_velocity.dot(collision_normal)
 	
-	# Handle persistent collisions (objects staying in contact)
-	var penetration = MINIMUM_SEPARATION - body_a.global_position.distance_to(body_b.global_position)
-	if penetration > 0:
-		# Apply additional damping when objects are in sustained contact
-		body_a.velocity *= PERSISTENT_COLLISION_DAMPING
-		body_b.velocity *= PERSISTENT_COLLISION_DAMPING
+	# Calculate initial kinetic energies
+	var energy_a = 0.5 * mass_a * body_a.velocity.length_squared()
+	var energy_b = 0.5 * mass_b * body_b.velocity.length_squared()
+	var total_energy = energy_a + energy_b
 	
-	# Only process collision if objects are moving toward each other
-	if normal_speed > 0:
-		return
+	# Handle static friction for rocks
+	if body_a.is_in_group("rock") and relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
+		mass_a *= 2.0  # Make rocks harder to move when static
+	if body_b.is_in_group("rock") and relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
+		mass_b *= 2.0
 	
-	# Limit collision speed
-	normal_speed = clamp(normal_speed, -MAX_COLLISION_SPEED, MAX_COLLISION_SPEED)
-	
-	# Calculate coefficient of restitution based on relative speed
+	# Calculate impulse for the collision
 	var restitution = COLLISION_BOUNCE * ENERGY_TRANSFER
-	
-	# Reduce restitution for low-speed collisions to help objects come to rest
-	if abs(normal_speed) < REST_THRESHOLD:
-		restitution *= normal_speed / REST_THRESHOLD
-	
-	# Calculate impulse magnitude using the elastic collision formula
-	var impulse_magnitude = -(1.0 + restitution) * normal_speed
-	impulse_magnitude /= (1.0 / mass_a) + (1.0 / mass_b)
-	
-	# Apply impulse to both bodies
+	var impulse_magnitude = -(1.0 + restitution) * normal_speed / ((1.0 / mass_a) + (1.0 / mass_b))
 	var impulse = collision_normal * impulse_magnitude
-	var velocity_change_a = -impulse / mass_a
-	var velocity_change_b = impulse / mass_b
 	
-	# Calculate tangential forces (friction)
+	# Apply impulses
+	var vel_change_a = -impulse / mass_a
+	var vel_change_b = impulse / mass_b
+	
+	# Calculate and apply friction
 	var tangent_velocity = relative_velocity - (normal_speed * collision_normal)
 	if tangent_velocity.length_squared() > 0.001:
 		var tangent = tangent_velocity.normalized()
 		var friction_impulse = -tangent * abs(impulse_magnitude) * FRICTION_COEFFICIENT
 		
-		velocity_change_a -= friction_impulse / mass_a
-		velocity_change_b += friction_impulse / mass_b
+		vel_change_a -= friction_impulse / mass_a
+		vel_change_b += friction_impulse / mass_b
 	
-	# Apply final velocity changes
-	body_a.velocity += velocity_change_a
-	body_b.velocity += velocity_change_b
+	# Apply velocity changes
+	body_a.velocity += vel_change_a
+	body_b.velocity += vel_change_b
 	
-	# Bring very slow-moving objects to a complete stop
-	if body_a.velocity.length() < REST_THRESHOLD:
-		body_a.velocity = Vector3.ZERO
-	if body_b.velocity.length() < REST_THRESHOLD:
-		body_b.velocity = Vector3.ZERO
+	# Ensure energy is conserved (with some intentional loss)
+	var new_energy_a = 0.5 * mass_a * body_a.velocity.length_squared()
+	var new_energy_b = 0.5 * mass_b * body_b.velocity.length_squared()
+	var new_total_energy = new_energy_a + new_energy_b
 	
-	# Apply separation force to prevent sticking
+	if new_total_energy > total_energy:
+		var scale = sqrt(total_energy / new_total_energy) * ENERGY_TRANSFER
+		body_a.velocity *= scale
+		body_b.velocity *= scale
+	
+	# Apply separation
+	var separation_vector = (body_b.global_position - body_a.global_position)
+	var penetration = MINIMUM_SEPARATION - separation_vector.length()
 	if penetration > 0:
-		var separation_force = collision_normal * SEPARATION_FORCE * delta * penetration
-		body_a.velocity -= separation_force / mass_a
-		body_b.velocity += separation_force / mass_b
+		var separation = collision_normal * SEPARATION_FORCE * delta * penetration
+		body_a.velocity -= separation / mass_a
+		body_b.velocity += separation / mass_b
 
 # Check for nearby segments and apply separation forces
 func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float) -> void:
