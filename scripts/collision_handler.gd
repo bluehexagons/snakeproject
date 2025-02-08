@@ -1,7 +1,7 @@
 extends Node
 
 const MINIMUM_SEPARATION = 0.8
-const SEPARATION_FORCE = 20.0
+const SEPARATION_FORCE = 80.0
 const COLLISION_BOUNCE = 0.3
 const PLAYER_MASS = 0.5
 const SEGMENT_MASS = 3.0
@@ -50,4 +50,4 @@ func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float)
 		
 		if distance < MINIMUM_SEPARATION:
 			var separation = direction.normalized() * (MINIMUM_SEPARATION - distance) * SEPARATION_FORCE * delta
-			body.velocity += separation
+			body.velocity -= separation
