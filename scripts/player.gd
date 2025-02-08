@@ -30,11 +30,6 @@ const DEATH_COLORS = [                         # Colors to cycle through when de
 const FLASH_TIME = 0.2                        # How long before death to flash
 const DEATH_COLOR_SPEED = 3.0                 # Speed of color cycling when dead
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
-const PLAYER_MASS = 0.5  # Reduced from 1.0 to make segments more dominant
-const COLLISION_BOUNCE = 0.3  # Reduced from 0.5 for less bouncy collisions
-const COLLISION_STUN_TIME = 0.15  # Reduced from 0.2 for quicker recovery
-const MINIMUM_SEPARATION = 0.8  # Minimum distance to maintain from segments
-const SEPARATION_FORCE = 20.0  # Force to apply when too close
 const STUN_CONTROL_REDUCTION = 0.5  # Amount by which to reduce control while stunned
 
 var facing_direction: Vector3 = Vector3.FORWARD

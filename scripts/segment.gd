@@ -6,11 +6,7 @@ const TARGET_DISTANCE = 0.666
 const VELOCITY_SMOOTHING = 0.35
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2  # Increased from 0.01 to avoid disappearing
-const SEGMENT_MASS = 3.0  # Reduced from 5.0 to be less dominant
-const SEGMENT_BOUNCE = 0.2  # Reduced from 0.3 for less bouncy collisions
-const MINIMUM_SEPARATION = 0.8  # Minimum distance to maintain from other segments
-const SEPARATION_FORCE = 15.0  # Force to apply when too close
-const MAX_SEGMENT_SPEED = 20.0  # Prevent segments from moving too fast
+const MAX_SEGMENT_SPEED = 200.0  # Prevent segments from moving too fast
 
 var target: Node3D
 var smoothed_velocity: Vector3
