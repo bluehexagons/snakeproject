@@ -1,7 +1,7 @@
 extends Node
 
-const MINIMUM_SEPARATION = 0.8
-const SEPARATION_FORCE = 80.0
+const MINIMUM_SEPARATION = 0.6
+const SEPARATION_FORCE = 8.0
 const COLLISION_BOUNCE = 0.4
 const PLAYER_MASS = 0.5
 const SEGMENT_MASS = 3.0
@@ -11,7 +11,7 @@ const ENERGY_TRANSFER = 0.85  # Reduced to lose more energy in collisions
 const PERSISTENT_COLLISION_DAMPING = 0.8
 const MAX_COLLISION_SPEED = 20.0
 const REST_THRESHOLD = 0.1
-const STATIC_BREAKAWAY_FORCE = 3.0  # Increased force needed to move rocks
+const STATIC_BREAKAWAY_FORCE = 2.0  # Increased force needed to move rocks
 const VELOCITY_LOSS_ON_COLLISION = 0.7  # How much velocity to maintain after collision
 
 func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: Vector3, delta: float) -> void:

@@ -1,8 +1,8 @@
 extends CharacterBody3D
 
 const MAX_SPEED = 100000.0
-const ACCELERATION = 40.0
-const DRAG_COEFFICIENT = 0.05
+const ACCELERATION = 150.0  # Increased since we're using forces now
+const DRAG_COEFFICIENT = 0.8  # Increased to better resist movement
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
@@ -85,11 +85,20 @@ func _physics_process(delta):
 	
 	if input_dir != Vector3.ZERO:
 		has_started_moving = true
-		idle_timer = 0.0  # Reset timer when there's input
+		idle_timer = 0.0
 		input_dir = input_dir.normalized()
-		 # Calculate target velocity
-		target_velocity += input_dir * ACCELERATION * delta * input_multiplier
-		target_velocity = target_velocity.limit_length(MAX_SPEED)
+		
+		# Apply acceleration as a force
+		var acceleration_force = input_dir * ACCELERATION * delta * input_multiplier
+		velocity += acceleration_force
+		
+		# Apply drag relative to current speed
+		var speed_squared = velocity.length_squared()
+		var drag = -velocity.normalized() * speed_squared * DRAG_COEFFICIENT * delta
+		velocity += drag
+	else:
+		# Apply stronger drag when not inputting
+		velocity = velocity.lerp(Vector3.ZERO, DRAG_COEFFICIENT * 2.0 * delta)
 	
 	# Handle idle timeout
 	if has_started_moving and velocity.length() < current_idle_speed:
@@ -100,18 +109,8 @@ func _physics_process(delta):
 				game_manager.game_over()
 				return
 	
-	# Apply drag to target velocity
-	var speed = target_velocity.length()
-	if speed > 0:
-		var drag_force = -target_velocity.normalized() * speed * speed * DRAG_COEFFICIENT * delta
-		target_velocity += drag_force
-		
-		if target_velocity.length() < MIN_SPEED_THRESHOLD:
-			target_velocity = Vector3.ZERO
-	
-	# Smooth velocity transition
-	smoothed_velocity = smoothed_velocity.lerp(target_velocity, VELOCITY_SMOOTHING)
-	velocity = smoothed_velocity
+	# Limit maximum speed
+	velocity = velocity.limit_length(MAX_SPEED)
 	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()

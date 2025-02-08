@@ -3,7 +3,7 @@ extends CharacterBody3D
 const SPRING_STIFFNESS = 2500.0
 const SPRING_DAMPING = 4.01
 const TARGET_DISTANCE = 0.666
-const VELOCITY_SMOOTHING = 0.35
+const VELOCITY_SMOOTHING = 0.15  # Reduced for more physical response
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2  # Increased from 0.01 to avoid disappearing
 const MAX_SEGMENT_SPEED = 200.0  # Prevent segments from moving too fast
@@ -94,23 +94,27 @@ func _physics_process(delta):
 	var adjusted_distance = TARGET_DISTANCE * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
 	
 	var direction = target.global_position - global_position
-	var target_pos = target.global_position - direction.normalized() * adjusted_distance
+	var current_distance = direction.length()
 	
-	# Spring force calculation
-	var displacement = target_pos - global_position
-	var spring_force = displacement * SPRING_STIFFNESS * delta
+	if current_distance > 0:
+		# Calculate spring force based on displacement
+		var displacement = current_distance - adjusted_distance
+		var spring_direction = direction.normalized()
+		
+		# Apply spring force
+		var spring_force = spring_direction * displacement * SPRING_STIFFNESS * delta
+		
+		# Apply damping relative to current velocity
+		var damping_force = -velocity * SPRING_DAMPING * delta
+		
+		# Apply forces
+		velocity += spring_force + damping_force
+		
+		# Smooth deceleration when close to target
+		if displacement < 0.1:
+			velocity = velocity.lerp(Vector3.ZERO, VELOCITY_SMOOTHING)
 	
-	# Damping force to prevent oscillation
-	var damping_force = -velocity * SPRING_DAMPING * delta
-	
-	# Calculate target velocity
-	var target_velocity = spring_force + damping_force
-	
-	# Smooth velocity transition
-	smoothed_velocity = smoothed_velocity.lerp(target_velocity, VELOCITY_SMOOTHING)
-	velocity = smoothed_velocity
-	
-	# Limit segment speed
+	# Limit maximum speed
 	velocity = velocity.limit_length(MAX_SEGMENT_SPEED)
 	
 	var movement_collision = move_and_collide(velocity * delta)
