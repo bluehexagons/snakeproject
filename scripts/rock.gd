@@ -5,14 +5,22 @@ const STATIC_FRICTION = 3.0  # Increased resistance
 const DRAG_COEFFICIENT = 0.2  # Reduced from 0.8 to prevent rapid stopping
 const MIN_VELOCITY = 0.1  # Only stop completely below this threshold
 
+const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
+const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
+const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
+
 var physics_pos: Vector3
 var visual_pos: Vector3
+var is_dangerous: bool = false
+
+@onready var mesh_instance = $MeshInstance3D
+@onready var material = mesh_instance.mesh.surface_get_material(0)
 
 func _ready():
 	physics_pos = global_position
 	visual_pos = global_position
-	var material = $MeshInstance3D.mesh.surface_get_material(0)
-	$MeshInstance3D.mesh.surface_set_material(0, material.duplicate())
+	material = material.duplicate()
+	mesh_instance.mesh.surface_set_material(0, material)
 
 func _physics_process(delta):
 	# More controlled drag for moving rocks
@@ -36,7 +44,7 @@ func _process(delta):
 	$MeshInstance3D.global_position = visual_pos
 
 func get_save_data() -> Dictionary:
-	return {
+	var data = {
 		"position": {
 			"x": global_position.x,
 			"y": global_position.y,
@@ -46,10 +54,19 @@ func get_save_data() -> Dictionary:
 			"x": velocity.x,
 			"y": velocity.y,
 			"z": velocity.z
-		}
+		},
+		"is_dangerous": is_dangerous
 	}
+	return data
 
 func handle_impact(force: float) -> void:
 	var material = $MeshInstance3D.mesh.surface_get_material(0)
 	if material:
 		ImpactFlash.flash_material(material, force)
+
+func make_dangerous():
+	is_dangerous = true
+	add_to_group("dangerous")
+	material.albedo_color = DANGER_COLOR
+	material.emission = DANGER_EMISSION
+	material.emission_enabled = true

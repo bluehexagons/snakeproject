@@ -21,6 +21,10 @@ const CAMERA_HORIZONTAL_SMOOTHING = 3.0  # Lower = smoother horizontal movement
 const CAMERA_VERTICAL_SMOOTHING = 2.0    # Separate smoothing for height changes
 const CAMERA_PREDICTION_STRENGTH = 0.3   # How much to look ahead based on velocity
 const INITIAL_ROCKS = 10  # Number of rocks to spawn at start
+const ROCKS_SPAWN_INTERVAL = 2  # Spawn a new rock every X food collections
+const DANGER_START_SCORE = 50  # Score at which rocks start becoming dangerous
+const DANGER_MAX_SCORE = 200   # Score at which danger probability peaks
+const MAX_DANGER_PROBABILITY = 0.8  # Maximum probability of a rock being dangerous
 
 var score: int = 0
 var is_paused: bool = false
@@ -158,9 +162,9 @@ func spawn_food():
 
 func spawn_initial_rocks():
 	for i in range(INITIAL_ROCKS):
-		spawn_rock()
+		spawn_rock(true)  # Force initial rocks to be safe
 
-func spawn_rock():
+func spawn_rock(force_safe: bool = false):
 	var rock = ROCK_SCENE.instantiate()
 	gameplay_container.add_child(rock)
 	
@@ -169,16 +173,28 @@ func spawn_rock():
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
 	rock.position = Vector3(random_x, 0, random_z)
 	
+	# Calculate danger probability based on score
+	if !force_safe && score >= DANGER_START_SCORE:
+		var score_factor = clamp((score - DANGER_START_SCORE) / (DANGER_MAX_SCORE - DANGER_START_SCORE), 0.0, 1.0)
+		var danger_probability = score_factor * MAX_DANGER_PROBABILITY
+		
+		if randf() < danger_probability:
+			rock.make_dangerous()
+	
 	# Ensure rocks don't spawn too close to each other
 	for other_rock in get_tree().get_nodes_in_group("rock"):
 		if other_rock != rock and other_rock.position.distance_to(rock.position) < 2.0:
 			rock.queue_free()
-			spawn_rock()  # Try again
+			spawn_rock(force_safe)  # Try again
 			return
 
 func on_food_collected(points: int = 10):  # Default value for compatibility
 	update_score(points)
 	spawn_food()
+	
+	# Spawn new rock every ROCKS_SPAWN_INTERVAL food collections
+	if (score / 10) % ROCKS_SPAWN_INTERVAL == 0:  # Using score/10 since each food gives 10 points by default
+		spawn_rock()
 
 func _on_window_resize():
 	var window_size = DisplayServer.window_get_size()
@@ -307,7 +323,9 @@ func load_game_state():
 					float(rock_data.velocity.x),
 					float(rock_data.velocity.y),
 					float(rock_data.velocity.z)
-				)
+					)
+			if rock_data.get("is_dangerous", false):
+				rock.make_dangerous()
 	
 	score = save_data["score"]
 	update_score(0)
