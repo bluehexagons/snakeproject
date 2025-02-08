@@ -173,9 +173,8 @@ func _physics_process(delta):
 		var collider = collision.get_collider()
 		if collider and collider.is_in_group("barrier"):
 			become_dangerous()
-		elif collider.is_in_group("rock") and collider.is_dangerous:
-			become_dangerous()
 		else:
+			# Remove the dangerous rock check, only barriers make segments dangerous
 			collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
 	
 	# Handle proximity with other segments

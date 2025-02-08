@@ -176,10 +176,8 @@ func spawn_rock(force_safe: bool = false):
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
 	var spawn_pos = Vector3(random_x, 0, random_z)
 	
-	# Set initial positions to prevent interpolation from origin
-	rock.position = spawn_pos
-	rock.physics_pos = spawn_pos
-	rock.visual_pos = spawn_pos
+	# Initialize the rock
+	rock.initialize(spawn_pos)
 	
 	# Get player reference
 	var player = gameplay_container.get_node_or_null("Player")
@@ -271,12 +269,10 @@ func save_game_state():
 		print("Warning: Could not find valid player or food when saving")
 		return
 	
-	if not player.has_method("get_save_data"):
-		print("Warning: player has no get_save_data method.")
-	
 	var rock_data = []
 	for rock in rocks:
-		rock_data.append(rock.get_save_data())
+		if rock.has_method("get_save_data"):
+			rock_data.append(rock.get_save_data())
 	
 	var save_data = {
 		"score": score,
@@ -343,19 +339,28 @@ func load_game_state():
 		for rock_data in save_data.rocks:
 			var rock = ROCK_SCENE.instantiate()
 			gameplay_container.add_child(rock)
-			rock.position = Vector3(
+			
+			var pos = Vector3(
 				float(rock_data.position.x),
 				float(rock_data.position.y),
 				float(rock_data.position.z)
 			)
+			
+			# Initialize the rock properly first
+			rock.initialize(pos)
+			
+			# Then set any saved properties
 			if rock_data.has("velocity"):
 				rock.velocity = Vector3(
 					float(rock_data.velocity.x),
 					float(rock_data.velocity.y),
 					float(rock_data.velocity.z)
-					)
+				)
 			if rock_data.get("is_dangerous", false):
 				rock.make_dangerous()
+			
+			# Skip spawn animation for loaded rocks
+			rock.finish_spawn()
 	
 	score = save_data["score"]
 	update_score(0)

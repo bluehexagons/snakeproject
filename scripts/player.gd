@@ -146,10 +146,10 @@ func _physics_process(delta):
 			die()
 			return
 		elif collider.is_in_group("dangerous"):
-			die()
+			die()  # Die immediately on contact with any dangerous object
 			return
 				
-		# Let the collision handler manage the collision
+		# Let the collision handler manage non-lethal collisions
 		collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
 	
 	# Handle proximity with segments
