@@ -21,7 +21,8 @@ is_hemisphere = true
 [sub_resource type="SphereShape3D" id="SphereShape3D_1"]
 radius = 0.4
 
-[node name="Player" type="CharacterBody3D"]
+[node name="Player" type="CharacterBody3D" groups=["player"]]
+collision_mask = 3
 script = ExtResource("1_script")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]

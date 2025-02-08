@@ -175,12 +175,15 @@ func save_game_state():
 	var food = get_tree().get_first_node_in_group("food")
 	
 	if not player or not food:
-		print("Warning: Could not find player or food when saving")
+		print("Warning: Could not find valid player or food when saving")
 		return
+	
+	if not player.has_method("get_save_data"):
+		print("Warning: player has no get_save_data method.")
 	
 	var save_data = {
 		"score": score,
-		"player_state": player.get_save_data(),  # Now saving all player state
+		"player_state": player.get_save_data(),
 		"food_position": {
 			"x": food.position.x,
 			"y": food.position.y,

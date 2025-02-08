@@ -30,6 +30,10 @@ const DEATH_COLORS = [                         # Colors to cycle through when de
 const FLASH_TIME = 0.2                        # How long before death to flash
 const DEATH_COLOR_SPEED = 3.0                 # Speed of color cycling when dead
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
+const PLAYER_MASS = 1.0  # Player is lighter than segments
+const COLLISION_BOUNCE = 0.5  # How bouncy the player is
+const COLLISION_STUN_TIME = 0.2  # Brief period where input is reduced after collision
+const STUN_CONTROL_REDUCTION = 0.3  # How much control player has while stunned
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -43,6 +47,7 @@ var food_eaten: int = 0
 var current_idle_speed: float = IDLE_SPEED_BASE
 var is_dead: bool = false
 var death_color_time: float = 0.0
+var stun_timer: float = 0.0
 
 var physics_pos: Vector3
 var physics_basis: Basis
@@ -72,6 +77,11 @@ func _physics_process(delta):
 		head_material.albedo_color = current_color
 		return
 
+	if stun_timer > 0:
+		stun_timer -= delta
+
+	var input_multiplier = 1.0 if stun_timer <= 0 else STUN_CONTROL_REDUCTION
+
 	var input_dir = Vector3.ZERO
 	input_dir.x = Input.get_axis("move_left", "move_right")
 	input_dir.z = Input.get_axis("move_up", "move_down")
@@ -81,7 +91,7 @@ func _physics_process(delta):
 		idle_timer = 0.0  # Reset timer when there's input
 		input_dir = input_dir.normalized()
 		 # Calculate target velocity
-		target_velocity += input_dir * ACCELERATION * delta
+		target_velocity += input_dir * ACCELERATION * delta * input_multiplier
 		target_velocity = target_velocity.limit_length(MAX_SPEED)
 	
 	# Handle idle timeout
@@ -109,12 +119,12 @@ func _physics_process(delta):
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
 	
-	move_and_slide()
-	
-	# Check for collisions with barriers after move_and_slide
-	for i in get_slide_collision_count():
-		var collision = get_slide_collision(i)
-		if collision.get_collider().is_in_group("barrier"):
+	var collision = move_and_collide(velocity * delta)
+	if collision:
+		var collider = collision.get_collider()
+		if collider.is_in_group("segment"):
+			handle_collision(collision.get_normal(), collider.velocity.length(), collider.SEGMENT_MASS)
+		elif collider.is_in_group("barrier"):
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
 			if game_manager:
 				game_manager.game_over()
@@ -326,3 +336,17 @@ func die():
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		game_manager.game_over()
+
+func handle_collision(normal: Vector3, incoming_velocity: float, other_mass: float):
+	# Calculate collision response using conservation of momentum
+	var relative_mass = PLAYER_MASS / (PLAYER_MASS + other_mass)
+	var impact_force = incoming_velocity * (1.0 - relative_mass)
+	
+	# Apply bounce effect
+	velocity = velocity.bounce(normal) * COLLISION_BOUNCE
+	
+	# Add impact force
+	velocity += normal * impact_force
+	
+	# Apply stun effect
+	stun_timer = COLLISION_STUN_TIME

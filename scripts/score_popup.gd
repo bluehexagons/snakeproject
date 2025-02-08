@@ -4,7 +4,7 @@ const FADE_IN_TIME = 0.05
 const COLOR_SHIFT_TIME = 0.3
 const FADE_OUT_TIME = 2.0
 const INITIAL_COLOR = Color(0.3, 1.0, 0.3, 0.0)  # Green, starting transparent
-const PEAK_COLOR = Color(0.3, 1.0, 0.3, 1.0)     # Green, fully opaque
+const PEAK_COLOR = Color(1.0, 1.0, 0.6, 1.0)     # Green, fully opaque
 const FINAL_COLOR = Color(0.7, 0.7, 0.7, 0.0)    # Desaturated, fade to transparent
 const RISE_SPEED = 1.0
 
