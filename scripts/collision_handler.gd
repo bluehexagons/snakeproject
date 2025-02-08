@@ -5,6 +5,7 @@ const SEPARATION_FORCE = 80.0
 const COLLISION_BOUNCE = 0.6  # Increased for more energetic collisions
 const PLAYER_MASS = 0.5
 const SEGMENT_MASS = 3.0
+const ROCK_MASS = 5.0  # Added rock mass
 const FRICTION_COEFFICIENT = 0.05  # Reduced to allow more sliding
 const ENERGY_TRANSFER = 0.8  # How much kinetic energy is preserved in collisions
 const PERSISTENT_COLLISION_DAMPING = 0.95  # Reduce velocity when objects stay in contact
@@ -12,8 +13,8 @@ const MAX_COLLISION_SPEED = 20.0  # Cap the maximum collision response
 const REST_THRESHOLD = 0.1  # Speed below which objects are considered at rest
 
 func handle_collision(body_a: CharacterBody3D, body_b: CharacterBody3D, collision_normal: Vector3, delta: float) -> void:
-	var mass_a = PLAYER_MASS if body_a.is_in_group("player") else SEGMENT_MASS
-	var mass_b = PLAYER_MASS if body_b.is_in_group("player") else SEGMENT_MASS
+	var mass_a = get_body_mass(body_a)
+	var mass_b = get_body_mass(body_b)
 	
 	# Calculate relative velocity and its components
 	var relative_velocity = body_b.velocity - body_a.velocity
@@ -86,3 +87,11 @@ func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float)
 		if distance < MINIMUM_SEPARATION:
 			var separation = direction.normalized() * (MINIMUM_SEPARATION - distance) * SEPARATION_FORCE * delta
 			body.velocity -= separation
+
+func get_body_mass(body: Node) -> float:
+	if body.is_in_group("player"):
+		return PLAYER_MASS
+	elif body.is_in_group("rock"):
+		return ROCK_MASS
+	else:
+		return SEGMENT_MASS

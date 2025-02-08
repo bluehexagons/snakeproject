@@ -2,6 +2,7 @@ extends Node3D
 
 const PLAYER_SCENE = preload("res://scenes/player.tscn")
 const FOOD_SCENE = preload("res://scenes/food.tscn")
+const ROCK_SCENE = preload("res://scenes/rock.tscn")
 const SPAWN_AREA_SIZE = Vector2(8, 8)  # Reduced from previous size to account for barriers
 const BASE_CAMERA_SIZE = 15.0  # This is our reference size for 1:1 aspect ratio
 const SAVE_FILE = "user://save_game.dat"
@@ -19,6 +20,7 @@ const ZOOM_DELAY = 0.5              # Wait before starting zoom
 const CAMERA_HORIZONTAL_SMOOTHING = 3.0  # Lower = smoother horizontal movement
 const CAMERA_VERTICAL_SMOOTHING = 2.0    # Separate smoothing for height changes
 const CAMERA_PREDICTION_STRENGTH = 0.3   # How much to look ahead based on velocity
+const INITIAL_ROCKS = 10  # Number of rocks to spawn at start
 
 var score: int = 0
 var is_paused: bool = false
@@ -41,6 +43,7 @@ func _ready():
 	else:
 		spawn_player()
 		spawn_food()
+		spawn_initial_rocks()
 	
 	get_tree().root.size_changed.connect(_on_window_resize)
 	_on_window_resize()
@@ -130,6 +133,26 @@ func spawn_food():
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
 	food.position = Vector3(random_x, 0, random_z)
 
+func spawn_initial_rocks():
+	for i in range(INITIAL_ROCKS):
+		spawn_rock()
+
+func spawn_rock():
+	var rock = ROCK_SCENE.instantiate()
+	gameplay_container.add_child(rock)
+	
+	# Random position within spawn area
+	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
+	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
+	rock.position = Vector3(random_x, 0, random_z)
+	
+	# Ensure rocks don't spawn too close to each other
+	for other_rock in get_tree().get_nodes_in_group("rock"):
+		if other_rock != rock and other_rock.position.distance_to(rock.position) < 2.0:
+			rock.queue_free()
+			spawn_rock()  # Try again
+			return
+
 func on_food_collected(points: int = 10):  # Default value for compatibility
 	update_score(points)
 	spawn_food()
@@ -173,6 +196,7 @@ func save_and_quit():
 func save_game_state():
 	var player = gameplay_container.get_node_or_null("Player")
 	var food = get_tree().get_first_node_in_group("food")
+	var rocks = get_tree().get_nodes_in_group("rock")
 	
 	if not player or not food:
 		print("Warning: Could not find valid player or food when saving")
@@ -181,6 +205,10 @@ func save_game_state():
 	if not player.has_method("get_save_data"):
 		print("Warning: player has no get_save_data method.")
 	
+	var rock_data = []
+	for rock in rocks:
+		rock_data.append(rock.get_save_data())
+	
 	var save_data = {
 		"score": score,
 		"player_state": player.get_save_data(),
@@ -188,7 +216,8 @@ func save_game_state():
 			"x": food.position.x,
 			"y": food.position.y,
 			"z": food.position.z
-		}
+		},
+		"rocks": rock_data
 	}
 	GameState.save_game_state(save_data)
 
@@ -197,6 +226,7 @@ func load_game_state():
 	if save_data.is_empty():
 		spawn_player()
 		spawn_food()
+		spawn_initial_rocks()
 		return false
 		
 	# Clear existing entities
@@ -238,6 +268,23 @@ func load_game_state():
 		float(save_data["food_position"]["y"]),
 		float(save_data["food_position"]["z"])
 	)
+	
+	# Load rocks
+	if save_data.has("rocks"):
+		for rock_data in save_data.rocks:
+			var rock = ROCK_SCENE.instantiate()
+			gameplay_container.add_child(rock)
+			rock.position = Vector3(
+				float(rock_data.position.x),
+				float(rock_data.position.y),
+				float(rock_data.position.z)
+			)
+			if rock_data.has("velocity"):
+				rock.velocity = Vector3(
+					float(rock_data.velocity.x),
+					float(rock_data.velocity.y),
+					float(rock_data.velocity.z)
+				)
 	
 	score = save_data["score"]
 	update_score(0)
