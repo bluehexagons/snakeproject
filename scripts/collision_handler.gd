@@ -106,14 +106,20 @@ func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, d
 
 # Check for nearby segments and apply separation forces
 func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float) -> void:
+	# Skip proximity checks for dangerous segments
+	if body.is_in_group("dangerous"):
+		return
+		
+	# Only check segments that are close to this one in the chain
 	for other in nearby_bodies:
-		if other == body:
+		if other == body or other.is_in_group("dangerous"):
 			continue
 			
 		var direction = body.global_position - other.global_position
-		var distance = direction.length()
+		var distance_squared = direction.length_squared()  # Optimization: avoid square root
 		
-		if distance < MINIMUM_SEPARATION:
+		if distance_squared < MINIMUM_SEPARATION * MINIMUM_SEPARATION:
+			var distance = sqrt(distance_squared)  # Only calculate when needed
 			var separation = direction.normalized() * (MINIMUM_SEPARATION - distance) * SEPARATION_FORCE * delta
 			body.velocity -= separation
 

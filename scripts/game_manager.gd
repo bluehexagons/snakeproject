@@ -125,13 +125,36 @@ func spawn_player():
 	player.position = Vector3(random_x, 0, random_z)
 
 func spawn_food():
+	var max_attempts = 10
+	var attempts = 0
 	var food = FOOD_SCENE.instantiate()
 	gameplay_container.add_child(food)
 	
-	# Random position within spawn area
-	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
-	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-	food.position = Vector3(random_x, 0, random_z)
+	while attempts < max_attempts:
+		var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
+		var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
+		var pos = Vector3(random_x, 0, random_z)
+		food.position = pos
+		
+		# Check distance from dangerous segments and rocks
+		var too_close = false
+		for node in get_tree().get_nodes_in_group("dangerous"):
+			if node.global_position.distance_to(pos) < 2.0:
+				too_close = true
+				break
+		
+		for rock in get_tree().get_nodes_in_group("rock"):
+			if rock.global_position.distance_to(pos) < 1.5:
+				too_close = true
+				break
+				
+		if !too_close:
+			return
+			
+		attempts += 1
+	
+	# If we couldn't find a good spot, just leave it where it is
+	food.position = Vector3.ZERO
 
 func spawn_initial_rocks():
 	for i in range(INITIAL_ROCKS):

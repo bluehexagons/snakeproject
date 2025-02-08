@@ -223,3 +223,16 @@ func become_dangerous():
 		remove_from_group("segment")
 		# Ensure material color updates immediately
 		material.albedo_color = DANGER_COLOR
+		
+		# Visual feedback
+		var tween = create_tween()
+		tween.tween_property(mesh, "scale", mesh.scale * 1.3, 0.1)
+		tween.tween_property(mesh, "scale", mesh.scale, 0.2)
+		
+		# Emission pulse
+		var flash_material = material.duplicate()
+		mesh.material_override = flash_material
+		flash_material.emission_energy_multiplier = 4.0
+		
+		tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 1.0, 0.3)
+		tween.tween_callback(func(): mesh.material_override = null)
