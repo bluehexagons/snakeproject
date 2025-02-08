@@ -1,20 +1,22 @@
 extends CharacterBody3D
 
-const SPRING_STIFFNESS = 150.0  # Significantly reduced from 2500.0
-const SPRING_DAMPING = 8.0  # Increased damping
-const TARGET_DISTANCE = 0.7
+const SPRING_STIFFNESS = 850.0  # Significantly reduced from 2500.0
+const SPRING_DAMPING = 20.0  # Increased damping
+const TARGET_DISTANCE = 0.8  # Increased spacing
 const VELOCITY_SMOOTHING = 0.2
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2
 const MAX_SEGMENT_SPEED = 40.0  # Reduced max speed
 const FOLLOW_STRENGTH = 0.8  # How strongly to match target's velocity
 const MIN_FOLLOW_DISTANCE = 0.1  # Distance at which to start matching velocity
+const INITIAL_SPRING_REDUCTION = 0.3  # Reduce spring force when first spawned
 
 var target: Node3D
 var smoothed_velocity: Vector3
 var growth_timer: float = 0.0
 var is_growing: bool = true
 var current_scale: float = INITIAL_SCALE
+var spawn_timer: float = 0.5  # Time to use reduced spring force
 
 var physics_pos: Vector3
 var visual_pos: Vector3
@@ -94,6 +96,13 @@ func _physics_process(delta):
 	if not target:
 		return
 		
+	# Update spawn timer
+	spawn_timer = max(0.0, spawn_timer - delta)
+	
+	# Calculate spring force with spawn reduction
+	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
+	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
+	
 	# Calculate target distance based on current scales
 	var adjusted_distance = TARGET_DISTANCE * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
 	
@@ -107,8 +116,8 @@ func _physics_process(delta):
 		var desired_pos = target.global_position - target_direction * adjusted_distance
 		var to_desired = desired_pos - global_position
 		
-		# Calculate forces
-		var spring_force = to_desired * SPRING_STIFFNESS * delta
+		# Calculate forces with spawn adjustment
+		var spring_force = to_desired * current_stiffness * delta
 		var damping_force = -velocity * SPRING_DAMPING * delta
 		
 		# Apply forces only to self

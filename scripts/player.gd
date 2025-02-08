@@ -31,6 +31,9 @@ const FLASH_TIME = 0.2                        # How long before death to flash
 const DEATH_COLOR_SPEED = 3.0                 # Speed of color cycling when dead
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 const STUN_CONTROL_REDUCTION = 0.5  # Amount by which to reduce control while stunned
+const SEGMENT_SPAWN_OFFSET = 0.6  # Reduced from 1.2 to spawn closer
+const SEGMENT_SPAWN_VELOCITY = 0.9  # Increased from 0.8 for better matching
+const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -218,19 +221,23 @@ func _process(delta):
 func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> CharacterBody3D:
 	var segment = SEGMENT_SCENE.instantiate()
 	segment.set_script(load("res://scripts/segment.gd"))
+	get_parent().add_child(segment)
 	
-	# First add to scene tree so transforms work properly
-	get_parent().add_child(segment)  # This was correct, but ensure food has group
-	
-	# Now set position after it's in the tree
+	# Calculate spawn position with closer offset
 	var spawn_pos: Vector3
 	if saved_pos != Vector3.ZERO:
 		spawn_pos = saved_pos
 	else:
-		if segments.is_empty():
-			spawn_pos = global_position - facing_direction * (1.0 + segment.INITIAL_SCALE)
-		else:
-			spawn_pos = global_position - facing_direction * segment.INITIAL_SCALE * 2.0
+		# Use a smaller offset and add a slight random variation to prevent perfect overlap
+		var random_offset = Vector3(
+			randf_range(-0.1, 0.1),
+			0,
+			randf_range(-0.1, 0.1)
+		)
+		var spawn_offset = -facing_direction * (SEGMENT_SPAWN_OFFSET + segment.INITIAL_SCALE)
+		spawn_pos = global_position + spawn_offset + random_offset
+		# Give segment better initial velocity
+		segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY + facing_direction * SEGMENT_LUNGE_FORCE
 	
 	segment.global_position = spawn_pos
 	segment.physics_pos = spawn_pos
@@ -238,15 +245,22 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	
 	segment.init_with_growth(growth_state)
 	
-	# Update targeting
+	# Update targeting chain
 	if segments.is_empty():
+		# First segment follows player
 		segment.target = self
 	else:
+		# New segment follows player
 		segment.target = self
+		# Previous first segment now follows new segment
 		segments[0].target = segment
 	
+	# Add new segment at beginning of array
 	segments.push_front(segment)
-	return segment  # Return the segment for further initialization
+	
+	# Add forward impulse to player to maintain momentum
+	velocity += facing_direction * LUNGE_FORCE
+	return segment
 
 func get_segment_positions() -> Array:
 	var positions = []
