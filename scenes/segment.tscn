@@ -11,6 +11,7 @@ roughness = 0.3
 emission_enabled = true
 emission = Color(0.2, 0.6, 0.3, 1.0)
 emission_energy_multiplier = 0.6
+resource_local_to_scene = true
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
 material = SubResource("StandardMaterial3D_1")
