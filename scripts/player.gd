@@ -1,8 +1,8 @@
 extends CharacterBody3D
 
 const MAX_SPEED = 100000.0
-const ACCELERATION = 150.0  # Increased since we're using forces now
-const DRAG_COEFFICIENT = 0.8  # Increased to better resist movement
+const ACCELERATION = 250.0  # Increased since we're using forces now
+const DRAG_COEFFICIENT = 0.6  # Increased to better resist movement
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")

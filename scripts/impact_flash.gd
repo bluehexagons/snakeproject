@@ -5,7 +5,7 @@ const FLASH_COLOR = Color(1.0, 1.0, 1.0, 1.0)
 const MIN_IMPACT_FORCE = 2.0
 const MAX_IMPACT_FORCE = 20.0
 
-@onready var material_pool = $MaterialPool
+var material_pool: Node
 
 func _ready():
 	material_pool = Node.new()
