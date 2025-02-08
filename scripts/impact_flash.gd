@@ -5,6 +5,14 @@ const FLASH_COLOR = Color(1.0, 1.0, 1.0, 1.0)
 const MIN_IMPACT_FORCE = 2.0
 const MAX_IMPACT_FORCE = 20.0
 
+@onready var material_pool = $MaterialPool
+
+func _ready():
+	material_pool = Node.new()
+	material_pool.set_script(load("res://scripts/material_pool.gd"))
+	add_child(material_pool)
+	material_pool._ready()
+
 static func flash_material(material: Material, impact_force: float) -> void:
 	if not material or not material is StandardMaterial3D:
 		return
@@ -14,20 +22,20 @@ static func flash_material(material: Material, impact_force: float) -> void:
 	if not mesh_instance:
 		return
 		
-	# Scale flash intensity with impact force
 	var flash_intensity = clampf((impact_force - MIN_IMPACT_FORCE) / (MAX_IMPACT_FORCE - MIN_IMPACT_FORCE), 0.0, 1.0)
 	if flash_intensity <= 0.0:
 		return
 		
-	# Create a temporary material for the flash effect
-	var temp_material = std_material.duplicate()
-	temp_material.emission_enabled = true
-	
-	# Calculate flash color based on current emission
+	# Get material from pool
+	var impact_flash = Engine.get_main_loop().current_scene.get_node_or_null("/root/ImpactFlash")
+	if not impact_flash:
+		return
+		
+	var temp_material = impact_flash.material_pool.get_flash_material(std_material)
 	var base_emission = std_material.emission if std_material.emission_enabled else Color.BLACK
 	var flash_color = base_emission + FLASH_COLOR * flash_intensity
 	
-	# Apply flash material to mesh
+	# Apply flash material
 	mesh_instance.material_override = temp_material
 	
 	# Create and configure tween
@@ -39,6 +47,7 @@ static func flash_material(material: Material, impact_force: float) -> void:
 		tween.tween_callback(func():
 			if is_instance_valid(mesh_instance):
 				mesh_instance.material_override = null
+			impact_flash.material_pool.return_material(temp_material)
 		)
 
 static func find_mesh_instance_for_material(material: StandardMaterial3D) -> MeshInstance3D:

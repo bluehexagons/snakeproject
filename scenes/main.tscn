@@ -28,6 +28,7 @@ sky_mode = 1
 
 [node name="OmniLight3D" type="OmniLight3D" parent="GameplayContainer"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.92457, 0)
+shadow_enabled = true
 omni_range = 17.2911
 
 [node name="Camera3D" type="Camera3D" parent="GameplayContainer"]

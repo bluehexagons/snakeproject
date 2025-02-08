@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 GameState="*res://scripts/game_state.gd"
 CollisionHandler="*res://scripts/collision_handler.gd"
 ImpactFlash="*res://scripts/impact_flash.gd"
+MaterialPool="*res://scripts/material_pool.gd"
 
 [input]
 
