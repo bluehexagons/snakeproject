@@ -27,42 +27,56 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	var mass_a = get_body_mass(body_a)
 	var mass_b = get_body_mass(body_b)
 	
-	# Calculate velocities and energies
+	# Calculate velocities and impact characteristics
 	var relative_velocity = body_b.velocity - body_a.velocity
 	var normal_speed = relative_velocity.dot(collision_normal)
 	
-	# Additional velocity loss on collision
-	body_a.velocity *= VELOCITY_LOSS_ON_COLLISION
-	body_b.velocity *= VELOCITY_LOSS_ON_COLLISION
+	# Calculate how head-on the collision is (1.0 = head-on, 0.0 = glancing)
+	var a_dir = body_a.velocity.normalized()
+	var b_dir = body_b.velocity.normalized()
+	var collision_alignment = abs(a_dir.dot(collision_normal))
+	var velocity_alignment = max(0.0, -a_dir.dot(b_dir))  # How opposed the velocities are
+	var impact_factor = (collision_alignment + velocity_alignment) * 0.5
 	
-	# Handle static friction for rocks with increased effect
-	if body_a.is_in_group("rock"):
-		if relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
-			mass_a *= 3.0  # Increased mass multiplier for static rocks
-	if body_b.is_in_group("rock"):
-		if relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
-			mass_b *= 3.0
+	# Scale effects based on impact_factor
+	var velocity_loss = lerp(1.0, VELOCITY_LOSS_ON_COLLISION, impact_factor)
+	var friction_scale = impact_factor
+	var restitution = COLLISION_BOUNCE * ENERGY_TRANSFER * impact_factor
 	
-	# Calculate impulse with increased mass effect
-	var restitution = COLLISION_BOUNCE * ENERGY_TRANSFER
+	# Apply scaled velocity loss
+	body_a.velocity *= velocity_loss
+	body_b.velocity *= velocity_loss
+	
+	# Handle static friction for rocks with scaled effect
+	var rock_mass_multiplier = lerp(1.0, 3.0, impact_factor)
+	if body_a.is_in_group("rock") and relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
+		mass_a *= rock_mass_multiplier
+	if body_b.is_in_group("rock") and relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
+		mass_b *= rock_mass_multiplier
+	
+	# Calculate impulse with scaled restitution
 	var impulse_magnitude = -(1.0 + restitution) * normal_speed
 	impulse_magnitude /= (1.0 / mass_a) + (1.0 / mass_b)
 	
-	# Apply impulses with stronger effect
+	# Apply impulses
 	var impulse = collision_normal * impulse_magnitude
-	body_a.velocity -= impulse / mass_a
-	body_b.velocity += impulse / mass_b
+	var vel_change_a = -impulse / mass_a
+	var vel_change_b = impulse / mass_b
 	
-	# Enhanced friction effect
+	# Apply scaled friction
 	var tangent_velocity = relative_velocity - (normal_speed * collision_normal)
 	if tangent_velocity.length_squared() > 0.001:
 		var tangent = tangent_velocity.normalized()
-		var friction_impulse = -tangent * abs(impulse_magnitude) * FRICTION_COEFFICIENT
+		var friction_impulse = -tangent * abs(impulse_magnitude) * FRICTION_COEFFICIENT * friction_scale
 		
-		body_a.velocity -= friction_impulse / mass_a
-		body_b.velocity += friction_impulse / mass_b
+		vel_change_a -= friction_impulse / mass_a
+		vel_change_b += friction_impulse / mass_b
 	
-	# Apply separation with mass consideration
+	# Apply final velocity changes
+	body_a.velocity += vel_change_a
+	body_b.velocity += vel_change_b
+	
+	# Apply separation (always needed regardless of collision type)
 	var separation_vector = (body_b.global_position - body_a.global_position)
 	var penetration = MINIMUM_SEPARATION - separation_vector.length()
 	if penetration > 0:
