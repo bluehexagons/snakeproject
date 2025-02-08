@@ -34,13 +34,14 @@ const STUN_CONTROL_REDUCTION = 0.5  # Amount by which to reduce control while st
 const SEGMENT_SPAWN_OFFSET = 0.6  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.9  # Increased from 0.8 for better matching
 const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
+const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
+const STUCK_WARNING_START = 1.0  # When to start showing warning color
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
 var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
 var current_scale: float = 1.0  # Add this for consistent scaling behavior
-var idle_timer: float = 0.0
 var has_started_moving: bool = false
 var current_color: Color = NORMAL_COLOR
 var food_eaten: int = 0
@@ -49,6 +50,7 @@ var is_dead: bool = false
 var death_color_time: float = 0.0
 var stun_timer: float = 0.0
 var base_emission: Color  # Add variable to store base emission color
+var stuck_detector: RefCounted
 
 var physics_pos: Vector3
 var physics_basis: Basis
@@ -70,6 +72,8 @@ func _ready():
 	# Store initial emission color
 	if head_material is StandardMaterial3D:
 		base_emission = head_material.emission
+	
+	stuck_detector = preload("res://scripts/stuck_detector.gd").new()
 
 func _physics_process(delta):
 	if is_dead:
@@ -93,7 +97,6 @@ func _physics_process(delta):
 	
 	if input_dir != Vector3.ZERO:
 		has_started_moving = true
-		idle_timer = 0.0
 		input_dir = input_dir.normalized()
 		
 		# Apply acceleration as a force
@@ -108,14 +111,16 @@ func _physics_process(delta):
 		# Apply stronger drag when not inputting
 		velocity = velocity.lerp(Vector3.ZERO, DRAG_COEFFICIENT * 2.0 * delta)
 	
-	# Handle idle timeout
-	if has_started_moving and velocity.length() < current_idle_speed:
-		idle_timer += delta
-		if idle_timer >= IDLE_TIMEOUT:
-			var game_manager = get_tree().get_first_node_in_group("game_manager")
-			if game_manager:
-				game_manager.game_over()
-				return
+	# Update stuck detection
+	if has_started_moving:
+		var is_stuck = stuck_detector.update(global_position, delta)
+		if is_stuck:
+			var stuck_time = stuck_detector.get_stuck_duration()
+			if stuck_time >= STUCK_TIMEOUT:
+				var game_manager = get_tree().get_first_node_in_group("game_manager")
+				if game_manager:
+					game_manager.game_over()
+					return
 	
 	# Limit maximum speed
 	velocity = velocity.limit_length(MAX_SPEED)
@@ -156,22 +161,17 @@ func _physics_process(delta):
 		# Apply the rotation with normalized basis
 		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 	
-	# Update color based on speed and idle timer
-	var speed_ratio = velocity.length() / current_idle_speed
+	# Update color based on stuck status
 	var target_color
-	
-	if velocity.length() < current_idle_speed:
-		 # Flash red right before death
-		if IDLE_TIMEOUT - idle_timer <= FLASH_TIME:
+	if has_started_moving and stuck_detector.is_stuck:
+		var stuck_time = stuck_detector.get_stuck_duration()
+		if STUCK_TIMEOUT - stuck_time <= FLASH_TIME:
 			target_color = FLASH_COLOR
 		else:
-			# Interpolate between yellow and red based on remaining time
-			var time_ratio = idle_timer / (IDLE_TIMEOUT - FLASH_TIME)  # Adjust ratio to account for flash time
-			target_color = DANGER_COLOR.lerp(DYING_COLOR, time_ratio)
-	elif speed_ratio < WARNING_SPEED_THRESHOLD:
-		# Interpolate between yellow and blue based on how close to warning threshold
-		var warning_ratio = (speed_ratio - 1.0) / (WARNING_SPEED_THRESHOLD - 1.0)
-		target_color = WARNING_COLOR.lerp(NORMAL_COLOR, warning_ratio)
+			# Interpolate between warning and danger colors based on stuck duration
+			var time_ratio = (stuck_time - STUCK_WARNING_START) / (STUCK_TIMEOUT - STUCK_WARNING_START - FLASH_TIME)
+			time_ratio = clamp(time_ratio, 0.0, 1.0)
+			target_color = WARNING_COLOR.lerp(DANGER_COLOR, time_ratio)
 	else:
 		target_color = NORMAL_COLOR
 	
