@@ -31,6 +31,8 @@ func _ready():
 	visual_pos = global_position
 	# Ensure mesh starts at the correct position
 	mesh.global_position = global_position
+	var material = mesh.mesh.surface_get_material(0)
+	mesh.mesh.surface_set_material(0, material.duplicate())
 
 func update_scale(new_scale: float):
 	mesh.scale = Vector3.ONE * new_scale
@@ -149,3 +151,8 @@ func _process(delta):
 	
 	# Keep collision shape at physics position
 	collision.global_position = global_position
+
+func handle_impact(force: float) -> void:
+	var material = mesh.mesh.surface_get_material(0)
+	if material:
+		ImpactFlash.flash_material(material, force)

@@ -30,6 +30,7 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	# Calculate velocities and impact characteristics
 	var relative_velocity = body_b.velocity - body_a.velocity
 	var normal_speed = relative_velocity.dot(collision_normal)
+	var impact_force = abs(normal_speed)
 	
 	# Calculate how head-on the collision is (1.0 = head-on, 0.0 = glancing)
 	var a_dir = body_a.velocity.normalized()
@@ -37,6 +38,12 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	var collision_alignment = abs(a_dir.dot(collision_normal))
 	var velocity_alignment = max(0.0, -a_dir.dot(b_dir))  # How opposed the velocities are
 	var impact_factor = (collision_alignment + velocity_alignment) * 0.5
+	
+	# Trigger impact flashes
+	if body_a.has_method("handle_impact"):
+		body_a.handle_impact(impact_force)
+	if body_b.has_method("handle_impact"):
+		body_b.handle_impact(impact_force)
 	
 	# Scale effects based on impact_factor
 	var velocity_loss = lerp(1.0, VELOCITY_LOSS_ON_COLLISION, impact_factor)

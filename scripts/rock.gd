@@ -11,6 +11,8 @@ var visual_pos: Vector3
 func _ready():
 	physics_pos = global_position
 	visual_pos = global_position
+	var material = $MeshInstance3D.mesh.surface_get_material(0)
+	$MeshInstance3D.mesh.surface_set_material(0, material.duplicate())
 
 func _physics_process(delta):
 	# More controlled drag for moving rocks
@@ -46,3 +48,8 @@ func get_save_data() -> Dictionary:
 			"z": velocity.z
 		}
 	}
+
+func handle_impact(force: float) -> void:
+	var material = $MeshInstance3D.mesh.surface_get_material(0)
+	if material:
+		ImpactFlash.flash_material(material, force)

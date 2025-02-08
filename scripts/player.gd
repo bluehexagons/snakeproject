@@ -45,6 +45,7 @@ var current_idle_speed: float = IDLE_SPEED_BASE
 var is_dead: bool = false
 var death_color_time: float = 0.0
 var stun_timer: float = 0.0
+var base_emission: Color  # Add variable to store base emission color
 
 var physics_pos: Vector3
 var physics_basis: Basis
@@ -62,6 +63,10 @@ func _ready():
 	# Clone the material so we don't affect other instances
 	head_material = head_material.duplicate()
 	head_mesh.mesh.surface_set_material(0, head_material)
+	
+	# Store initial emission color
+	if head_material is StandardMaterial3D:
+		base_emission = head_material.emission
 
 func _physics_process(delta):
 	if is_dead:
@@ -338,3 +343,7 @@ func die():
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		game_manager.game_over()
+
+func handle_impact(force: float) -> void:
+	if head_material:
+		ImpactFlash.flash_material(head_material, force)
