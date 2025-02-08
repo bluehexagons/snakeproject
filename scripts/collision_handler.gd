@@ -20,6 +20,10 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 		handle_static_collision(body_a, collision_normal, delta)
 		return
 	
+	# Don't handle collisions with dangerous segments
+	if body_b.is_in_group("dangerous") or body_a.is_in_group("dangerous"):
+		return
+		
 	# Only proceed with CharacterBody3D collisions
 	if not body_b is CharacterBody3D:
 		return

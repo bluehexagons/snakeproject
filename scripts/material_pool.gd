@@ -1,5 +1,7 @@
 extends Node
 
+const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
+
 const POOL_SIZE = 20  # Maximum number of flash materials to keep in pool
 var available_materials: Array[StandardMaterial3D] = []
 var in_use_materials: Dictionary = {}  # MeshInstance3D -> Material
@@ -26,7 +28,7 @@ func get_flash_material(base_material: StandardMaterial3D) -> StandardMaterial3D
 	flash_material.albedo_color = base_material.albedo_color
 	flash_material.metallic = base_material.metallic
 	flash_material.roughness = base_material.roughness
-	flash_material.emission = base_material.emission
+	flash_material.emission = base_material.emission if not base_material.get("is_dangerous") else DANGER_EMISSION
 	flash_material.transparency = base_material.transparency
 	
 	return flash_material

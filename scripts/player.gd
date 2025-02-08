@@ -128,10 +128,11 @@ func _physics_process(delta):
 	if collision:
 		var collider = collision.get_collider()
 		if collider.is_in_group("barrier"):
-			var game_manager = get_tree().get_first_node_in_group("game_manager")
-			if game_manager:
-				game_manager.game_over()
-				return
+			die()
+			return
+		elif collider.is_in_group("dangerous"):
+			die()
+			return
 				
 		# Let the collision handler manage the collision
 		collision_handler.handle_collision(self, collider, collision.get_normal(), delta)

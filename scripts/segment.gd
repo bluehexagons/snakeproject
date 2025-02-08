@@ -10,6 +10,10 @@ const MAX_SEGMENT_SPEED = 40.0  # Reduced max speed
 const FOLLOW_STRENGTH = 0.8  # How strongly to match target's velocity
 const MIN_FOLLOW_DISTANCE = 0.1  # Distance at which to start matching velocity
 const INITIAL_SPRING_REDUCTION = 0.3  # Reduce spring force when first spawned
+const SAFE_COLOR = Color(0.3, 0.8, 0.4, 0.9)
+const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)
+const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
+const COLOR_CHANGE_SPEED = 5.0
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -17,12 +21,16 @@ var growth_timer: float = 0.0
 var is_growing: bool = true
 var current_scale: float = INITIAL_SCALE
 var spawn_timer: float = 0.5  # Time to use reduced spring force
+var is_dangerous: bool = false
+var target_color: Color = SAFE_COLOR
+var current_color: Color = SAFE_COLOR
 
 var physics_pos: Vector3
 var visual_pos: Vector3
 
 @onready var mesh = $MeshInstance3D
 @onready var collision = $CollisionShape3D
+@onready var material = mesh.mesh.surface_get_material(0)
 
 func _ready():
 	# Set initial scale and positions
@@ -35,6 +43,8 @@ func _ready():
 	mesh.global_position = global_position
 	var material = mesh.mesh.surface_get_material(0)
 	mesh.mesh.surface_set_material(0, material.duplicate())
+	current_color = SAFE_COLOR
+	material.albedo_color = current_color
 
 func update_scale(new_scale: float):
 	mesh.scale = Vector3.ONE * new_scale
@@ -64,7 +74,14 @@ func get_save_data() -> Dictionary:
 			"z": smoothed_velocity.z
 		},
 		"growth": min(growth_timer / GROWTH_DURATION, 1.0),
-		"current_scale": current_scale
+		"current_scale": current_scale,
+		"is_dangerous": is_dangerous,
+		"current_color": {
+			"r": current_color.r,
+			"g": current_color.g,
+			"b": current_color.b,
+			"a": current_color.a
+		}
 	}
 
 func init_from_save_data(data: Dictionary):
@@ -76,6 +93,18 @@ func init_from_save_data(data: Dictionary):
 	# Initialize transforms after velocity
 	physics_pos = global_position
 	visual_pos = global_position
+	
+	# Initialize danger state
+	if data.has("is_dangerous") and data.is_dangerous:
+		become_dangerous()
+	elif data.has("current_color"):
+		current_color = Color(
+			data.current_color.r,
+			data.current_color.g,
+			data.current_color.b,
+			data.current_color.a
+		)
+		material.albedo_color = current_color
 	
 	# Initialize growth last
 	init_with_growth(data.growth)
@@ -135,13 +164,9 @@ func _physics_process(delta):
 	if movement_collision:
 		var collider = movement_collision.get_collider()
 		if collider and collider.is_in_group("barrier"):
-			var game_manager = get_tree().get_first_node_in_group("game_manager")
-			if game_manager:
-				game_manager.game_over()
-				return
-		
-		# Let the collision handler manage the collision
-		collision_handler.handle_collision(self, collider, movement_collision.get_normal(), delta)
+			become_dangerous()
+		else:
+			collision_handler.handle_collision(self, collider, movement_collision.get_normal(), delta)
 	
 	# Handle proximity with other segments
 	var nearby_segments = get_tree().get_nodes_in_group("segment")
@@ -149,6 +174,15 @@ func _physics_process(delta):
 	
 	# Store physics state
 	physics_pos = global_position
+
+	# Update color
+	if material:
+		current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
+		material.albedo_color = current_color
+		if is_dangerous:
+			material.emission = DANGER_EMISSION
+		else:
+			material.emission = Color(0.2, 0.6, 0.3, 1.0)
 
 func _process(delta):
 	# Interpolate visual position between physics updates
@@ -165,3 +199,13 @@ func handle_impact(force: float) -> void:
 	var material = mesh.mesh.surface_get_material(0)
 	if material:
 		ImpactFlash.flash_material(material, force)
+
+func become_dangerous():
+	if not is_dangerous:  # Only change state if not already dangerous
+		is_dangerous = true
+		target_color = DANGER_COLOR
+		material.emission = DANGER_EMISSION
+		add_to_group("dangerous")
+		remove_from_group("segment")
+		# Ensure material color updates immediately
+		material.albedo_color = DANGER_COLOR
