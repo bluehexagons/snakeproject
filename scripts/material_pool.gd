@@ -18,6 +18,7 @@ func get_flash_material(base_material: StandardMaterial3D) -> StandardMaterial3D
 		# Create new material if pool is empty
 		flash_material = StandardMaterial3D.new()
 		flash_material.emission_enabled = true
+		flash_material.enable_shadows_casting = true
 	else:
 		# Reuse material from pool
 		flash_material = available_materials.pop_back()
@@ -27,6 +28,8 @@ func get_flash_material(base_material: StandardMaterial3D) -> StandardMaterial3D
 	flash_material.metallic = base_material.metallic
 	flash_material.roughness = base_material.roughness
 	flash_material.emission = base_material.emission
+	flash_material.enable_shadows_casting = true
+	flash_material.transparency = base_material.transparency
 	
 	return flash_material
 

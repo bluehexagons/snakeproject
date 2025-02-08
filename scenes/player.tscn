@@ -3,7 +3,6 @@
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_script"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
-transparency = 1
 albedo_color = Color(0.2, 0.4, 1, 1)
 metallic = 0.8
 metallic_specular = 1.0
