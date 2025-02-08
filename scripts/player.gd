@@ -86,6 +86,16 @@ func _physics_process(delta):
 		head_material.albedo_color = current_color
 		return
 
+	# Apply gravity
+	if position.y > PhysicsConstants.GROUND_LEVEL:
+		velocity.y -= PhysicsConstants.GRAVITY * delta
+	elif position.y < PhysicsConstants.GROUND_LEVEL:
+		position.y = PhysicsConstants.GROUND_LEVEL
+		if velocity.y < 0:
+			velocity.y = -velocity.y * PhysicsConstants.BOUNCE_DAMPENING
+			if abs(velocity.y) < 0.1:
+				velocity.y = 0
+
 	if stun_timer > 0:
 		stun_timer -= delta
 

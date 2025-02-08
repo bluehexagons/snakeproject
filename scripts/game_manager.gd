@@ -26,6 +26,9 @@ const DANGER_START_SCORE = 50  # Score at which rocks start becoming dangerous
 const DANGER_MAX_SCORE = 200   # Score at which danger probability peaks
 const MAX_DANGER_PROBABILITY = 0.8  # Maximum probability of a rock being dangerous
 
+const SAFE_SPAWN_DISTANCE = 4.0  # Minimum distance from player for dangerous rocks
+const SAFE_FORWARD_ANGLE = 60.0  # Angle in degrees to check in front of player
+
 var score: int = 0
 var is_paused: bool = false
 var is_gameplay_paused: bool = false  # New variable for gameplay pause
@@ -171,7 +174,16 @@ func spawn_rock(force_safe: bool = false):
 	# Random position within spawn area
 	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-	rock.position = Vector3(random_x, 0, random_z)
+	var spawn_pos = Vector3(random_x, 0, random_z)
+	
+	# Set initial positions to prevent interpolation from origin
+	rock.position = spawn_pos
+	rock.physics_pos = spawn_pos
+	rock.visual_pos = spawn_pos
+	
+	# Get player reference
+	var player = gameplay_container.get_node_or_null("Player")
+	var should_be_dangerous = false
 	
 	# Calculate danger probability based on score
 	if !force_safe && score >= DANGER_START_SCORE:
@@ -179,7 +191,25 @@ func spawn_rock(force_safe: bool = false):
 		var danger_probability = score_factor * MAX_DANGER_PROBABILITY
 		
 		if randf() < danger_probability:
-			rock.make_dangerous()
+			# Check if position is safe for a dangerous rock
+			var is_safe_position = true
+			if player:
+				# Check distance from player
+				var dist_to_player = player.global_position.distance_to(spawn_pos)
+				if dist_to_player < SAFE_SPAWN_DISTANCE:
+					is_safe_position = false
+				else:
+					# Check if rock is in front of player
+					var to_rock = (spawn_pos - player.global_position).normalized()
+					var angle = rad_to_deg(acos(to_rock.dot(player.facing_direction)))
+					if angle < SAFE_FORWARD_ANGLE:
+						is_safe_position = false
+			
+			should_be_dangerous = is_safe_position
+	
+	# Make the rock dangerous only if position is safe
+	if should_be_dangerous:
+		rock.make_dangerous()
 	
 	# Ensure rocks don't spawn too close to each other
 	for other_rock in get_tree().get_nodes_in_group("rock"):

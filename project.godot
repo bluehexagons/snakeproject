@@ -21,6 +21,7 @@ GameState="*res://scripts/game_state.gd"
 CollisionHandler="*res://scripts/collision_handler.gd"
 ImpactFlash="*res://scripts/impact_flash.gd"
 MaterialPool="*res://scripts/material_pool.gd"
+PhysicsConstants="*res://scripts/physics_constants.gd"
 
 [input]
 
