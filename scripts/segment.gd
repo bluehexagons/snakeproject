@@ -41,10 +41,18 @@ func _ready():
 	visual_pos = global_position
 	# Ensure mesh starts at the correct position
 	mesh.global_position = global_position
-	var material = mesh.mesh.surface_get_material(0)
-	mesh.mesh.surface_set_material(0, material.duplicate())
+	
+	# Important: Get original material and create a unique instance
+	var original_material = mesh.mesh.surface_get_material(0)
+	material = original_material.duplicate()
+	mesh.mesh.surface_set_material(0, material)
+	
+	# Set initial colors
 	current_color = SAFE_COLOR
+	target_color = SAFE_COLOR
 	material.albedo_color = current_color
+	material.emission = Color(0.2, 0.6, 0.3, 1.0)
+	material.emission_enabled = true
 
 func update_scale(new_scale: float):
 	mesh.scale = Vector3.ONE * new_scale
@@ -204,7 +212,13 @@ func become_dangerous():
 	if not is_dangerous:  # Only change state if not already dangerous
 		is_dangerous = true
 		target_color = DANGER_COLOR
-		material.emission = DANGER_EMISSION
+		current_color = DANGER_COLOR  # Set current color too for immediate effect
+		
+		if material:
+			material.albedo_color = DANGER_COLOR
+			material.emission = DANGER_EMISSION
+			material.emission_enabled = true
+		
 		add_to_group("dangerous")
 		remove_from_group("segment")
 		# Ensure material color updates immediately
