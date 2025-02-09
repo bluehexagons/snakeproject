@@ -33,25 +33,25 @@ const SEGMENT_SPAWN_OFFSET = 0.6  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.9  # Increased from 0.8 for better matching
 const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
-const STUCK_WARNING_START = 1.0  # When to start showing warning color
-const STUCK_EMISSION_ENERGY = 2.0  # Stronger emission when stuck
 
 const IDLE_WARNING_START = 1.0  # When to start showing gray
 const IDLE_DANGER_START = 2.0   # When to start showing red
-const IDLE_EMISSION_START = 2.5  # When to start glowing
+const IDLE_EMISSION_START = 2.9  # When to start glowing
 
 const BASE_COLOR = Color(0.2, 0.4, 1.0)      # Blue
 const IDLE_COLOR = Color(0.5, 0.5, 0.5)      # Gray
 const DANGER_COLOR = Color(0.8, 0.2, 0.2)    # Dark Red
 const FLASH_COLOR = Color(1.0, 0.2, 0.2)     # Bright Red
-const DEATH_COLOR = Color(0.7, 0.1, 0.1)     # Medium Red
+const DEATH_COLOR = Color(0.3, 0.1, 0.1)     # Medium Red
 
 const BASE_EMISSION = Color(0.2, 0.4, 1.0)    # Subtle blue glow
 const DANGER_EMISSION = Color(1.0, 0.2, 0.2)  # Red warning glow
+const DEAD_EMISSION = Color(0.2, 0, 0)  # Red warning glow
 
 const BASE_EMISSION_ENERGY = 0.6
 const WARNING_EMISSION_ENERGY = 1.0
 const DANGER_EMISSION_ENERGY = 2.0
+const DEAD_EMISSION_ENERGY = 0.1
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -99,8 +99,8 @@ func _physics_process(delta):
 	
 	if is_dead:
 		target_color = DEATH_COLOR
-		emission = DANGER_EMISSION
-		emission_energy = DANGER_EMISSION_ENERGY
+		emission = DEAD_EMISSION
+		emission_energy = DEAD_EMISSION_ENERGY
 	elif has_started_moving and stuck_detector.is_stuck:
 		var stuck_time = stuck_detector.get_stuck_duration()
 		if stuck_time >= STUCK_TIMEOUT:
@@ -158,10 +158,8 @@ func _physics_process(delta):
 		if is_stuck:
 			var stuck_time = stuck_detector.get_stuck_duration()
 			if stuck_time >= STUCK_TIMEOUT:
-				var game_manager = get_tree().get_first_node_in_group("game_manager")
-				if game_manager:
-					game_manager.game_over()
-					return
+				die()
+				return
 	
 	# Limit maximum speed
 	velocity = velocity.limit_length(MAX_SPEED)

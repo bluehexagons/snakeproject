@@ -27,16 +27,20 @@ func show_game_over(final_score: int):
 	$GameOverMenu/VBoxContainer/ScoreLabel.text = "Final Score: %d" % final_score
 
 func on_resume_pressed():
+	Engine.time_scale = 1.0;
 	get_parent().toggle_pause()
 
 func on_quit_pressed():
+	Engine.time_scale = 1.0;
 	get_tree().paused = false
 	get_parent().save_and_quit()
 
 func on_retry_pressed():
+	Engine.time_scale = 1.0;
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
 func on_main_menu_pressed():
+	Engine.time_scale = 1.0;
 	get_tree().paused = false
 	get_parent().return_to_main_menu()

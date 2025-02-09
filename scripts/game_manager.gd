@@ -241,22 +241,22 @@ func update_score(points: int):
 		ui.update_score(score)
 
 func game_over():
-	is_paused = true
+	Engine.time_scale = 0.5  # Slow the game to half speed instead of pausing
 	is_gameplay_paused = false  # Ensure gameplay pause is cleared
 	update_pause_state()
 	ui.show_game_over(score)
 
 func return_to_main_menu():
 	save_game_state()
+	Engine.time_scale = 1.0  # Restore normal time scale
 	get_tree().paused = false
-	# Remove pause state before changing scene
 	is_paused = false
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 func save_and_quit():
 	save_game_state()
+	Engine.time_scale = 1.0  # Restore normal time scale
 	get_tree().paused = false
-	# Remove pause state before changing scene
 	is_paused = false
 	get_tree().quit()
 
