@@ -1,4 +1,4 @@
-extends CharacterBody3D
+extends PhysicsObject
 
 const SPRING_STIFFNESS = 850.0  # Significantly reduced from 2500.0
 const SPRING_DAMPING = 20.0  # Increased damping
@@ -25,14 +25,12 @@ var is_dangerous: bool = false
 var target_color: Color = SAFE_COLOR
 var current_color: Color = SAFE_COLOR
 
-var physics_pos: Vector3
-var visual_pos: Vector3
-
 @onready var mesh = $MeshInstance3D
 @onready var collision = $CollisionShape3D
-@onready var material = mesh.mesh.surface_get_material(0)
+# @onready var material = mesh.mesh.surface_get_material(0)
 
 func _ready():
+	super()
 	# Set initial scale and positions
 	current_scale = INITIAL_SCALE
 	update_scale(current_scale)
@@ -50,9 +48,7 @@ func _ready():
 	# Set initial colors
 	current_color = SAFE_COLOR
 	target_color = SAFE_COLOR
-	material.albedo_color = current_color
-	material.emission = Color(0.2, 0.6, 0.3, 1.0)
-	material.emission_enabled = true
+	apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
 
 func update_scale(new_scale: float):
 	mesh.scale = Vector3.ONE * new_scale
@@ -187,11 +183,9 @@ func _physics_process(delta):
 	# Update color
 	if material:
 		current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
-		material.albedo_color = current_color
-		if is_dangerous:
-			material.emission = DANGER_EMISSION
-		else:
-			material.emission = Color(0.2, 0.6, 0.3, 1.0)
+		apply_color(current_color, DANGER_EMISSION if is_dangerous else Color(0.2, 0.6, 0.3, 1.0))
+	
+	super._physics_process(delta)
 
 func _process(delta):
 	# Interpolate visual position between physics updates

@@ -1,4 +1,4 @@
-extends CharacterBody3D
+extends PhysicsObject
 
 const MAX_SPEED = 100000.0
 const ACCELERATION = 250.0  # Increased since we're using forces now
@@ -52,15 +52,14 @@ var stun_timer: float = 0.0
 var base_emission: Color  # Add variable to store base emission color
 var stuck_detector: RefCounted
 
-var physics_pos: Vector3
 var physics_basis: Basis
-var visual_pos: Vector3
 var visual_basis: Basis
 
-@onready var head_mesh = $MeshInstance3D
-@onready var head_material = head_mesh.mesh.surface_get_material(0)
+@onready var head_mesh = mesh_instance
+@onready var head_material = material
 
 func _ready():
+	super()
 	physics_pos = global_position
 	visual_pos = global_position
 	physics_basis = head_mesh.basis
@@ -86,6 +85,8 @@ func _physics_process(delta):
 		head_material.albedo_color = current_color
 		return
 
+	super._physics_process(delta)
+	
 	# Apply gravity
 	if position.y > PhysicsConstants.GROUND_LEVEL:
 		velocity.y -= PhysicsConstants.GRAVITY * delta

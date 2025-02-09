@@ -1,4 +1,4 @@
-extends CharacterBody3D
+extends PhysicsObject
 
 const MASS = 8.0  # Increased to match collision handler
 const STATIC_FRICTION = 3.0  # Increased resistance
@@ -13,19 +13,16 @@ const SPAWN_DURATION = 0.5
 const SPAWN_HEIGHT = 1.5  # How high to rise from ground
 const INITIAL_SCALE = 0.2  # Start very small
 
-var physics_pos: Vector3
-var visual_pos: Vector3
 var is_dangerous: bool = false
 var is_initialized: bool = false
-
 var spawn_timer: float = 0.0
 var is_spawning: bool = true
 var spawn_start_pos: Vector3
 
-@onready var mesh_instance = $MeshInstance3D
-@onready var material = mesh_instance.mesh.surface_get_material(0)
+# @onready var material = mesh_instance.mesh.surface_get_material(0)
 
 func _ready():
+	super()
 	material = material.duplicate()
 	mesh_instance.mesh.surface_set_material(0, material)
 
@@ -69,16 +66,8 @@ func _physics_process(delta):
 			finish_spawn()
 			return
 	
-	# Only process physics after spawning is complete
-	# Apply gravity
-	if position.y > PhysicsConstants.GROUND_LEVEL:
-		velocity.y -= PhysicsConstants.GRAVITY * delta
-	elif position.y < PhysicsConstants.GROUND_LEVEL:
-		position.y = PhysicsConstants.GROUND_LEVEL
-		if velocity.y < 0:
-			velocity.y = -velocity.y * PhysicsConstants.BOUNCE_DAMPENING
-			if abs(velocity.y) < 0.1:
-				velocity.y = 0
+	# Apply gravity from parent class
+	apply_gravity(delta)
 	
 	# More controlled drag for moving rocks
 	if velocity.length_squared() > MIN_VELOCITY * MIN_VELOCITY:
@@ -89,48 +78,26 @@ func _physics_process(delta):
 	var collision = move_and_collide(velocity * delta)
 	var collision_handler = get_node("/root/CollisionHandler")
 	
-	if collision:
-		var collider = collision.get_collider()
-		if collider:  # Make sure there's actually a collider
-			collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
-			
-			# Add direct impulse response for better feel
-			var impact_normal = collision.get_normal()
-			var impact_speed = velocity.length()
-			var reflection = velocity.bounce(impact_normal)
-			velocity = reflection * 0.8  # Reduce bounce by 20%
+	if collision and collision.get_collider():
+		collision_handler.handle_collision(self, collision.get_collider(), collision.get_normal(), delta)
+		
+		# Add direct impulse response for better feel
+		var reflection = velocity.bounce(collision.get_normal())
+		velocity = reflection * 0.8  # Reduce bounce by 20%
 	
-	physics_pos = global_position
+	super._physics_process(delta)
 
 func _process(delta):
-	if !is_initialized:
-		return
-		
-	if is_spawning:
-		# During spawn animation, position is directly set
+	if !is_initialized or is_spawning:
 		mesh_instance.global_position = position
 		return
-		
-	# After spawn, use normal interpolation
-	var fraction = Engine.get_physics_interpolation_fraction()
-	visual_pos = physics_pos.lerp(global_position, fraction)
-	$MeshInstance3D.global_position = visual_pos
+	
+	super._process(delta)
 
 func get_save_data() -> Dictionary:
-	var data = {
-		"position": {
-			"x": global_position.x,
-			"y": global_position.y,
-			"z": global_position.z
-		},
-		"velocity": {
-			"x": velocity.x,
-			"y": velocity.y,
-			"z": velocity.z
-		},
-		"is_dangerous": is_dangerous
-	}
-	return data
+	var base_data = super.get_save_data()
+	base_data["is_dangerous"] = is_dangerous
+	return base_data
 
 func handle_impact(force: float) -> void:
 	var material = $MeshInstance3D.mesh.surface_get_material(0)
