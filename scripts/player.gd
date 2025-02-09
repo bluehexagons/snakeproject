@@ -99,24 +99,28 @@ func _physics_process(delta):
 	
 	if is_dead:
 		target_color = DEATH_COLOR
-		return
-		
-	if has_started_moving and stuck_detector.is_stuck:
+		emission = DANGER_EMISSION
+		emission_energy = DANGER_EMISSION_ENERGY
+	elif has_started_moving and stuck_detector.is_stuck:
 		var stuck_time = stuck_detector.get_stuck_duration()
 		if stuck_time >= STUCK_TIMEOUT:
 			target_color = FLASH_COLOR
-			emission = FLASH_COLOR
+			emission = DANGER_EMISSION
 			emission_energy = DANGER_EMISSION_ENERGY
 		elif stuck_time >= IDLE_EMISSION_START:
 			target_color = DANGER_COLOR
+			emission = DANGER_EMISSION
+			emission_energy = DANGER_EMISSION_ENERGY * ((stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START))
 		elif stuck_time >= IDLE_DANGER_START:
 			var warning_ratio = (stuck_time - IDLE_DANGER_START) / (IDLE_EMISSION_START - IDLE_DANGER_START)
 			target_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
+			emission = BASE_EMISSION.lerp(DANGER_EMISSION, warning_ratio)
+			emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, warning_ratio)
 		elif stuck_time >= IDLE_WARNING_START:
 			var gray_ratio = (stuck_time - IDLE_WARNING_START) / (IDLE_DANGER_START - IDLE_WARNING_START)
 			target_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
-		else:
-			target_color = BASE_COLOR
+			emission = BASE_EMISSION
+			emission_energy = lerp(BASE_EMISSION_ENERGY, WARNING_EMISSION_ENERGY, gray_ratio)
 	
 	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
 	apply_color(current_color, emission, emission_energy)
