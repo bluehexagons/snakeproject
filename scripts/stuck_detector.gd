@@ -1,8 +1,8 @@
 extends RefCounted
 
 const HISTORY_SIZE = 60  # Number of positions to track (60 frames = 1 second at 60fps)
-const MIN_MOVEMENT_THRESHOLD = 4.0  # Minimum distance required to not be considered stuck
-const CLUSTER_RADIUS = 200.0  # How close positions need to be to be considered clustered
+const MIN_MOVEMENT_THRESHOLD = 2.0  # Minimum distance required to not be considered stuck
+const CLUSTER_RADIUS = 50.0  # How close positions need to be to be considered clustered
 const REQUIRED_CLUSTER_RATIO = 0.8  # What portion of points need to be in cluster to be stuck
 
 var position_history: Array[Vector3] = []

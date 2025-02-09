@@ -13,6 +13,10 @@ const SPAWN_DURATION = 0.5
 const SPAWN_HEIGHT = 1.5  # How high to rise from ground
 const INITIAL_SCALE = 0.2  # Start very small
 
+const BARRIER_BOUNCE_MULTIPLIER = 1.5  # Bounce more energetically off barriers
+const BARRIER_PUSH_FORCE = 3.0  # Additional force away from barrier
+const MIN_BOUNCE_SPEED = 2.0  # Ensure rocks always maintain some momentum after barrier hits
+
 var is_dangerous: bool = false
 var is_initialized: bool = false
 var spawn_timer: float = 0.0
@@ -79,11 +83,26 @@ func _physics_process(delta):
 	var collision_handler = get_node("/root/CollisionHandler")
 	
 	if collision and collision.get_collider():
-		collision_handler.handle_collision(self, collision.get_collider(), collision.get_normal(), delta)
+		var collider = collision.get_collider()
 		
-		# Add direct impulse response for better feel
-		var reflection = velocity.bounce(collision.get_normal())
-		velocity = reflection * 0.8  # Reduce bounce by 20%
+		if collider.is_in_group("barrier"):
+			# Special barrier bounce handling
+			var impact_normal = collision.get_normal()
+			var reflection = velocity.bounce(impact_normal)
+			
+			# Add extra force away from barrier
+			var push_force = impact_normal * BARRIER_PUSH_FORCE
+			velocity = (reflection * BARRIER_BOUNCE_MULTIPLIER) + push_force
+			
+			# Ensure minimum bounce speed
+			if velocity.length() < MIN_BOUNCE_SPEED:
+				velocity = velocity.normalized() * MIN_BOUNCE_SPEED
+		else:
+			collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
+			var reflection = velocity.bounce(collision.get_normal())
+			velocity = reflection * 0.8  # Normal bounce for non-barrier collisions
+	
+	physics_pos = global_position
 	
 	super._physics_process(delta)
 
