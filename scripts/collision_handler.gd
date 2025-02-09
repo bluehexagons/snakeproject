@@ -36,6 +36,12 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	var normal_speed = relative_velocity.dot(collision_normal)
 	var impact_force = abs(normal_speed)
 	
+	# Trigger impact flashes with calculated force
+	if body_a.has_method("handle_impact"):
+		body_a.handle_impact(impact_force)
+	if body_b is CharacterBody3D and body_b.has_method("handle_impact"):
+		body_b.handle_impact(impact_force)
+	
 	# Calculate how head-on the collision is (1.0 = head-on, 0.0 = glancing)
 	var a_dir = body_a.velocity.normalized()
 	var b_dir = body_b.velocity.normalized()

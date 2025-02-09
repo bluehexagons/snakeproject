@@ -29,6 +29,8 @@ func _ready():
 	super()
 	target_color = SAFE_COLOR
 	current_color = SAFE_COLOR
+	base_emission = Color(0.4, 0.4, 0.4, 1.0)  # Add subtle gray emission for rocks
+	base_emission_energy = 0.2  # Low base emission energy
 
 func finish_spawn():
 	is_spawning = false
@@ -70,8 +72,8 @@ func _physics_process(delta):
 			finish_spawn()
 			return
 	
-	# Apply gravity from parent class
-	apply_gravity(delta)
+	# Apply gravity and physics from parent class
+	super._physics_process(delta)
 	
 	# More controlled drag for moving rocks
 	if velocity.length_squared() > MIN_VELOCITY * MIN_VELOCITY:
@@ -84,6 +86,7 @@ func _physics_process(delta):
 	
 	if collision and collision.get_collider():
 		var collider = collision.get_collider()
+		var impact_force = velocity.length()  # Calculate impact force for flash effect
 		
 		if collider.is_in_group("barrier"):
 			# Special barrier bounce handling
@@ -97,10 +100,13 @@ func _physics_process(delta):
 			# Ensure minimum bounce speed
 			if velocity.length() < MIN_BOUNCE_SPEED:
 				velocity = velocity.normalized() * MIN_BOUNCE_SPEED
+			
+			# Handle impact flash with increased intensity for barrier collisions
+			handle_impact(impact_force * 1.5)
 		else:
 			collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
-			var reflection = velocity.bounce(collision.get_normal())
-			velocity = reflection * 0.8  # Normal bounce for non-barrier collisions
+			# Handle impact flash for normal collisions
+			handle_impact(impact_force)
 	
 	physics_pos = global_position
 	
