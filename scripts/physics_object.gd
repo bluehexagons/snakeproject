@@ -13,17 +13,31 @@ const IMPACT_MAX_FORCE = 20.0
 
 var current_emission: Color = Color.BLACK
 var current_emission_energy: float = 1.0
+var target_color: Color
+var current_color: Color
+var base_emission: Color
+var base_emission_energy: float = 0.3
+var color_change_speed: float = 5.0
 
 func _ready():
     if mesh_instance and current_material:
         mesh_instance.mesh.surface_set_material(0, current_material)
+        base_emission = current_material.emission
+        current_emission = base_emission
+        current_emission_energy = base_emission_energy
     physics_pos = global_position
     visual_pos = global_position
     if mesh_instance:
         mesh_instance.global_position = global_position
 
 func _physics_process(delta):
+    apply_gravity(delta)
     physics_pos = global_position
+
+    # Update color
+    if current_material:
+        current_color = current_color.lerp(target_color, delta * color_change_speed)
+        apply_color(current_color)
 
 func _process(delta):
     if mesh_instance:
@@ -115,13 +129,12 @@ func handle_impact(force: float) -> void:
             mesh_instance.material_override = null
     )
 
-func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: float = 1.0) -> void:
+func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: float = -1.0) -> void:
     if current_material:
-        # Update the current material directly
         current_material.albedo_color = color
-        current_material.emission = emission
-        current_material.emission_enabled = emission != Color.BLACK
-        current_material.emission_energy_multiplier = emission_energy
+        current_material.emission = emission if emission != Color.BLACK else base_emission
+        current_material.emission_enabled = emission != Color.BLACK || base_emission != Color.BLACK
+        current_material.emission_energy_multiplier = emission_energy if emission_energy >= 0 else base_emission_energy
         # Store current emission state for impact flashes
-        current_emission = emission
-        current_emission_energy = emission_energy
+        current_emission = current_material.emission
+        current_emission_energy = current_material.emission_energy_multiplier

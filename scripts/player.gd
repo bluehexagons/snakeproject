@@ -49,7 +49,7 @@ const DEATH_COLOR = Color(0.7, 0.1, 0.1)     # Medium Red
 const BASE_EMISSION = Color(0.2, 0.4, 1.0)    # Subtle blue glow
 const DANGER_EMISSION = Color(1.0, 0.2, 0.2)  # Red warning glow
 
-const BASE_EMISSION_ENERGY = 0.3
+const BASE_EMISSION_ENERGY = 0.6
 const WARNING_EMISSION_ENERGY = 1.0
 const DANGER_EMISSION_ENERGY = 2.0
 
@@ -59,34 +59,30 @@ var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
 var current_scale: float = 1.0  # Add this for consistent scaling behavior
 var has_started_moving: bool = false
-var current_color: Color = NORMAL_COLOR
 var food_eaten: int = 0
 var current_idle_speed: float = IDLE_SPEED_BASE
 var is_dead: bool = false
 var death_color_time: float = 0.0
 var stun_timer: float = 0.0
-var base_emission: Color  # Add variable to store base emission color
 var stuck_detector: RefCounted
 
 var physics_basis: Basis
 var visual_basis: Basis
 
-@onready var head_mesh = mesh_instance
-@onready var head_material = current_material
-
 func _ready():
 	super()
+	base_emission = BASE_EMISSION
+	base_emission_energy = BASE_EMISSION_ENERGY
+	target_color = BASE_COLOR
+	current_color = BASE_COLOR
 	physics_pos = global_position
 	visual_pos = global_position
-	physics_basis = head_mesh.basis
-	visual_basis = head_mesh.basis
-	# Clone the material so we don't affect other instances
-	head_material = head_material.duplicate()
-	head_mesh.mesh.surface_set_material(0, head_material)
+	physics_basis = mesh_instance.basis
+	visual_basis = mesh_instance.basis
 	
 	# Store initial emission color
-	if head_material is StandardMaterial3D:
-		base_emission = head_material.emission
+	if current_material is StandardMaterial3D:
+		base_emission = current_material.emission
 	
 	stuck_detector = preload("res://scripts/stuck_detector.gd").new()
 	
@@ -94,13 +90,15 @@ func _ready():
 	apply_color(BASE_COLOR, BASE_EMISSION, BASE_EMISSION_ENERGY)
 
 func _physics_process(delta):
+	super._physics_process(delta)
+	
 	# Handle color updates before any potential impacts
 	var target_color = BASE_COLOR
 	var emission = BASE_EMISSION
 	var emission_energy = BASE_EMISSION_ENERGY
 	
 	if is_dead:
-		apply_color(DEATH_COLOR)
+		target_color = DEATH_COLOR
 		return
 		
 	if has_started_moving and stuck_detector.is_stuck:
@@ -110,36 +108,20 @@ func _physics_process(delta):
 			emission = FLASH_COLOR
 			emission_energy = DANGER_EMISSION_ENERGY
 		elif stuck_time >= IDLE_EMISSION_START:
-			var danger_ratio = (stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START)
 			target_color = DANGER_COLOR
-			emission = DANGER_EMISSION
-			emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, danger_ratio)
 		elif stuck_time >= IDLE_DANGER_START:
 			var warning_ratio = (stuck_time - IDLE_DANGER_START) / (IDLE_EMISSION_START - IDLE_DANGER_START)
 			target_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
-			emission = BASE_EMISSION
-			emission_energy = BASE_EMISSION_ENERGY
 		elif stuck_time >= IDLE_WARNING_START:
 			var gray_ratio = (stuck_time - IDLE_WARNING_START) / (IDLE_DANGER_START - IDLE_WARNING_START)
 			target_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
-			emission = BASE_EMISSION
-			emission_energy = BASE_EMISSION_ENERGY
+		else:
+			target_color = BASE_COLOR
 	
 	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
 	apply_color(current_color, emission, emission_energy)
 	
 	# Now handle physics and potential impacts
-	super._physics_process(delta)
-	
-	# Apply gravity
-	if position.y > PhysicsConstants.GROUND_LEVEL:
-		velocity.y -= PhysicsConstants.GRAVITY * delta
-	elif position.y < PhysicsConstants.GROUND_LEVEL:
-		position.y = PhysicsConstants.GROUND_LEVEL
-		if velocity.y < 0:
-			velocity.y = -velocity.y * PhysicsConstants.BOUNCE_DAMPENING
-			if abs(velocity.y) < 0.1:
-				velocity.y = 0
 
 	if stun_timer > 0:
 		stun_timer -= delta
@@ -214,11 +196,11 @@ func _physics_process(delta):
 		target_basis = (target_basis * tilt.basis).orthonormalized()
 		
 		# Apply the rotation with normalized basis
-		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
+		mesh_instance.basis = mesh_instance.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 	
 	# Store physics state
 	physics_pos = global_position
-	physics_basis = head_mesh.basis
+	physics_basis = mesh_instance.basis
 	
 	# Food collection
 	for area in get_tree().get_nodes_in_group("food"):
@@ -251,11 +233,11 @@ func _process(delta):
 	# Interpolate visual position between physics updates
 	var fraction = Engine.get_physics_interpolation_fraction()
 	visual_pos = physics_pos.lerp(global_position, fraction)
-	visual_basis = physics_basis.slerp(head_mesh.basis, fraction)
+	visual_basis = physics_basis.slerp(mesh_instance.basis, fraction)
 	
 	# Update visual representation
-	head_mesh.global_position = visual_pos
-	head_mesh.basis = visual_basis
+	mesh_instance.global_position = visual_pos
+	mesh_instance.basis = visual_basis
 
 func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> CharacterBody3D:
 	var segment = SEGMENT_SCENE.instantiate()

@@ -22,8 +22,6 @@ var is_growing: bool = true
 var current_scale: float = INITIAL_SCALE
 var spawn_timer: float = 0.5  # Time to use reduced spring force
 var is_dangerous: bool = false
-var target_color: Color = SAFE_COLOR
-var current_color: Color = SAFE_COLOR
 
 @onready var mesh = $MeshInstance3D
 @onready var collision = $CollisionShape3D
@@ -40,14 +38,10 @@ func _ready():
 	# Ensure mesh starts at the correct position
 	mesh.global_position = global_position
 	
-	# Important: Get original material and create a unique instance
-	var original_material = mesh.mesh.surface_get_material(0)
-	current_material = original_material.duplicate()
-	mesh.mesh.surface_set_material(0, current_material)
-	
 	# Set initial colors
 	current_color = SAFE_COLOR
 	target_color = SAFE_COLOR
+	base_emission = Color(0.2, 0.6, 0.3, 1.0)
 	apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
 
 func update_scale(new_scale: float):
@@ -194,6 +188,13 @@ func _physics_process(delta):
 			apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
 	
 	super._physics_process(delta)
+	
+	if is_dangerous:
+		target_color = DANGER_COLOR
+		base_emission = DANGER_EMISSION
+	else:
+		target_color = SAFE_COLOR
+		base_emission = Color(0.2, 0.6, 0.3, 1.0)
 
 func _process(delta):
 	# Interpolate visual position between physics updates

@@ -27,8 +27,8 @@ var spawn_start_pos: Vector3
 
 func _ready():
 	super()
-	current_material = current_material.duplicate()
-	mesh_instance.mesh.surface_set_material(0, current_material)
+	target_color = SAFE_COLOR
+	current_color = SAFE_COLOR
 
 func finish_spawn():
 	is_spawning = false
@@ -120,13 +120,11 @@ func get_save_data() -> Dictionary:
 
 func make_dangerous():
 	is_dangerous = true
+	target_color = DANGER_COLOR
+	current_color = DANGER_COLOR  # Immediate color change
+	base_emission = DANGER_EMISSION
+	base_emission_energy = 1.0
+	
 	add_to_group("dangerous")
-	current_material.albedo_color = DANGER_COLOR
-	current_material.emission = DANGER_EMISSION
-	current_material.emission_enabled = true
-	# Update collision layers to match other dangerous objects
-	# Layer 4: dangerous objects
-	# Layer 2: normal physics objects
-	# Mask 7: collide with everything (players, segments, other rocks)
 	collision_layer = 4 | 2  # Both dangerous AND physical
 	collision_mask = 7  # Collide with everything
