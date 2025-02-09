@@ -27,8 +27,8 @@ var spawn_start_pos: Vector3
 
 func _ready():
 	super()
-	material = material.duplicate()
-	mesh_instance.mesh.surface_set_material(0, material)
+	current_material = current_material.duplicate()
+	mesh_instance.mesh.surface_set_material(0, current_material)
 
 func finish_spawn():
 	is_spawning = false
@@ -121,9 +121,9 @@ func get_save_data() -> Dictionary:
 func make_dangerous():
 	is_dangerous = true
 	add_to_group("dangerous")
-	material.albedo_color = DANGER_COLOR
-	material.emission = DANGER_EMISSION
-	material.emission_enabled = true
+	current_material.albedo_color = DANGER_COLOR
+	current_material.emission = DANGER_EMISSION
+	current_material.emission_enabled = true
 	# Update collision layers to match other dangerous objects
 	# Layer 4: dangerous objects
 	# Layer 2: normal physics objects

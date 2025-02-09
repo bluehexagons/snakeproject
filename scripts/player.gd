@@ -13,7 +13,6 @@ const IDLE_SPEED_BASE = 3.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const NORMAL_COLOR = Color(0.2, 0.4, 1.0)    # Blue
 const WARNING_COLOR = Color(0.5, 0.5, 0.5)    # Gray
-const DANGER_COLOR = Color(1.0, 0.9, 0.2)     # Yellow
 const DYING_COLOR = Color(1.0, 0.2, 0.2)      # Red
 const WARNING_SPEED_THRESHOLD = 1.1            # When to start showing warning color (multiplier of idle speed)
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
@@ -21,7 +20,6 @@ const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
 const IDLE_SPEED_INCREASE = 5.0  # Speed increase per food eaten
 const MAX_IDLE_SPEED = 5.0  # Cap on how fast the minimum speed can get
-const FLASH_COLOR = Color(1.0, 0.0, 0.0)      # Bright Red for final flash
 const DEATH_COLORS = [                         # Colors to cycle through when dead
 	Color(1.0, 0.0, 0.0),  # Red
 	Color(0.0, 0.0, 0.0),  # Black
@@ -36,6 +34,24 @@ const SEGMENT_SPAWN_VELOCITY = 0.9  # Increased from 0.8 for better matching
 const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
 const STUCK_WARNING_START = 1.0  # When to start showing warning color
+const STUCK_EMISSION_ENERGY = 2.0  # Stronger emission when stuck
+
+const IDLE_WARNING_START = 1.0  # When to start showing gray
+const IDLE_DANGER_START = 2.0   # When to start showing red
+const IDLE_EMISSION_START = 2.5  # When to start glowing
+
+const BASE_COLOR = Color(0.2, 0.4, 1.0)      # Blue
+const IDLE_COLOR = Color(0.5, 0.5, 0.5)      # Gray
+const DANGER_COLOR = Color(0.8, 0.2, 0.2)    # Dark Red
+const FLASH_COLOR = Color(1.0, 0.2, 0.2)     # Bright Red
+const DEATH_COLOR = Color(0.7, 0.1, 0.1)     # Medium Red
+
+const BASE_EMISSION = Color(0.2, 0.4, 1.0)    # Subtle blue glow
+const DANGER_EMISSION = Color(1.0, 0.2, 0.2)  # Red warning glow
+
+const BASE_EMISSION_ENERGY = 0.3
+const WARNING_EMISSION_ENERGY = 1.0
+const DANGER_EMISSION_ENERGY = 2.0
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
@@ -56,7 +72,7 @@ var physics_basis: Basis
 var visual_basis: Basis
 
 @onready var head_mesh = mesh_instance
-@onready var head_material = material
+@onready var head_material = current_material
 
 func _ready():
 	super()
@@ -73,18 +89,46 @@ func _ready():
 		base_emission = head_material.emission
 	
 	stuck_detector = preload("res://scripts/stuck_detector.gd").new()
+	
+	# Set initial emission state
+	apply_color(BASE_COLOR, BASE_EMISSION, BASE_EMISSION_ENERGY)
 
 func _physics_process(delta):
+	# Handle color updates before any potential impacts
+	var target_color = BASE_COLOR
+	var emission = BASE_EMISSION
+	var emission_energy = BASE_EMISSION_ENERGY
+	
 	if is_dead:
-		# Cycle through death colors
-		death_color_time += delta * DEATH_COLOR_SPEED
-		var color_index = int(death_color_time) % DEATH_COLORS.size()
-		var next_index = (color_index + 1) % DEATH_COLORS.size()
-		var color_fraction = fmod(death_color_time, 1.0)
-		current_color = DEATH_COLORS[color_index].lerp(DEATH_COLORS[next_index], color_fraction)
-		head_material.albedo_color = current_color
+		apply_color(DEATH_COLOR)
 		return
-
+		
+	if has_started_moving and stuck_detector.is_stuck:
+		var stuck_time = stuck_detector.get_stuck_duration()
+		if stuck_time >= STUCK_TIMEOUT:
+			target_color = FLASH_COLOR
+			emission = FLASH_COLOR
+			emission_energy = DANGER_EMISSION_ENERGY
+		elif stuck_time >= IDLE_EMISSION_START:
+			var danger_ratio = (stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START)
+			target_color = DANGER_COLOR
+			emission = DANGER_EMISSION
+			emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, danger_ratio)
+		elif stuck_time >= IDLE_DANGER_START:
+			var warning_ratio = (stuck_time - IDLE_DANGER_START) / (IDLE_EMISSION_START - IDLE_DANGER_START)
+			target_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
+			emission = BASE_EMISSION
+			emission_energy = BASE_EMISSION_ENERGY
+		elif stuck_time >= IDLE_WARNING_START:
+			var gray_ratio = (stuck_time - IDLE_WARNING_START) / (IDLE_DANGER_START - IDLE_WARNING_START)
+			target_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
+			emission = BASE_EMISSION
+			emission_energy = BASE_EMISSION_ENERGY
+	
+	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
+	apply_color(current_color, emission, emission_energy)
+	
+	# Now handle physics and potential impacts
 	super._physics_process(delta)
 	
 	# Apply gravity
@@ -171,23 +215,6 @@ func _physics_process(delta):
 		
 		# Apply the rotation with normalized basis
 		head_mesh.basis = head_mesh.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
-	
-	# Update color based on stuck status
-	var target_color
-	if has_started_moving and stuck_detector.is_stuck:
-		var stuck_time = stuck_detector.get_stuck_duration()
-		if STUCK_TIMEOUT - stuck_time <= FLASH_TIME:
-			target_color = FLASH_COLOR
-		else:
-			# Interpolate between warning and danger colors based on stuck duration
-			var time_ratio = (stuck_time - STUCK_WARNING_START) / (STUCK_TIMEOUT - STUCK_WARNING_START - FLASH_TIME)
-			time_ratio = clamp(time_ratio, 0.0, 1.0)
-			target_color = WARNING_COLOR.lerp(DANGER_COLOR, time_ratio)
-	else:
-		target_color = NORMAL_COLOR
-	
-	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
-	head_material.albedo_color = current_color
 	
 	# Store physics state
 	physics_pos = global_position

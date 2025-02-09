@@ -42,8 +42,8 @@ func _ready():
 	
 	# Important: Get original material and create a unique instance
 	var original_material = mesh.mesh.surface_get_material(0)
-	material = original_material.duplicate()
-	mesh.mesh.surface_set_material(0, material)
+	current_material = original_material.duplicate()
+	mesh.mesh.surface_set_material(0, current_material)
 	
 	# Set initial colors
 	current_color = SAFE_COLOR
@@ -100,9 +100,9 @@ func init_from_save_data(data: Dictionary):
 		add_to_group("dangerous")
 		remove_from_group("segment")
 		current_color = DANGER_COLOR
-		material.albedo_color = DANGER_COLOR
-		material.emission = DANGER_EMISSION
-		material.emission_enabled = true
+		current_material.albedo_color = DANGER_COLOR
+		current_material.emission = DANGER_EMISSION
+		current_material.emission_enabled = true
 	elif data.has("current_color"):
 		current_color = Color(
 			data.current_color.r,
@@ -110,7 +110,7 @@ func init_from_save_data(data: Dictionary):
 			data.current_color.b,
 			data.current_color.a
 		)
-		material.albedo_color = current_color
+		current_material.albedo_color = current_color
 	
 	# Don't call init_with_growth since we're restoring a saved state
 	growth_timer = GROWTH_DURATION  # Mark growth as complete
@@ -183,7 +183,7 @@ func _physics_process(delta):
 	physics_pos = global_position
 
 	# Update color
-	if material:
+	if current_material:
 		if is_dangerous:
 			# When dangerous, maintain red color and emission
 			current_color = DANGER_COLOR
@@ -212,15 +212,15 @@ func become_dangerous():
 		target_color = DANGER_COLOR
 		current_color = DANGER_COLOR  # Set current color too for immediate effect
 		
-		if material:
-			material.albedo_color = DANGER_COLOR
-			material.emission = DANGER_EMISSION
-			material.emission_enabled = true
+		if current_material:
+			current_material.albedo_color = DANGER_COLOR
+			current_material.emission = DANGER_EMISSION
+			current_material.emission_enabled = true
 		
 		add_to_group("dangerous")
 		remove_from_group("segment")
 		# Ensure material color updates immediately
-		material.albedo_color = DANGER_COLOR
+		current_material.albedo_color = DANGER_COLOR
 		
 		# Visual feedback
 		var tween = create_tween()
@@ -228,7 +228,7 @@ func become_dangerous():
 		tween.tween_property(mesh, "scale", mesh.scale, 0.2)
 		
 		# Emission pulse
-		var flash_material = material.duplicate()
+		var flash_material = current_material.duplicate()
 		mesh.material_override = flash_material
 		flash_material.emission_energy_multiplier = 4.0
 		
