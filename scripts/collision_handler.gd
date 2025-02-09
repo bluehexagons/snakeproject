@@ -13,8 +13,16 @@ const MAX_COLLISION_SPEED = 20.0
 const REST_THRESHOLD = 0.1
 const STATIC_BREAKAWAY_FORCE = 2.0  # Increased force needed to move rocks
 const VELOCITY_LOSS_ON_COLLISION = 0.7  # How much velocity to maintain after collision
+const BARRIER_BOUNCE_MULTIPLIER = 1.5  # Extra bounce for barrier collisions
+const BARRIER_PUSH_FORCE = 3.0  # Additional force away from barrier
+const MIN_BARRIER_BOUNCE_SPEED = 2.0  # Minimum speed after barrier bounce
 
 func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: Vector3, delta: float) -> void:
+	# Handle barrier collisions first
+	if body_b.is_in_group("barrier"):
+		handle_barrier_collision(body_a, collision_normal, delta)
+		return
+	
 	# Early return for static bodies (barriers)
 	if body_b is StaticBody3D:
 		handle_static_collision(body_a, collision_normal, delta)
@@ -109,6 +117,26 @@ func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, d
 	# Add slight upward bounce to prevent sticking to ground
 	if collision_normal.y > 0.5:  # If hitting ground-like surface
 		body.velocity.y += abs(impact_speed) * 0.1
+
+func handle_barrier_collision(body: CharacterBody3D, collision_normal: Vector3, delta: float) -> void:
+	var impact_force = body.velocity.length()
+	
+	# Handle impact flash for all physics objects
+	if body.has_method("handle_impact"):
+		body.handle_impact(impact_force * 1.5)  # Increased flash for barrier impacts
+	
+	# Make segments dangerous if they aren't already
+	if body.is_in_group("segment") and not body.is_in_group("dangerous"):
+		body.become_dangerous()
+	
+	# Calculate bounce with extra force
+	var reflection = body.velocity.bounce(collision_normal)
+	var push_force = collision_normal * BARRIER_PUSH_FORCE
+	body.velocity = (reflection * BARRIER_BOUNCE_MULTIPLIER) + push_force
+	
+	# Ensure minimum bounce speed
+	if body.velocity.length() < MIN_BARRIER_BOUNCE_SPEED:
+		body.velocity = body.velocity.normalized() * MIN_BARRIER_BOUNCE_SPEED
 
 # Check for nearby segments and apply separation forces
 func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float) -> void:

@@ -170,7 +170,7 @@ func _physics_process(delta):
 	if collision:
 		var collider = collision.get_collider()
 		if collider.is_in_group("barrier"):
-			die()
+			die()  # Player still dies on barrier contact
 			return
 		elif collider.is_in_group("dangerous"):
 			die()  # Die immediately on contact with any dangerous object

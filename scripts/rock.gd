@@ -72,7 +72,7 @@ func _physics_process(delta):
 			finish_spawn()
 			return
 	
-	# Apply gravity and physics from parent class
+	# Apply physics from parent class
 	super._physics_process(delta)
 	
 	# More controlled drag for moving rocks
@@ -85,28 +85,7 @@ func _physics_process(delta):
 	var collision_handler = get_node("/root/CollisionHandler")
 	
 	if collision and collision.get_collider():
-		var collider = collision.get_collider()
-		var impact_force = velocity.length()  # Calculate impact force for flash effect
-		
-		if collider.is_in_group("barrier"):
-			# Special barrier bounce handling
-			var impact_normal = collision.get_normal()
-			var reflection = velocity.bounce(impact_normal)
-			
-			# Add extra force away from barrier
-			var push_force = impact_normal * BARRIER_PUSH_FORCE
-			velocity = (reflection * BARRIER_BOUNCE_MULTIPLIER) + push_force
-			
-			# Ensure minimum bounce speed
-			if velocity.length() < MIN_BOUNCE_SPEED:
-				velocity = velocity.normalized() * MIN_BOUNCE_SPEED
-			
-			# Handle impact flash with increased intensity for barrier collisions
-			handle_impact(impact_force * 1.5)
-		else:
-			collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
-			# Handle impact flash for normal collisions
-			handle_impact(impact_force)
+		collision_handler.handle_collision(self, collision.get_collider(), collision.get_normal(), delta)
 	
 	physics_pos = global_position
 	
