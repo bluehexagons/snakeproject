@@ -61,32 +61,23 @@ func init_with_growth(initial_growth: float):
 	update_scale(current_scale)
 
 func get_save_data() -> Dictionary:
-	return {
-		"position": {
-			"x": global_position.x,
-			"y": global_position.y,
-			"z": global_position.z
-		},
-		"velocity": {
-			"x": velocity.x,
-			"y": velocity.y,
-			"z": velocity.z
-		},
-		"smoothed_velocity": {
+	var base_data = super.get_save_data()
+	# Add segment-specific data
+	base_data["smoothed_velocity"] = {
 			"x": smoothed_velocity.x,
 			"y": smoothed_velocity.y,
 			"z": smoothed_velocity.z
-		},
-		"growth": min(growth_timer / GROWTH_DURATION, 1.0),
-		"current_scale": current_scale,
-		"is_dangerous": is_dangerous,
-		"current_color": {
+	}
+	base_data["growth"] = min(growth_timer / GROWTH_DURATION, 1.0)
+	base_data["current_scale"] = current_scale
+	base_data["is_dangerous"] = is_dangerous
+	base_data["current_color"] = {
 			"r": current_color.r,
 			"g": current_color.g,
 			"b": current_color.b,
 			"a": current_color.a
-		}
 	}
+	return base_data
 
 func init_from_save_data(data: Dictionary):
 	if data.has("velocity"):
@@ -98,9 +89,20 @@ func init_from_save_data(data: Dictionary):
 	physics_pos = global_position
 	visual_pos = global_position
 	
-	# Initialize danger state
+	# Initialize scale and growth first
+	current_scale = data.get("current_scale", 1.0)  # Default to full size if not specified
+	update_scale(current_scale)
+	is_growing = false  # Loaded segments should be at their final scale
+	
+	# Then handle danger state to prevent scale reset
 	if data.has("is_dangerous") and data.is_dangerous:
-		become_dangerous()
+		is_dangerous = true  # Set flag first
+		add_to_group("dangerous")
+		remove_from_group("segment")
+		current_color = DANGER_COLOR
+		material.albedo_color = DANGER_COLOR
+		material.emission = DANGER_EMISSION
+		material.emission_enabled = true
 	elif data.has("current_color"):
 		current_color = Color(
 			data.current_color.r,
@@ -110,8 +112,8 @@ func init_from_save_data(data: Dictionary):
 		)
 		material.albedo_color = current_color
 	
-	# Initialize growth last
-	init_with_growth(data.growth)
+	# Don't call init_with_growth since we're restoring a saved state
+	growth_timer = GROWTH_DURATION  # Mark growth as complete
 
 func _physics_process(delta):
 	if is_growing:
@@ -182,8 +184,14 @@ func _physics_process(delta):
 
 	# Update color
 	if material:
-		current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
-		apply_color(current_color, DANGER_EMISSION if is_dangerous else Color(0.2, 0.6, 0.3, 1.0))
+		if is_dangerous:
+			# When dangerous, maintain red color and emission
+			current_color = DANGER_COLOR
+			apply_color(current_color, DANGER_EMISSION)
+		else:
+			# Normal color lerping for safe segments
+			current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
+			apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
 	
 	super._physics_process(delta)
 
@@ -197,11 +205,6 @@ func _process(delta):
 	
 	# Keep collision shape at physics position
 	collision.global_position = global_position
-
-func handle_impact(force: float) -> void:
-	var material = mesh.mesh.surface_get_material(0)
-	if material:
-		ImpactFlash.flash_material(material, force)
 
 func become_dangerous():
 	if not is_dangerous:  # Only change state if not already dangerous

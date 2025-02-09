@@ -99,11 +99,6 @@ func get_save_data() -> Dictionary:
 	base_data["is_dangerous"] = is_dangerous
 	return base_data
 
-func handle_impact(force: float) -> void:
-	var material = $MeshInstance3D.mesh.surface_get_material(0)
-	if material:
-		ImpactFlash.flash_material(material, force)
-
 func make_dangerous():
 	is_dangerous = true
 	add_to_group("dangerous")

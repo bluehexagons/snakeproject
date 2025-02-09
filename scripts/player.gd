@@ -281,46 +281,27 @@ func get_segment_positions() -> Array:
 	return positions
 
 func get_save_data() -> Dictionary:
-	return {
-		"position": {
-			"x": global_position.x,
-			"y": global_position.y,
-			"z": global_position.z
-		},
-			"physics_pos": {
-			"x": physics_pos.x,
-			"y": physics_pos.y,
-			"z": physics_pos.z
-		},
-		"visual_pos": {
-			"x": visual_pos.x,
-			"y": visual_pos.y,
-			"z": visual_pos.z
-		},
-		"velocity": {
-			"x": velocity.x,
-			"y": velocity.y,
-			"z": velocity.z
-		},
-		"target_velocity": {
-			"x": target_velocity.x,
-			"y": target_velocity.y,
-			"z": target_velocity.z
-		},
-		"smoothed_velocity": {
-			"x": smoothed_velocity.x,
-			"y": smoothed_velocity.y,
-			"z": smoothed_velocity.z
-		},
-		"facing_direction": {
-			"x": facing_direction.x,
-			"y": facing_direction.y,
-			"z": facing_direction.z
-		},
-		"food_eaten": food_eaten,
-		"current_idle_speed": current_idle_speed,
-		"segments": get_segment_positions()
+	var base_data = super.get_save_data()
+	# Add player-specific data
+	base_data["target_velocity"] = {
+		"x": target_velocity.x,
+		"y": target_velocity.y,
+		"z": target_velocity.z
 	}
+	base_data["smoothed_velocity"] = {
+		"x": smoothed_velocity.x,
+		"y": smoothed_velocity.y,
+		"z": smoothed_velocity.z
+	}
+	base_data["facing_direction"] = {
+		"x": facing_direction.x,
+		"y": facing_direction.y,
+		"z": facing_direction.z
+	}
+	base_data["food_eaten"] = food_eaten
+	base_data["current_idle_speed"] = current_idle_speed
+	base_data["segments"] = get_segment_positions()
+	return base_data
 
 func restore_from_save(data: Dictionary):
 	var state = data.player_state  # Get complete player state
@@ -369,7 +350,3 @@ func die():
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		game_manager.game_over()
-
-func handle_impact(force: float) -> void:
-	if head_material:
-		ImpactFlash.flash_material(head_material, force)

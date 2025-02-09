@@ -7,6 +7,10 @@ var visual_pos: Vector3
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var material: StandardMaterial3D = mesh_instance.mesh.surface_get_material(0) if mesh_instance else null
 
+const IMPACT_FLASH_DURATION = 0.15
+const IMPACT_MIN_FORCE = 2.0
+const IMPACT_MAX_FORCE = 20.0
+
 func _ready():
     if material:
         material = material.duplicate()
@@ -86,8 +90,24 @@ func apply_gravity(delta: float) -> void:
                 velocity.y = 0
 
 func handle_impact(force: float) -> void:
-    if material:
-        ImpactFlash.flash_material(material, force)
+    if material and mesh_instance:
+        var flash_intensity = clampf((force - IMPACT_MIN_FORCE) / (IMPACT_MAX_FORCE - IMPACT_MIN_FORCE), 0.0, 1.0)
+        if flash_intensity <= 0.0:
+            return
+            
+        var flash_material = material.duplicate()
+        mesh_instance.material_override = flash_material
+        
+        var base_emission = material.emission if material.emission_enabled else Color.BLACK
+        var flash_color = base_emission + Color(1, 1, 1, 1) * flash_intensity
+        
+        var tween = create_tween()
+        tween.tween_property(flash_material, "emission", flash_color, 0.05)
+        tween.tween_property(flash_material, "emission", base_emission, IMPACT_FLASH_DURATION)
+        tween.tween_callback(func():
+            if is_instance_valid(mesh_instance):
+                mesh_instance.material_override = null
+        )
 
 func apply_color(color: Color, emission: Color = Color.BLACK) -> void:
     if material:
