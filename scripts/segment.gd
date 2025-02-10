@@ -76,7 +76,8 @@ func init_from_save_data(data: Dictionary):
 	# Initialize scale and growth first
 	current_scale = data.get("current_scale", 1.0)  # Default to full size if not specified
 	update_scale(current_scale)
-	is_growing = false  # Loaded segments should be at their final scale
+
+	growth_timer = GROWTH_DURATION * data.get("growth")
 	
 	# Then handle danger state to prevent scale reset
 	if data.has("is_dangerous") and data.is_dangerous:
