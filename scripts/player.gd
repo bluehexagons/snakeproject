@@ -1,8 +1,7 @@
 extends PhysicsObject
 
 const MAX_SPEED = 100000.0
-const ACCELERATION = 250.0  # Increased since we're using forces now
-const DRAG_COEFFICIENT = 0.6  # Increased to better resist movement
+const ACCELERATION = 50.0  # Increased since we're using forces now
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
@@ -79,6 +78,8 @@ func _ready():
 	visual_pos = global_position
 	physics_basis = mesh_instance.basis
 	visual_basis = mesh_instance.basis
+	drag_coefficient = PhysicsConstants.PLAYER_DRAG
+	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
 	
 	# Store initial emission color
 	if current_material is StandardMaterial3D:
@@ -139,18 +140,9 @@ func _physics_process(delta):
 	if not is_dead and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
+		velocity += input_dir * ACCELERATION * delta * input_multiplier
 		
-		# Apply acceleration as a force
-		var acceleration_force = input_dir * ACCELERATION * delta * input_multiplier
-		velocity += acceleration_force
-		
-		# Apply drag relative to current speed
-		var speed_squared = velocity.length_squared()
-		var drag = -velocity.normalized() * speed_squared * DRAG_COEFFICIENT * delta
-		velocity += drag
-	elif not is_dead:
-		# Apply stronger drag when not inputting
-		velocity = velocity.lerp(Vector3.ZERO, DRAG_COEFFICIENT * 2.0 * delta)
+	super._physics_process(delta)
 	
 	# Update stuck detection
 	if has_started_moving:

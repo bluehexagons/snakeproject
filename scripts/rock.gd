@@ -2,8 +2,8 @@ extends PhysicsObject
 
 const MASS = 8.0  # Increased to match collision handler
 const STATIC_FRICTION = 3.0  # Increased resistance
-const DRAG_COEFFICIENT = 0.2  # Reduced from 0.8 to prevent rapid stopping
-const MIN_VELOCITY = 0.1  # Only stop completely below this threshold
+# const DRAG_COEFFICIENT = 0.2  # Reduced from 0.8 to prevent rapid stopping
+# const MIN_VELOCITY = 0.1  # Only stop completely below this threshold
 
 const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
 const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
@@ -27,6 +27,8 @@ var spawn_start_pos: Vector3
 
 func _ready():
 	super()
+	drag_coefficient = PhysicsConstants.ROCK_DRAG
+	max_speed = PhysicsConstants.ROCK_MAX_SPEED
 	target_color = SAFE_COLOR
 	current_color = SAFE_COLOR
 	base_emission = Color(0.4, 0.4, 0.4, 1.0)  # Add subtle gray emission for rocks
@@ -75,11 +77,7 @@ func _physics_process(delta):
 	# Apply physics from parent class
 	super._physics_process(delta)
 	
-	# More controlled drag for moving rocks
-	if velocity.length_squared() > MIN_VELOCITY * MIN_VELOCITY:
-		velocity = velocity.lerp(Vector3.ZERO, DRAG_COEFFICIENT * delta)
-	elif velocity.length_squared() > 0:
-		velocity = Vector3.ZERO
+	# Remove explicit drag/velocity handling as it's in parent class
 	
 	var collision = move_and_collide(velocity * delta)
 	var collision_handler = get_node("/root/CollisionHandler")

@@ -19,6 +19,9 @@ var base_emission: Color
 var base_emission_energy: float = 0.3
 var color_change_speed: float = 5.0
 
+var drag_coefficient: float = PhysicsConstants.BASE_DRAG_COEFFICIENT
+var max_speed: float = PhysicsConstants.MAX_SPEED
+
 func _ready():
     if mesh_instance and current_material:
         mesh_instance.mesh.surface_set_material(0, current_material)
@@ -32,6 +35,8 @@ func _ready():
 
 func _physics_process(delta):
     apply_gravity(delta)
+    apply_drag(delta)
+    limit_speed()
     physics_pos = global_position
 
     # Update color
@@ -104,6 +109,16 @@ func apply_gravity(delta: float) -> void:
             velocity.y = -velocity.y * PhysicsConstants.BOUNCE_DAMPENING
             if abs(velocity.y) < 0.1:
                 velocity.y = 0
+
+func apply_drag(delta: float) -> void:
+    if velocity.length_squared() > PhysicsConstants.MIN_SPEED_THRESHOLD * PhysicsConstants.MIN_SPEED_THRESHOLD:
+        velocity = velocity.lerp(Vector3.ZERO, drag_coefficient * delta)
+    elif velocity.length_squared() > 0:
+        velocity = Vector3.ZERO
+
+func limit_speed() -> void:
+    if velocity.length_squared() > max_speed * max_speed:
+        velocity = velocity.normalized() * max_speed
 
 func handle_impact(force: float) -> void:
     if !current_material or !mesh_instance:

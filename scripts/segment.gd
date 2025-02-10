@@ -6,7 +6,6 @@ const TARGET_DISTANCE = 0.8  # Increased spacing
 const VELOCITY_SMOOTHING = 0.2
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2
-const MAX_SEGMENT_SPEED = 40.0  # Reduced max speed
 const FOLLOW_STRENGTH = 0.8  # How strongly to match target's velocity
 const MIN_FOLLOW_DISTANCE = 0.1  # Distance at which to start matching velocity
 const INITIAL_SPRING_REDUCTION = 0.3  # Reduce spring force when first spawned
@@ -29,6 +28,8 @@ var is_dangerous: bool = false
 
 func _ready():
 	super()
+	drag_coefficient = PhysicsConstants.SEGMENT_DRAG
+	max_speed = PhysicsConstants.SEGMENT_MAX_SPEED
 	# Set initial scale and positions
 	current_scale = INITIAL_SCALE
 	update_scale(current_scale)
@@ -156,8 +157,7 @@ func _physics_process(delta):
 		if current_distance < adjusted_distance + MIN_FOLLOW_DISTANCE:
 			velocity = velocity.lerp(target.velocity, FOLLOW_STRENGTH * delta)
 	
-	# Limit maximum speed
-	velocity = velocity.limit_length(MAX_SEGMENT_SPEED)
+	# Remove explicit speed limiting as it's handled by parent
 	
 	var collision = move_and_collide(velocity * delta)
 	var collision_handler = get_node("/root/CollisionHandler")
