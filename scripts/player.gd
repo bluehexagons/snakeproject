@@ -136,7 +136,7 @@ func _physics_process(delta):
 	input_dir.x = Input.get_axis("move_left", "move_right")
 	input_dir.z = Input.get_axis("move_up", "move_down")
 	
-	if input_dir != Vector3.ZERO:
+	if not is_dead and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
 		
@@ -148,7 +148,7 @@ func _physics_process(delta):
 		var speed_squared = velocity.length_squared()
 		var drag = -velocity.normalized() * speed_squared * DRAG_COEFFICIENT * delta
 		velocity += drag
-	else:
+	elif not is_dead:
 		# Apply stronger drag when not inputting
 		velocity = velocity.lerp(Vector3.ZERO, DRAG_COEFFICIENT * 2.0 * delta)
 	

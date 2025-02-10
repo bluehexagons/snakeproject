@@ -29,16 +29,22 @@ const MAX_DANGER_PROBABILITY = 0.8  # Maximum probability of a rock being danger
 const SAFE_SPAWN_DISTANCE = 4.0  # Minimum distance from player for dangerous rocks
 const SAFE_FORWARD_ANGLE = 60.0  # Angle in degrees to check in front of player
 
-var score: int = 0
-var is_paused: bool = false
-var is_gameplay_paused: bool = false  # New variable for gameplay pause
 var target_camera_pos: Vector3
 var target_camera_rot: Vector3
+
+# Camera state
 var zoom_timer: float = 0.0
 var is_zooming: bool = false
 var camera_height: float = INITIAL_CAMERA_HEIGHT
 var camera_size: float = INITIAL_CAMERA_SIZE
 var camera_velocity: Vector3 = Vector3.ZERO
+
+# UI state
+var is_paused: bool = false # In this state, all game-related features are paused
+var is_gameplay_paused: bool = false # In this state, the physics and game logic are paused
+
+# Game state
+var score: int = 0
 
 @onready var camera = $GameplayContainer/Camera3D
 @onready var ui = $UI
@@ -185,7 +191,7 @@ func spawn_rock(force_safe: bool = false):
 	
 	# Calculate danger probability based on score
 	if !force_safe && score >= DANGER_START_SCORE:
-		var score_factor = clamp((score - DANGER_START_SCORE) / (DANGER_MAX_SCORE - DANGER_START_SCORE), 0.0, 1.0)
+		var score_factor = clamp(float(score - DANGER_START_SCORE) / (DANGER_MAX_SCORE - DANGER_START_SCORE), 0.0, 1.0)
 		var danger_probability = score_factor * MAX_DANGER_PROBABILITY
 		
 		if randf() < danger_probability:
@@ -216,12 +222,13 @@ func spawn_rock(force_safe: bool = false):
 			spawn_rock(force_safe)  # Try again
 			return
 
-func on_food_collected(points: int = 10):  # Default value for compatibility
+func on_food_collected(points: int):
+	var player = gameplay_container.get_node_or_null("Player")
 	update_score(points)
 	spawn_food()
 	
 	# Spawn new rock every ROCKS_SPAWN_INTERVAL food collections
-	if (score / 10) % ROCKS_SPAWN_INTERVAL == 0:  # Using score/10 since each food gives 10 points by default
+	if player.food_eaten % ROCKS_SPAWN_INTERVAL == 0:
 		spawn_rock()
 
 func _on_window_resize():
