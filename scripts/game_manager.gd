@@ -28,6 +28,8 @@ const MAX_DANGER_PROBABILITY = 0.8  # Maximum probability of a rock being danger
 const SAFE_SPAWN_DISTANCE = 4.0  # Minimum distance from player for dangerous rocks
 const SAFE_FORWARD_ANGLE = 60.0  # Angle in degrees to check in front of player
 
+const CAMERA_OFFSET = Vector3(0, 0, 0)  # Offset from target to maintain perspective
+
 var target_camera_pos: Vector3
 var target_camera_rot: Vector3
 
@@ -92,19 +94,20 @@ func _process(delta):
 	
 	var player = gameplay_container.get_node_or_null("Player")
 	if player:
-			# Calculate predicted position based on player velocity
+		# Calculate predicted position based on player velocity
 		var prediction = Vector3.ZERO
 		if player.velocity.length() > 0.1:
 			prediction = player.velocity.normalized() * CAMERA_PREDICTION_STRENGTH
 		
-		# Update target position to follow player with prediction
-		var target_x = player.position.x + prediction.x
-		var target_z = player.position.z + prediction.z
-		var target_y = camera_height  # Height changes are handled separately
+		# Update target position to follow player with prediction and offset
+		var target_pos = player.position + prediction
+		target_camera_pos = Vector3(
+			target_pos.x + CAMERA_OFFSET.x,
+			camera_height,
+			target_pos.z + CAMERA_OFFSET.z
+		)
 		
-		target_camera_pos = Vector3(target_x, target_y, target_z)
-		
-		# Separate axis smoothing
+		# Update camera position with smoothing
 		var new_pos = camera.position
 		new_pos.x = lerp(new_pos.x, target_camera_pos.x, delta * CAMERA_HORIZONTAL_SMOOTHING)
 		new_pos.z = lerp(new_pos.z, target_camera_pos.z, delta * CAMERA_HORIZONTAL_SMOOTHING)
