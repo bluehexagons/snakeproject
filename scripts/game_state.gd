@@ -28,3 +28,7 @@ func load_game_state() -> Dictionary:
 
 func has_saved_game() -> bool:
 	return FileAccess.file_exists(SAVE_FILE)
+
+func delete_save_game():
+	if FileAccess.file_exists(SAVE_FILE):
+		DirAccess.remove_absolute(SAVE_FILE)

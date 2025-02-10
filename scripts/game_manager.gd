@@ -5,7 +5,6 @@ const FOOD_SCENE = preload("res://scenes/food.tscn")
 const ROCK_SCENE = preload("res://scenes/rock.tscn")
 const SPAWN_AREA_SIZE = Vector2(8, 8)  # Reduced from previous size to account for barriers
 const BASE_CAMERA_SIZE = 15.0  # This is our reference size for 1:1 aspect ratio
-const SAVE_FILE = "user://save_game.dat"
 const CAMERA_HEIGHT = 10.0
 const CAMERA_FOLLOW_SPEED = 5.0
 const CAMERA_TILT_ANGLE = 15.0  # Maximum tilt in degrees
@@ -23,7 +22,7 @@ const CAMERA_PREDICTION_STRENGTH = 0.3   # How much to look ahead based on veloc
 const INITIAL_ROCKS = 10  # Number of rocks to spawn at start
 const ROCKS_SPAWN_INTERVAL = 2  # Spawn a new rock every X food collections
 const DANGER_START_SCORE = 50  # Score at which rocks start becoming dangerous
-const DANGER_MAX_SCORE = 200   # Score at which danger probability peaks
+const DANGER_MAX_SCORE = 300   # Score at which danger probability peaks
 const MAX_DANGER_PROBABILITY = 0.8  # Maximum probability of a rock being dangerous
 
 const SAFE_SPAWN_DISTANCE = 4.0  # Minimum distance from player for dangerous rocks
@@ -42,6 +41,7 @@ var camera_velocity: Vector3 = Vector3.ZERO
 # UI state
 var is_paused: bool = false # In this state, all game-related features are paused
 var is_gameplay_paused: bool = false # In this state, the physics and game logic are paused
+var is_game_over: bool = false
 
 # Game state
 var score: int = 0
@@ -114,12 +114,18 @@ func _process(delta):
 		camera.size = camera_size
 
 func toggle_gameplay_pause():
+	if is_game_over:
+		return
+
 	is_gameplay_paused = !is_gameplay_paused
 	update_pause_state()
 	if ui:
 		ui.set_gameplay_paused(is_gameplay_paused)
 
 func toggle_pause():
+	if is_game_over:
+		return
+
 	is_paused = !is_paused
 	update_pause_state()
 	ui.toggle_pause_menu(is_paused)
@@ -223,6 +229,9 @@ func spawn_rock(force_safe: bool = false):
 			return
 
 func on_food_collected(points: int):
+	if is_game_over:
+		return
+
 	var player = gameplay_container.get_node_or_null("Player")
 	update_score(points)
 	spawn_food()
@@ -248,6 +257,10 @@ func update_score(points: int):
 		ui.update_score(score)
 
 func game_over():
+	if is_game_over:
+		return
+
+	is_game_over = true
 	Engine.time_scale = 0.5  # Slow the game to half speed instead of pausing
 	is_gameplay_paused = false  # Ensure gameplay pause is cleared
 	update_pause_state()
@@ -268,6 +281,9 @@ func save_and_quit():
 	get_tree().quit()
 
 func save_game_state():
+	if is_game_over:
+		return
+
 	var player = gameplay_container.get_node_or_null("Player")
 	var food = get_tree().get_first_node_in_group("food")
 	var rocks = get_tree().get_nodes_in_group("rock")
@@ -301,12 +317,6 @@ func load_game_state():
 		spawn_initial_rocks()
 		return false
 		
-	# Clear existing entities
-	if gameplay_container.has_node("Player"):
-		gameplay_container.get_node("Player").queue_free()
-	if gameplay_container.has_node("Food"):
-		gameplay_container.get_node("Food").queue_free()
-	
 	# Spawn and setup player
 	var player = PLAYER_SCENE.instantiate()
 	gameplay_container.add_child(player)
@@ -328,8 +338,6 @@ func load_game_state():
 			)
 			# Create and position segment
 			var segment = player.add_segment(0.0, pos)  # Initial growth of 0
-			# Initialize segment data after it's properly in the scene tree
-			await get_tree().process_frame
 			segment.init_from_save_data(segment_data)
 	
 	# Spawn and setup food
@@ -372,9 +380,6 @@ func load_game_state():
 	score = save_data["score"]
 	update_score(0)
 	return true
-
-func has_saved_game():
-	return FileAccess.file_exists(SAVE_FILE)
 
 func _notification(what):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:

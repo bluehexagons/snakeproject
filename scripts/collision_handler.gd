@@ -16,6 +16,7 @@ const VELOCITY_LOSS_ON_COLLISION = 0.7  # How much velocity to maintain after co
 const BARRIER_BOUNCE_MULTIPLIER = 1.5  # Extra bounce for barrier collisions
 const BARRIER_PUSH_FORCE = 3.0  # Additional force away from barrier
 const MIN_BARRIER_BOUNCE_SPEED = 2.0  # Minimum speed after barrier bounce
+const DEFAULT_MASS = 1.0
 
 func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: Vector3, delta: float) -> void:
 	# Handle barrier collisions first
@@ -28,10 +29,6 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 		handle_static_collision(body_a, collision_normal, delta)
 		return
 	
-	# Don't handle collisions with dangerous segments
-	if body_b.is_in_group("dangerous") or body_a.is_in_group("dangerous"):
-		return
-		
 	# Only proceed with CharacterBody3D collisions
 	if not body_b is CharacterBody3D:
 		return
@@ -109,7 +106,7 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 		body_a.velocity -= separation / mass_a
 		body_b.velocity += separation / mass_b
 
-func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, delta: float) -> void:
+func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, _delta: float) -> void:
 	var impact_speed = body.velocity.dot(collision_normal)  # Used in calculation
 	var reflection = body.velocity.bounce(collision_normal) * COLLISION_BOUNCE
 	body.velocity = reflection * VELOCITY_LOSS_ON_COLLISION
@@ -118,7 +115,7 @@ func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, d
 	if collision_normal.y > 0.5:  # If hitting ground-like surface
 		body.velocity.y += abs(impact_speed) * 0.1
 
-func handle_barrier_collision(body: CharacterBody3D, collision_normal: Vector3, delta: float) -> void:
+func handle_barrier_collision(body: CharacterBody3D, collision_normal: Vector3, _delta: float) -> void:
 	var impact_force = body.velocity.length()
 	
 	# Handle impact flash for all physics objects
@@ -141,12 +138,10 @@ func handle_barrier_collision(body: CharacterBody3D, collision_normal: Vector3, 
 # Check for nearby segments and apply separation forces
 func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float) -> void:
 	# Skip proximity checks for dangerous segments
-	if body.is_in_group("dangerous"):
-		return
 		
 	# Only check segments that are close to this one in the chain
 	for other in nearby_bodies:
-		if other == body or other.is_in_group("dangerous"):
+		if other == body:
 			continue
 			
 		var direction = body.global_position - other.global_position
@@ -158,9 +153,7 @@ func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float)
 			body.velocity -= separation
 
 func get_body_mass(body: Node) -> float:
-	if body.is_in_group("player"):
-		return PLAYER_MASS
-	elif body.is_in_group("rock"):
-		return ROCK_MASS
+	if body is PhysicsObject:
+		return body.mass
 	else:
-		return SEGMENT_MASS
+		return DEFAULT_MASS

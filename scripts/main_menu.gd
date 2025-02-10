@@ -9,8 +9,7 @@ func _ready():
 	$Panel/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
 
 func on_new_game_pressed():
-	if FileAccess.file_exists(GameState.SAVE_FILE):
-		DirAccess.remove_absolute(GameState.SAVE_FILE)
+	GameState.delete_save_game()
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 func on_quit_pressed():

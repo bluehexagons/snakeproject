@@ -1,10 +1,5 @@
 extends PhysicsObject
 
-const MASS = 8.0  # Increased to match collision handler
-const STATIC_FRICTION = 3.0  # Increased resistance
-# const DRAG_COEFFICIENT = 0.2  # Reduced from 0.8 to prevent rapid stopping
-# const MIN_VELOCITY = 0.1  # Only stop completely below this threshold
-
 const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
 const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
 const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
@@ -12,10 +7,6 @@ const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
 const SPAWN_DURATION = 0.5
 const SPAWN_HEIGHT = 1.5  # How high to rise from ground
 const INITIAL_SCALE = 0.2  # Start very small
-
-const BARRIER_BOUNCE_MULTIPLIER = 1.5  # Bounce more energetically off barriers
-const BARRIER_PUSH_FORCE = 3.0  # Additional force away from barrier
-const MIN_BOUNCE_SPEED = 2.0  # Ensure rocks always maintain some momentum after barrier hits
 
 var is_dangerous: bool = false
 var is_initialized: bool = false
@@ -27,11 +18,12 @@ var spawn_start_pos: Vector3
 
 func _ready():
 	super()
+	mass = 8.0
 	drag_coefficient = PhysicsConstants.ROCK_DRAG
 	max_speed = PhysicsConstants.ROCK_MAX_SPEED
 	target_color = SAFE_COLOR
 	current_color = SAFE_COLOR
-	base_emission = Color(0.4, 0.4, 0.4, 1.0)  # Add subtle gray emission for rocks
+	base_emission = Color(0.2, 0.2, 0.2, 1.0) 
 	base_emission_energy = 0.2  # Low base emission energy
 
 func finish_spawn():
@@ -60,7 +52,7 @@ func _physics_process(delta):
 	if is_spawning:
 		spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)
 		var t = spawn_timer / SPAWN_DURATION
-		var smooth_t = ease(t, 0.7)  # Smooth easing for natural motion
+		var smooth_t = ease(t, 0.7) 
 		
 		# Rise and scale effect
 		var height_offset = lerp(-0.5, 0.0, smooth_t)
@@ -72,20 +64,12 @@ func _physics_process(delta):
 		
 		if spawn_timer >= SPAWN_DURATION:
 			finish_spawn()
-			return
-	
-	# Apply physics from parent class
-	super._physics_process(delta)
-	
-	# Remove explicit drag/velocity handling as it's in parent class
 	
 	var collision = move_and_collide(velocity * delta)
 	var collision_handler = get_node("/root/CollisionHandler")
 	
 	if collision and collision.get_collider():
 		collision_handler.handle_collision(self, collision.get_collider(), collision.get_normal(), delta)
-	
-	physics_pos = global_position
 	
 	super._physics_process(delta)
 

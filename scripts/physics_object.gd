@@ -21,6 +21,7 @@ var color_change_speed: float = 5.0
 
 var drag_coefficient: float = PhysicsConstants.BASE_DRAG_COEFFICIENT
 var max_speed: float = PhysicsConstants.MAX_SPEED
+var mass: float = 1.0
 
 func _ready():
     if mesh_instance and current_material:
@@ -44,7 +45,7 @@ func _physics_process(delta):
         current_color = current_color.lerp(target_color, delta * color_change_speed)
         apply_color(current_color)
 
-func _process(delta):
+func _process(_delta):
     if mesh_instance:
         var fraction = Engine.get_physics_interpolation_fraction()
         visual_pos = physics_pos.lerp(global_position, fraction)

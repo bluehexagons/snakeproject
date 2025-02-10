@@ -1,33 +1,23 @@
 extends PhysicsObject
 
+const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
+const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
+
 const MAX_SPEED = 100000.0
-const ACCELERATION = 50.0  # Increased since we're using forces now
+const ACCELERATION = 250.0  # Increased since we're using forces now
+const CONTROL_DRAG = 0.9
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
-const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const LUNGE_FORCE = 0.2
 const SEGMENT_PUSHBACK = 0.1
 const VELOCITY_SMOOTHING = 0.15
 const IDLE_SPEED_BASE = 3.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
-const NORMAL_COLOR = Color(0.2, 0.4, 1.0)    # Blue
-const WARNING_COLOR = Color(0.5, 0.5, 0.5)    # Gray
-const DYING_COLOR = Color(1.0, 0.2, 0.2)      # Red
-const WARNING_SPEED_THRESHOLD = 1.1            # When to start showing warning color (multiplier of idle speed)
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
 const IDLE_SPEED_INCREASE = 5.0  # Speed increase per food eaten
 const MAX_IDLE_SPEED = 5.0  # Cap on how fast the minimum speed can get
-const DEATH_COLORS = [                         # Colors to cycle through when dead
-	Color(1.0, 0.0, 0.0),  # Red
-	Color(0.0, 0.0, 0.0),  # Black
-	Color(0.3, 0.3, 0.3),  # Gray
-]
-const FLASH_TIME = 0.2                        # How long before death to flash
-const DEATH_COLOR_SPEED = 3.0                 # Speed of color cycling when dead
-const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
-const STUN_CONTROL_REDUCTION = 0.5  # Amount by which to reduce control while stunned
 const SEGMENT_SPAWN_OFFSET = 0.6  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.9  # Increased from 0.8 for better matching
 const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
@@ -61,8 +51,6 @@ var has_started_moving: bool = false
 var food_eaten: int = 0
 var current_idle_speed: float = IDLE_SPEED_BASE
 var is_dead: bool = false
-var death_color_time: float = 0.0
-var stun_timer: float = 0.0
 var stuck_detector: RefCounted
 
 var physics_basis: Basis
@@ -74,12 +62,11 @@ func _ready():
 	base_emission_energy = BASE_EMISSION_ENERGY
 	target_color = BASE_COLOR
 	current_color = BASE_COLOR
-	physics_pos = global_position
-	visual_pos = global_position
 	physics_basis = mesh_instance.basis
 	visual_basis = mesh_instance.basis
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
+	mass = 0.5
 	
 	# Store initial emission color
 	if current_material is StandardMaterial3D:
@@ -91,47 +78,40 @@ func _ready():
 	apply_color(BASE_COLOR, BASE_EMISSION, BASE_EMISSION_ENERGY)
 
 func _physics_process(delta):
-	super._physics_process(delta)
-	
 	# Handle color updates before any potential impacts
-	var target_color = BASE_COLOR
-	var emission = BASE_EMISSION
+	var base_color = BASE_COLOR
+	var emission_color = BASE_EMISSION
 	var emission_energy = BASE_EMISSION_ENERGY
 	
 	if is_dead:
-		target_color = DEATH_COLOR
-		emission = DEAD_EMISSION
+		base_color = DEATH_COLOR
+		emission_color = DEAD_EMISSION
 		emission_energy = DEAD_EMISSION_ENERGY
 	elif has_started_moving and stuck_detector.is_stuck:
 		var stuck_time = stuck_detector.get_stuck_duration()
 		if stuck_time >= STUCK_TIMEOUT:
-			target_color = FLASH_COLOR
-			emission = DANGER_EMISSION
+			base_color = FLASH_COLOR
+			emission_color = DANGER_EMISSION
 			emission_energy = DANGER_EMISSION_ENERGY
 		elif stuck_time >= IDLE_EMISSION_START:
-			target_color = DANGER_COLOR
-			emission = DANGER_EMISSION
+			base_color = DANGER_COLOR
+			emission_color = DANGER_EMISSION
 			emission_energy = DANGER_EMISSION_ENERGY * ((stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START))
 		elif stuck_time >= IDLE_DANGER_START:
 			var warning_ratio = (stuck_time - IDLE_DANGER_START) / (IDLE_EMISSION_START - IDLE_DANGER_START)
-			target_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
-			emission = BASE_EMISSION.lerp(DANGER_EMISSION, warning_ratio)
+			base_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
+			emission_color = BASE_EMISSION.lerp(DANGER_EMISSION, warning_ratio)
 			emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, warning_ratio)
 		elif stuck_time >= IDLE_WARNING_START:
 			var gray_ratio = (stuck_time - IDLE_WARNING_START) / (IDLE_DANGER_START - IDLE_WARNING_START)
-			target_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
-			emission = BASE_EMISSION
+			base_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
+			emission_color = BASE_EMISSION
 			emission_energy = lerp(BASE_EMISSION_ENERGY, WARNING_EMISSION_ENERGY, gray_ratio)
 	
-	current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
-	apply_color(current_color, emission, emission_energy)
+	current_color = current_color.lerp(base_color, delta * COLOR_CHANGE_SPEED)
+	apply_color(current_color, emission_color, emission_energy)
 	
 	# Now handle physics and potential impacts
-
-	if stun_timer > 0:
-		stun_timer -= delta
-
-	var input_multiplier = 1.0 if stun_timer <= 0 else STUN_CONTROL_REDUCTION
 
 	var input_dir = Vector3.ZERO
 	input_dir.x = Input.get_axis("move_left", "move_right")
@@ -140,9 +120,8 @@ func _physics_process(delta):
 	if not is_dead and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
-		velocity += input_dir * ACCELERATION * delta * input_multiplier
-		
-	super._physics_process(delta)
+		velocity += input_dir * ACCELERATION * delta
+		velocity *= CONTROL_DRAG
 	
 	# Update stuck detection
 	if has_started_moving:
@@ -151,10 +130,6 @@ func _physics_process(delta):
 			var stuck_time = stuck_detector.get_stuck_duration()
 			if stuck_time >= STUCK_TIMEOUT:
 				die()
-				return
-	
-	# Limit maximum speed
-	velocity = velocity.limit_length(MAX_SPEED)
 	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
@@ -165,10 +140,8 @@ func _physics_process(delta):
 		var collider = collision.get_collider()
 		if collider.is_in_group("barrier"):
 			die()  # Player still dies on barrier contact
-			return
 		elif collider.is_in_group("dangerous"):
 			die()  # Die immediately on contact with any dangerous object
-			return
 				
 		# Let the collision handler manage non-lethal collisions
 		collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
@@ -191,11 +164,7 @@ func _physics_process(delta):
 		
 		# Apply the rotation with normalized basis
 		mesh_instance.basis = mesh_instance.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
-	
-	# Store physics state
-	physics_pos = global_position
-	physics_basis = mesh_instance.basis
-	
+
 	# Food collection
 	for area in get_tree().get_nodes_in_group("food"):
 		if area.global_position.distance_to(global_position) < 0.75:
@@ -223,7 +192,11 @@ func _physics_process(delta):
 			popup.text = "+" + str(speed_points)
 			get_parent().add_child(popup)
 
-func _process(delta):
+	# Store physics state
+	super._physics_process(delta)
+	physics_basis = mesh_instance.basis
+
+func _process(_delta):
 	# Interpolate visual position between physics updates
 	var fraction = Engine.get_physics_interpolation_fraction()
 	visual_pos = physics_pos.lerp(global_position, fraction)
@@ -348,8 +321,10 @@ func restore_from_save(data: Dictionary):
 		current_idle_speed = state.get("current_idle_speed", IDLE_SPEED_BASE)
 
 func die():
+	if is_dead:
+		return
+
 	is_dead = true
-	death_color_time = 0.0
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		game_manager.game_over()

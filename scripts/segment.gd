@@ -1,9 +1,8 @@
 extends PhysicsObject
 
-const SPRING_STIFFNESS = 850.0  # Significantly reduced from 2500.0
-const SPRING_DAMPING = 20.0  # Increased damping
-const TARGET_DISTANCE = 0.8  # Increased spacing
-const VELOCITY_SMOOTHING = 0.2
+const SPRING_STIFFNESS = 930.0
+const SPRING_DAMPING = 20.0
+const TARGET_DISTANCE = 0.78
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2
 const FOLLOW_STRENGTH = 0.8  # How strongly to match target's velocity
@@ -22,22 +21,14 @@ var current_scale: float = INITIAL_SCALE
 var spawn_timer: float = 0.5  # Time to use reduced spring force
 var is_dangerous: bool = false
 
-@onready var mesh = $MeshInstance3D
-@onready var collision = $CollisionShape3D
-# @onready var material = mesh.mesh.surface_get_material(0)
-
 func _ready():
 	super()
+	mass = 3.0
 	drag_coefficient = PhysicsConstants.SEGMENT_DRAG
 	max_speed = PhysicsConstants.SEGMENT_MAX_SPEED
 	# Set initial scale and positions
 	current_scale = INITIAL_SCALE
 	update_scale(current_scale)
-	# Initialize both positions to spawn position to prevent interpolation from origin
-	physics_pos = global_position
-	visual_pos = global_position
-	# Ensure mesh starts at the correct position
-	mesh.global_position = global_position
 	
 	# Set initial colors
 	current_color = SAFE_COLOR
@@ -46,8 +37,7 @@ func _ready():
 	apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
 
 func update_scale(new_scale: float):
-	mesh.scale = Vector3.ONE * new_scale
-	collision.scale = Vector3.ONE * new_scale
+	mesh_instance.scale = Vector3.ONE * new_scale
 
 func init_with_growth(initial_growth: float):
 	growth_timer = GROWTH_DURATION * initial_growth
@@ -79,10 +69,6 @@ func init_from_save_data(data: Dictionary):
 		velocity = Vector3(data.velocity.x, data.velocity.y, data.velocity.z)
 	if data.has("smoothed_velocity"):
 		smoothed_velocity = Vector3(data.smoothed_velocity.x, data.smoothed_velocity.y, data.smoothed_velocity.z)
-	
-	# Initialize transforms after velocity
-	physics_pos = global_position
-	visual_pos = global_position
 	
 	# Initialize scale and growth first
 	current_scale = data.get("current_scale", 1.0)  # Default to full size if not specified
@@ -123,9 +109,6 @@ func _physics_process(delta):
 			current_scale = 1.0
 			update_scale(current_scale)
 	
-	if not target:
-		return
-		
 	# Update spawn timer
 	spawn_timer = max(0.0, spawn_timer - delta)
 	
@@ -133,31 +116,28 @@ func _physics_process(delta):
 	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
 	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
 	
-	# Calculate target distance based on current scales
-	var adjusted_distance = TARGET_DISTANCE * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
-	
-	var to_target = target.global_position - global_position
-	var current_distance = to_target.length()
-	
-	if current_distance > 0:
-		var target_direction = to_target.normalized()
+	if target:
+		# Calculate target distance based on current scales
+		var adjusted_distance = TARGET_DISTANCE * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
 		
-		# Calculate desired position
-		var desired_pos = target.global_position - target_direction * adjusted_distance
-		var to_desired = desired_pos - global_position
+		var to_target = target.global_position - global_position
+		var current_distance = to_target.length()
 		
-		# Calculate forces with spawn adjustment
-		var spring_force = to_desired * current_stiffness * delta
-		var damping_force = -velocity * SPRING_DAMPING * delta
-		
-		# Apply forces only to self
-		velocity += spring_force + damping_force
-		
-		# Match target's velocity when close enough
-		if current_distance < adjusted_distance + MIN_FOLLOW_DISTANCE:
-			velocity = velocity.lerp(target.velocity, FOLLOW_STRENGTH * delta)
-	
-	# Remove explicit speed limiting as it's handled by parent
+		if current_distance > 0:
+			var target_direction = to_target.normalized()
+			
+			# Calculate desired position
+			var desired_pos = target.global_position - target_direction * adjusted_distance
+			var to_desired = desired_pos - global_position
+			
+			var spring_force = to_desired * current_stiffness * delta
+			var damping_force = -velocity * SPRING_DAMPING * delta
+			
+			velocity += spring_force + damping_force
+			
+			# Match target's velocity when close enough
+			if current_distance < adjusted_distance + MIN_FOLLOW_DISTANCE:
+				velocity = velocity.lerp(target.velocity, FOLLOW_STRENGTH * delta)
 	
 	var collision = move_and_collide(velocity * delta)
 	var collision_handler = get_node("/root/CollisionHandler")
@@ -183,8 +163,6 @@ func _physics_process(delta):
 			current_color = current_color.lerp(target_color, delta * COLOR_CHANGE_SPEED)
 			apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
 	
-	super._physics_process(delta)
-	
 	if is_dangerous:
 		target_color = DANGER_COLOR
 		base_emission = DANGER_EMISSION
@@ -192,16 +170,15 @@ func _physics_process(delta):
 		target_color = SAFE_COLOR
 		base_emission = Color(0.2, 0.6, 0.3, 1.0)
 
-func _process(delta):
+	super._physics_process(delta)
+
+func _process(_delta):
 	# Interpolate visual position between physics updates
 	var fraction = Engine.get_physics_interpolation_fraction()
 	visual_pos = physics_pos.lerp(global_position, fraction)
 	
 	# Update visual representation
-	mesh.global_position = visual_pos
-	
-	# Keep collision shape at physics position
-	collision.global_position = global_position
+	mesh_instance.global_position = visual_pos
 
 func become_dangerous():
 	if not is_dangerous:  # Only change state if not already dangerous
@@ -221,13 +198,13 @@ func become_dangerous():
 		
 		# Visual feedback
 		var tween = create_tween()
-		tween.tween_property(mesh, "scale", mesh.scale * 1.3, 0.1)
-		tween.tween_property(mesh, "scale", mesh.scale, 0.2)
+		tween.tween_property(mesh_instance, "scale", mesh_instance.scale * 1.3, 0.1)
+		tween.tween_property(mesh_instance, "scale", mesh_instance.scale, 0.2)
 		
 		# Emission pulse
 		var flash_material = current_material.duplicate()
-		mesh.material_override = flash_material
+		mesh_instance.material_override = flash_material
 		flash_material.emission_energy_multiplier = 4.0
 		
 		tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 1.0, 0.3)
-		tween.tween_callback(func(): mesh.material_override = null)
+		tween.tween_callback(func(): mesh_instance.material_override = null)
