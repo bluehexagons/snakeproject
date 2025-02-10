@@ -1,8 +1,11 @@
 extends PhysicsObject
 
+class_name Segment
+
 const SPRING_STIFFNESS = 930.0
 const SPRING_DAMPING = 20.0
-const TARGET_DISTANCE = 0.78
+const PLAYER_TARGET_DISTANCE = 1.1
+const TARGET_DISTANCE = 0.8
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2
 const FOLLOW_STRENGTH = 0.8  # How strongly to match target's velocity
@@ -118,7 +121,8 @@ func _physics_process(delta):
 	
 	if target:
 		# Calculate target distance based on current scales
-		var adjusted_distance = TARGET_DISTANCE * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
+		var target_distance = TARGET_DISTANCE if target is Segment else PLAYER_TARGET_DISTANCE
+		var adjusted_distance = target_distance * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
 		
 		var to_target = target.global_position - global_position
 		var current_distance = to_target.length()
