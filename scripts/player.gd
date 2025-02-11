@@ -4,8 +4,8 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
 const MAX_SPEED = 100000.0
-const ACCELERATION = 60.0  # Increased since we're using forces now
-const CONTROL_DRAG = 0.9
+const ACCELERATION = 200.0  # Increased since we're using forces now
+const CONTROL_DRAG = 0.8
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
 const LUNGE_FORCE = 0.2

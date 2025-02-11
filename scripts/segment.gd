@@ -17,8 +17,12 @@ const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
 const PULL_START_DISTANCE = 1.1  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 3.0    # Distance at which pull force peaks
-const PULL_FORCE = 500.0        # Reduced since we're applying force to both objects
+const PULL_FORCE = 300.0        # Reduced base pull force
 const PULL_VELOCITY_MATCH = 0.9  # How strongly to match target's velocity when pulling
+const COLLISION_BREAK_FORCE = 900.0  # Force required during collision to break
+const RECOVERY_DURATION = 1.0         # Slightly faster recovery
+const RECOVERY_EASE_POWER = 1.5       # How quickly targeting recovers (higher = more sudden)
+const PLAYER_PULL_REDUCTION = 0.9  # Reduce pull force when targeting player
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -27,6 +31,11 @@ var is_growing: bool = true
 var current_scale: float = INITIAL_SCALE
 var spawn_timer: float = 0.5  # Time to use reduced spring force
 var is_dangerous: bool = false
+var recovery_timer: float = 0.0
+var is_recovering: bool = false
+var last_force: float = 0.0
+var last_collision_normal: Vector3 = Vector3.ZERO
+var has_collision: bool = false
 
 func _ready():
 	super()
@@ -118,6 +127,11 @@ func _physics_process(delta):
 	# Update spawn timer
 	spawn_timer = max(0.0, spawn_timer - delta)
 	
+	if is_recovering:
+		recovery_timer = min(recovery_timer + delta, RECOVERY_DURATION)
+		if recovery_timer >= RECOVERY_DURATION:
+			is_recovering = false
+	
 	# Calculate spring force with spawn reduction
 	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
 	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
@@ -131,45 +145,75 @@ func _physics_process(delta):
 		var current_distance = to_target.length()
 		
 		if current_distance > 0:
-			var target_direction = to_target.normalized()
+			var spring_force = Vector3.ZERO
+			var damping_force = Vector3.ZERO
 			
-			# Calculate desired position
+			# Calculate forces but only apply if not in recovery or gradually during recovery
+			var target_direction = to_target.normalized()
 			var desired_pos = target.global_position - target_direction * adjusted_distance
 			var to_desired = desired_pos - global_position
 			
-			var spring_force = to_desired * current_stiffness * delta
-			var damping_force = -velocity * SPRING_DAMPING * delta
+			# Store the magnitude of force for break detection
+			last_force = (to_desired * current_stiffness).length()
 			
-			# Add pull forces when too far
-			if current_distance > PULL_START_DISTANCE:
-				var pull_factor = clamp(
-					(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
-					0.0, 1.0
-				)
-				var pull_strength = PULL_FORCE * pull_factor * delta
+			 # Only break if we're colliding AND force is high enough
+			if has_collision and last_force > COLLISION_BREAK_FORCE:
+				if not is_recovering:
+					recovery_timer = 0.0
+					# Add velocity along collision normal instead of toward target
+					velocity += last_collision_normal * 50.0
+				is_recovering = true
+
+				# Add some velocity opposite the direction we were being pulled
+			else:
+				# Calculate normal spring forces
+				var force_multiplier = 1.0
+				if is_recovering:
+					# Gradually restore targeting force
+					force_multiplier = ease(recovery_timer / RECOVERY_DURATION, RECOVERY_EASE_POWER)
 				
-				# Apply opposite forces to both objects
-				var pull_force = target_direction * pull_strength
-				velocity += pull_force  # Pull this segment toward target
-				if target is PhysicsObject:  # Only apply force if target can receive it
-					target.velocity -= pull_force  # Pull target toward this segment
+				spring_force = to_desired * current_stiffness * force_multiplier * delta
+				damping_force = -velocity * SPRING_DAMPING * delta
 				
-					# Match velocities to reduce oscillation
-					var avg_velocity = (velocity + target.velocity) * 0.5
-					velocity = velocity.lerp(avg_velocity, PULL_VELOCITY_MATCH * pull_factor * delta)
-					target.velocity = target.velocity.lerp(avg_velocity, PULL_VELOCITY_MATCH * pull_factor * delta)
-			
-			velocity += spring_force + damping_force
-			
-			# Match target's velocity when close enough
-			if current_distance < adjusted_distance + MIN_FOLLOW_DISTANCE:
-				velocity = velocity.lerp(target.velocity, FOLLOW_STRENGTH * delta)
+				# Apply forces
+				velocity += spring_force + damping_force
+				
+				# Only apply pull forces if not recovering
+				if !is_recovering and current_distance > PULL_START_DISTANCE:
+					var pull_factor = clamp(
+						(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
+						0.0, 1.0
+					)
+					var pull_strength = PULL_FORCE * pull_factor * delta
+					
+					 # Reduce pull force when targeting player
+					if target.is_in_group("player"):
+						pull_strength *= PLAYER_PULL_REDUCTION
+					
+					# Apply opposite forces to both objects
+					var pull_force = target_direction * pull_strength
+					velocity += pull_force  # Pull this segment toward target
+					if target is PhysicsObject:  # Only apply force if target can receive it
+						target.velocity -= pull_force * (1.0 if target.is_in_group("player") else PLAYER_PULL_REDUCTION)
+						
+						# Match velocities to reduce oscillation
+						var match_strength = PULL_VELOCITY_MATCH * pull_factor * delta
+						if target.is_in_group("player"):
+							# When targeting player, match player's velocity more strongly
+							velocity = velocity.lerp(target.velocity, match_strength * 1.5)
+						else:
+							var avg_velocity = (velocity + target.velocity) * 0.5
+							velocity = velocity.lerp(avg_velocity, match_strength)
+							target.velocity = target.velocity.lerp(avg_velocity, match_strength)
 	
+	has_collision = false  # Reset collision flag
 	var collision = move_and_collide(velocity * delta)
 	var collision_handler = get_node("/root/CollisionHandler")
 	if collision:
+		has_collision = true
+		last_collision_normal = collision.get_normal()
 		var collider = collision.get_collider()
-		collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
+		collision_handler.handle_collision(self, collider, last_collision_normal, delta)
 	
 	# Handle proximity with other segments
 	var nearby_segments = get_tree().get_nodes_in_group("segment")
