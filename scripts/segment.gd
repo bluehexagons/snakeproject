@@ -17,7 +17,7 @@ const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
 const PULL_START_DISTANCE = 1.1  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 3.0    # Distance at which pull force peaks
-const PULL_FORCE = 1000.0        # Base strength of the pull force
+const PULL_FORCE = 500.0        # Reduced since we're applying force to both objects
 const PULL_VELOCITY_MATCH = 0.9  # How strongly to match target's velocity when pulling
 
 var target: Node3D
@@ -100,7 +100,6 @@ func init_from_save_data(data: Dictionary):
 		)
 		current_material.albedo_color = current_color
 	
-	# Don't call init_with_growth since we're restoring a saved state
 	growth_timer = GROWTH_DURATION  # Mark growth as complete
 
 func _physics_process(delta):
@@ -141,17 +140,24 @@ func _physics_process(delta):
 			var spring_force = to_desired * current_stiffness * delta
 			var damping_force = -velocity * SPRING_DAMPING * delta
 			
-			# Add pull force when too far
+			# Add pull forces when too far
 			if current_distance > PULL_START_DISTANCE:
 				var pull_factor = clamp(
 					(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
 					0.0, 1.0
 				)
-				var pull_force = target_direction * PULL_FORCE * pull_factor * delta
-				spring_force += pull_force
+				var pull_strength = PULL_FORCE * pull_factor * delta
 				
-				# Match target's velocity more strongly when pulling
-				velocity = velocity.lerp(target.velocity, PULL_VELOCITY_MATCH * pull_factor * delta)
+				# Apply opposite forces to both objects
+				var pull_force = target_direction * pull_strength
+				velocity += pull_force  # Pull this segment toward target
+				if target is PhysicsObject:  # Only apply force if target can receive it
+					target.velocity -= pull_force  # Pull target toward this segment
+				
+					# Match velocities to reduce oscillation
+					var avg_velocity = (velocity + target.velocity) * 0.5
+					velocity = velocity.lerp(avg_velocity, PULL_VELOCITY_MATCH * pull_factor * delta)
+					target.velocity = target.velocity.lerp(avg_velocity, PULL_VELOCITY_MATCH * pull_factor * delta)
 			
 			velocity += spring_force + damping_force
 			

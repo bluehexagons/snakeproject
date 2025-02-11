@@ -89,8 +89,12 @@ func make_dangerous():
 	is_dangerous = true
 	target_color = DANGER_COLOR
 	current_color = DANGER_COLOR  # Immediate color change
+	state_color = DANGER_COLOR    # Add this line
 	base_emission = DANGER_EMISSION
+	state_emission = DANGER_EMISSION  # Add this line
 	base_emission_energy = 1.0
+	state_emission_energy = 1.0   # Add this line
+	apply_color(DANGER_COLOR, DANGER_EMISSION, 1.0)  # Force immediate update
 	
 	add_to_group("dangerous")
 	collision_layer = 4 | 2  # Both dangerous AND physical
