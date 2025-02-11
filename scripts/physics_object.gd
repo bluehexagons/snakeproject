@@ -14,7 +14,6 @@ const IMPACT_MAX_FORCE = 20.0
 var current_emission: Color = Color.BLACK
 var current_emission_energy: float = 1.0
 var target_color: Color
-var current_color: Color
 var base_emission: Color
 var base_emission_energy: float = 0.3
 var color_change_speed: float = 5.0
@@ -22,6 +21,12 @@ var color_change_speed: float = 5.0
 var drag_coefficient: float = PhysicsConstants.BASE_DRAG_COEFFICIENT
 var max_speed: float = PhysicsConstants.MAX_SPEED
 var mass: float = 1.0
+
+var base_color: Color = Color.WHITE
+var state_color: Color = Color.WHITE
+var current_color: Color = Color.WHITE
+var state_emission: Color = Color.BLACK
+var state_emission_energy: float = 0.0
 
 func _ready():
     if mesh_instance and current_material:
@@ -42,8 +47,8 @@ func _physics_process(delta):
 
     # Update color
     if current_material:
-        current_color = current_color.lerp(target_color, delta * color_change_speed)
-        apply_color(current_color)
+        current_color = current_color.lerp(state_color, delta * color_change_speed)
+        apply_color(current_color, state_emission, state_emission_energy)
 
 func _process(_delta):
     if mesh_instance:
@@ -129,17 +134,19 @@ func handle_impact(force: float) -> void:
     if flash_intensity <= 0.0:
         return
     
-    # Create flash material based on current state
+    # Create flash material that respects current state colors
     var flash_material = current_material.duplicate()
-    flash_material.emission = current_material.emission + Color(1, 1, 1, 1) * flash_intensity
-    flash_material.emission_energy_multiplier = current_material.emission_energy_multiplier + flash_intensity
+    var flash_emission = state_emission if state_emission != Color.BLACK else current_material.emission
+    flash_material.albedo_color = current_color
+    flash_material.emission = flash_emission + Color(1, 1, 1, 1) * flash_intensity
+    flash_material.emission_energy_multiplier = state_emission_energy + flash_intensity * 2.0
     
     mesh_instance.material_override = flash_material
     
     var tween = create_tween()
-    tween.tween_property(flash_material, "emission", current_material.emission, IMPACT_FLASH_DURATION)
+    tween.tween_property(flash_material, "emission", flash_emission, IMPACT_FLASH_DURATION)
     tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 
-        current_material.emission_energy_multiplier, IMPACT_FLASH_DURATION)
+        state_emission_energy, IMPACT_FLASH_DURATION)
     tween.tween_callback(func():
         if is_instance_valid(mesh_instance):
             mesh_instance.material_override = null
@@ -149,8 +156,9 @@ func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: f
     if current_material:
         current_material.albedo_color = color
         current_material.emission = emission if emission != Color.BLACK else base_emission
-        current_material.emission_enabled = emission != Color.BLACK || base_emission != Color.BLACK
+        current_material.emission_enabled = true
         current_material.emission_energy_multiplier = emission_energy if emission_energy >= 0 else base_emission_energy
-        # Store current emission state for impact flashes
-        current_emission = current_material.emission
-        current_emission_energy = current_material.emission_energy_multiplier
+        # Store current state
+        current_color = color
+        state_emission = emission
+        state_emission_energy = emission_energy if emission_energy >= 0 else base_emission_energy

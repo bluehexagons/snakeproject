@@ -60,7 +60,7 @@ func _ready():
 	super()
 	base_emission = BASE_EMISSION
 	base_emission_energy = BASE_EMISSION_ENERGY
-	target_color = BASE_COLOR
+	state_color = BASE_COLOR
 	current_color = BASE_COLOR
 	physics_basis = mesh_instance.basis
 	visual_basis = mesh_instance.basis
@@ -79,37 +79,42 @@ func _ready():
 
 func _physics_process(delta):
 	# Handle color updates before any potential impacts
-	var base_color = BASE_COLOR
-	var emission_color = BASE_EMISSION
-	var emission_energy = BASE_EMISSION_ENERGY
+	var target_base_color = BASE_COLOR
+	var target_emission = BASE_EMISSION
+	var target_emission_energy = BASE_EMISSION_ENERGY
 	
 	if is_dead:
-		base_color = DEATH_COLOR
-		emission_color = DEAD_EMISSION
-		emission_energy = DEAD_EMISSION_ENERGY
+		target_base_color = DEATH_COLOR
+		target_emission = DEAD_EMISSION
+		target_emission_energy = DEAD_EMISSION_ENERGY
 	elif has_started_moving and stuck_detector.is_stuck:
 		var stuck_time = stuck_detector.get_stuck_duration()
 		if stuck_time >= STUCK_TIMEOUT:
-			base_color = FLASH_COLOR
-			emission_color = DANGER_EMISSION
-			emission_energy = DANGER_EMISSION_ENERGY
+			target_base_color = FLASH_COLOR
+			target_emission = DANGER_EMISSION
+			target_emission_energy = DANGER_EMISSION_ENERGY
 		elif stuck_time >= IDLE_EMISSION_START:
-			base_color = DANGER_COLOR
-			emission_color = DANGER_EMISSION
-			emission_energy = DANGER_EMISSION_ENERGY * ((stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START))
+			target_base_color = DANGER_COLOR
+			target_emission = DANGER_EMISSION
+			var progress = (stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START)
+			target_emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, progress)
 		elif stuck_time >= IDLE_DANGER_START:
 			var warning_ratio = (stuck_time - IDLE_DANGER_START) / (IDLE_EMISSION_START - IDLE_DANGER_START)
-			base_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
-			emission_color = BASE_EMISSION.lerp(DANGER_EMISSION, warning_ratio)
-			emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, warning_ratio)
+			target_base_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
+			target_emission = BASE_EMISSION.lerp(DANGER_EMISSION, warning_ratio)
+			target_emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, warning_ratio)
 		elif stuck_time >= IDLE_WARNING_START:
 			var gray_ratio = (stuck_time - IDLE_WARNING_START) / (IDLE_DANGER_START - IDLE_WARNING_START)
-			base_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
-			emission_color = BASE_EMISSION
-			emission_energy = lerp(BASE_EMISSION_ENERGY, WARNING_EMISSION_ENERGY, gray_ratio)
+			target_base_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
+			target_emission = BASE_EMISSION
+			target_emission_energy = lerp(BASE_EMISSION_ENERGY, WARNING_EMISSION_ENERGY, gray_ratio)
 	
-	current_color = current_color.lerp(base_color, delta * COLOR_CHANGE_SPEED)
-	apply_color(current_color, emission_color, emission_energy)
+	state_color = target_base_color
+	state_emission = target_emission
+	state_emission_energy = target_emission_energy
+	
+	current_color = current_color.lerp(state_color, delta * COLOR_CHANGE_SPEED)
+	apply_color(current_color, state_emission, state_emission_energy)
 	
 	# Now handle physics and potential impacts
 
