@@ -2,9 +2,9 @@ extends PhysicsObject
 
 class_name Segment
 
-const SPRING_STIFFNESS = 930.0
-const SPRING_DAMPING = 20.0
-const PLAYER_TARGET_DISTANCE = 1.1
+const SPRING_STIFFNESS = 730.0
+const SPRING_DAMPING = 40.0
+const PLAYER_TARGET_DISTANCE = 0.9
 const TARGET_DISTANCE = 0.8
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2
@@ -15,6 +15,10 @@ const SAFE_COLOR = Color(0.3, 0.8, 0.4, 0.9)
 const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)
 const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
+const PULL_START_DISTANCE = 1.1  # Distance at which pull force starts
+const PULL_MAX_DISTANCE = 3.0    # Distance at which pull force peaks
+const PULL_FORCE = 1000.0        # Base strength of the pull force
+const PULL_VELOCITY_MATCH = 0.9  # How strongly to match target's velocity when pulling
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -83,7 +87,6 @@ func init_from_save_data(data: Dictionary):
 	if data.has("is_dangerous") and data.is_dangerous:
 		is_dangerous = true  # Set flag first
 		add_to_group("dangerous")
-		remove_from_group("segment")
 		current_color = DANGER_COLOR
 		current_material.albedo_color = DANGER_COLOR
 		current_material.emission = DANGER_EMISSION
@@ -137,6 +140,18 @@ func _physics_process(delta):
 			
 			var spring_force = to_desired * current_stiffness * delta
 			var damping_force = -velocity * SPRING_DAMPING * delta
+			
+			# Add pull force when too far
+			if current_distance > PULL_START_DISTANCE:
+				var pull_factor = clamp(
+					(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
+					0.0, 1.0
+				)
+				var pull_force = target_direction * PULL_FORCE * pull_factor * delta
+				spring_force += pull_force
+				
+				# Match target's velocity more strongly when pulling
+				velocity = velocity.lerp(target.velocity, PULL_VELOCITY_MATCH * pull_factor * delta)
 			
 			velocity += spring_force + damping_force
 			
@@ -197,7 +212,6 @@ func become_dangerous():
 			current_material.emission_enabled = true
 		
 		add_to_group("dangerous")
-		remove_from_group("segment")
 		# Ensure material color updates immediately
 		current_material.albedo_color = DANGER_COLOR
 		

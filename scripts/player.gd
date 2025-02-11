@@ -4,7 +4,7 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
 const MAX_SPEED = 100000.0
-const ACCELERATION = 100.0  # Increased since we're using forces now
+const ACCELERATION = 60.0  # Increased since we're using forces now
 const CONTROL_DRAG = 0.9
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
@@ -16,8 +16,8 @@ const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
-const IDLE_SPEED_INCREASE = 5.0  # Speed increase per food eaten
-const MAX_IDLE_SPEED = 5.0  # Cap on how fast the minimum speed can get
+const IDLE_SPEED_INCREASE = 0.5  # Speed increase per food eaten
+const MAX_IDLE_SPEED = 15.0  # Cap on how fast the minimum speed can get
 const SEGMENT_SPAWN_OFFSET = 0.7  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.9  # Increased from 0.8 for better matching
 const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
@@ -125,7 +125,7 @@ func _physics_process(delta):
 	if not is_dead and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
-		velocity += input_dir * ACCELERATION * delta
+		velocity += input_dir * (ACCELERATION + (current_idle_speed * 10)) * delta
 		velocity *= CONTROL_DRAG
 	
 	# Update stuck detection
