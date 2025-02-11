@@ -106,7 +106,7 @@ transparency = 1
 blend_mode = 1
 shading_mode = 0
 vertex_color_use_as_albedo = true
-albedo_color = Color(0.7, 0.8, 0.9, 0.03)
+albedo_color = Color(0.878431, 0.819608, 0, 0.054902)
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
 material = SubResource("StandardMaterial3D_2")
@@ -145,21 +145,21 @@ sky_mode = 1
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.92457, 0)
 light_energy = 0.7
 shadow_enabled = true
-omni_range = 12.0
+omni_range = 12.989
 omni_attenuation = 1.5
 
 [node name="OmniLight3D2" type="OmniLight3D" parent="GameplayContainer/OmniLight3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.19446, 1.92457, -4.52936)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.19446, 0.856061, -4.52936)
 light_energy = 0.7
 shadow_enabled = true
 omni_range = 12.0
 omni_attenuation = 1.5
 
 [node name="OmniLight3D3" type="OmniLight3D" parent="GameplayContainer/OmniLight3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.23103, 3.84914, 4.53575)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.23103, 5.46439, 4.53575)
 light_energy = 0.7
 shadow_enabled = true
-omni_range = 12.0
+omni_range = 26.498
 omni_attenuation = 1.5
 
 [node name="Camera3D" type="Camera3D" parent="GameplayContainer"]
@@ -182,13 +182,23 @@ transform = Transform3D(-9.61651e-08, 0, 1, 0, 1, 0, -22, 0, -4.37114e-08, 11, 0
 transform = Transform3D(-9.61651e-08, 0, 1, 0, 1, 0, -22, 0, -4.37114e-08, -11, 0, 0)
 
 [node name="VoidPlane" type="MeshInstance3D" parent="GameplayContainer"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3, 0)
+transform = Transform3D(1.50912, 0, 0, 0, 1, 0, 0, 0, 1.3357, 0, -3, 0)
 mesh = SubResource("PlaneMesh_2")
 surface_material_override/0 = SubResource("ShaderMaterial_1")
 
-[node name="Particles" type="GPUParticles3D" parent="GameplayContainer"]
+[node name="Particles2" type="GPUParticles3D" parent="GameplayContainer"]
+transform = Transform3D(1.83913, 0, 0, 0, 0.406822, 0, 0, 0, 1.622, 0, -5.26762, 0)
 amount = 100
 lifetime = 8.0
+preprocess = 4.0
+visibility_aabb = AABB(-12, -1, -12, 24, 12, 24)
+process_material = SubResource("ParticleProcessMaterial_1")
+draw_pass_1 = SubResource("SphereMesh_1")
+
+[node name="Particles" type="GPUParticles3D" parent="GameplayContainer"]
+transform = Transform3D(0.806092, 0, 0, 0, 0.209052, 0, 0, 0, 0.816343, 0, 0.959085, 0)
+amount = 25
+lifetime = 73.85
 preprocess = 4.0
 visibility_aabb = AABB(-12, -1, -12, 24, 12, 24)
 process_material = SubResource("ParticleProcessMaterial_1")
