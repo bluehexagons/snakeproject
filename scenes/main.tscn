@@ -131,7 +131,7 @@ surface_material_override/0 = SubResource("StandardMaterial3D_1")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="GameplayContainer"]
 transform = Transform3D(-0.999935, 0.00875719, -0.00734812, -0.00523492, 0.220651, 0.975339, 0.0101627, 0.975313, -0.220592, 0, 5, 0)
-light_energy = 0.5
+light_energy = 0.652
 shadow_enabled = true
 shadow_blur = 1.5
 directional_shadow_mode = 0
