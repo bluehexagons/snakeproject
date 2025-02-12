@@ -196,7 +196,14 @@ func _physics_process(delta):
 	var current_speed = min(max(velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
 
 	# Food collection
-	for food_node in get_tree().get_nodes_in_group("food"):
+	# Get list of food items and sort by distance
+	var food_nodes = get_tree().get_nodes_in_group("food")
+	food_nodes.sort_custom(func(a, b): 
+		return a.global_position.distance_to(global_position) < b.global_position.distance_to(global_position)
+	)
+	
+	# Check closest food first
+	for food_node in food_nodes:
 		if food_node.global_position.distance_to(global_position) < 0.75:
 			if is_dead:
 				score_change += food_node.dead_eat()
@@ -222,7 +229,8 @@ func _physics_process(delta):
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
 			if game_manager:
 				game_manager.on_food_collected()
-			
+			break  # Only eat one food item per frame
+
 	if not has_lost and score_change > 0.0:
 		# Calculate score based on speed
 		score_change = int(current_speed * score_change * SPEED_SCORE_MULTIPLIER)

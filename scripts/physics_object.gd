@@ -9,7 +9,7 @@ var visual_pos: Vector3
 
 const IMPACT_FLASH_DURATION = 0.15  # Slightly longer but softer flash
 const IMPACT_MIN_FORCE = 0.3       # Increased minimum threshold
-const IMPACT_MAX_FORCE = 50.0      # Increased range for better scaling
+const IMPACT_MAX_FORCE = 35.0      # Increased range for better scaling
 
 var current_emission: Color = Color.BLACK
 var current_emission_energy: float = 1.0

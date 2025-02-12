@@ -30,6 +30,10 @@ const SAFE_FORWARD_ANGLE = 60.0  # Angle in degrees to check in front of player
 
 const CAMERA_OFFSET = Vector3(0, 0, 0)  # Offset from target to maintain perspective
 
+const MIN_FOOD_COUNT = 1  # Minimum number of food items in the world
+const MAX_FOOD_COUNT = 5  # Maximum number of food items in the world
+const MIN_FOOD_DISTANCE = 3.0  # Minimum distance between food items
+
 var target_camera_pos: Vector3
 var target_camera_rot: Vector3
 
@@ -147,36 +151,59 @@ func spawn_player():
 	player.position = Vector3(random_x, 0, random_z)
 
 func spawn_food():
-	var max_attempts = 10
-	var attempts = 0
-	var food = FOOD_SCENE.instantiate()
-	gameplay_container.add_child(food)
+	var current_food_count = get_tree().get_nodes_in_group("food").size() - 1
 	
-	while attempts < max_attempts:
-		var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
-		var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-		var pos = Vector3(random_x, 0, random_z)
-		food.position = pos
+	# Don't spawn if we're at or above minimum food count
+	if current_food_count >= MIN_FOOD_COUNT:
+		return
 		
-		# Check distance from dangerous segments and rocks
-		var too_close = false
-		for node in get_tree().get_nodes_in_group("dangerous"):
-			if node.global_position.distance_to(pos) < 2.0:
-				too_close = true
-				break
+	# Only spawn enough to reach minimum
+	var to_spawn = MIN_FOOD_COUNT - current_food_count
+	var max_attempts = 10
+	
+	for i in range(to_spawn):
+		# Don't exceed maximum food count
+		if get_tree().get_nodes_in_group("food").size() >= MAX_FOOD_COUNT:
+			break
+			
+		var attempts = 0
+		var food = FOOD_SCENE.instantiate()
+		gameplay_container.add_child(food)
 		
-		for rock in get_tree().get_nodes_in_group("rock"):
-			if rock.global_position.distance_to(pos) < 1.5:
-				too_close = true
+		while attempts < max_attempts:
+			var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
+			var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
+			var pos = Vector3(random_x, 0, random_z)
+			food.position = pos
+			
+			# Check distance from dangerous segments, rocks, and other food
+			var too_close = false
+			
+			# Check distance from dangerous objects
+			for node in get_tree().get_nodes_in_group("dangerous"):
+				if node.global_position.distance_to(pos) < 2.0:
+					too_close = true
+					break
+			
+			# Check distance from rocks
+			for rock in get_tree().get_nodes_in_group("rock"):
+				if rock.global_position.distance_to(pos) < 1.5:
+					too_close = true
+					break
+			
+			# Check distance from other food
+			for other_food in get_tree().get_nodes_in_group("food"):
+				if other_food != food and other_food.global_position.distance_to(pos) < MIN_FOOD_DISTANCE:
+					too_close = true
+					break
+					
+			if !too_close:
 				break
 				
-		if !too_close:
-			return
-			
-		attempts += 1
-	
-	# If we couldn't find a good spot, just leave it where it is
-	food.position = Vector3.ZERO
+			attempts += 1
+		
+		if attempts >= max_attempts:
+			food.queue_free()  # Remove food if we couldn't find a good spot
 
 func spawn_initial_rocks():
 	for i in range(INITIAL_ROCKS):
@@ -242,11 +269,16 @@ func on_food_collected():
 		return
 
 	var player = gameplay_container.get_node_or_null("Player")
-	spawn_food()
 	
-	# Spawn new rock every ROCKS_SPAWN_INTERVAL food collections
+	# Only spawn new rock every ROCKS_SPAWN_INTERVAL food collections
 	if player.food_eaten % ROCKS_SPAWN_INTERVAL == 0:
 		spawn_rock()
+	
+	# Check if removing this food would put us below minimum
+	var current_food_count = get_tree().get_nodes_in_group("food").size()
+	if current_food_count <= MIN_FOOD_COUNT:
+		# Try to spawn more food to maintain minimum
+		spawn_food()
 
 func _on_window_resize():
 	var window_size = DisplayServer.window_get_size()
@@ -296,12 +328,20 @@ func save_game_state():
 	if player.is_dead:
 		return
 		
-	var food = get_tree().get_first_node_in_group("food")
+	var foods = get_tree().get_nodes_in_group("food")
 	var rocks = get_tree().get_nodes_in_group("rock")
 	
-	if not player or not food:
+	if not player or foods.is_empty():
 		print("Warning: Could not find valid player or food when saving")
 		return
+	
+	var food_positions = []
+	for food in foods:
+		food_positions.append({
+			"x": food.position.x,
+			"y": food.position.y,
+			"z": food.position.z
+		})
 	
 	var rock_data = []
 	for rock in rocks:
@@ -311,11 +351,7 @@ func save_game_state():
 	var save_data = {
 		"score": score,
 		"player_state": player.get_save_data(),
-		"food_position": {
-			"x": food.position.x,
-			"y": food.position.y,
-			"z": food.position.z
-		},
+		"food_positions": food_positions,
 		"rocks": rock_data
 	}
 	GameState.save_game_state(save_data)
@@ -352,13 +388,25 @@ func load_game_state():
 			segment.init_from_save_data(segment_data)
 	
 	# Spawn and setup food
-	var food = FOOD_SCENE.instantiate()
-	gameplay_container.add_child(food)
-	food.position = Vector3(
-		float(save_data["food_position"]["x"]),
-		float(save_data["food_position"]["y"]),
-		float(save_data["food_position"]["z"])
-	)
+	if save_data.has("food_positions"):
+		for food_pos in save_data.food_positions:
+			var food = FOOD_SCENE.instantiate()
+			gameplay_container.add_child(food)
+			food.position = Vector3(
+				float(food_pos.x),
+				float(food_pos.y),
+				float(food_pos.z)
+			)
+	else:
+		# Backward compatibility for old save files with single food
+		if save_data.has("food_position"):
+			var food = FOOD_SCENE.instantiate()
+			gameplay_container.add_child(food)
+			food.position = Vector3(
+				float(save_data["food_position"]["x"]),
+				float(save_data["food_position"]["y"]),
+				float(save_data["food_position"]["z"])
+			)
 	
 	# Load rocks
 	if save_data.has("rocks"):
