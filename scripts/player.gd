@@ -148,7 +148,7 @@ func _physics_process(delta):
 	if not has_lost and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
-		velocity += input_dir * (current_speed_boost / max(sqrt(dead_time), 1.0) if is_dead else ACCELERATION + (current_speed_boost * 10.0)) * delta
+		velocity += input_dir * (current_speed_boost / max(pow(dead_time * 0.5, 1.5), 1.0) if is_dead else ACCELERATION + (current_speed_boost * 10.0)) * delta
 		velocity *= DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
 	
 	if velocity != Vector3.ZERO:
