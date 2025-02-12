@@ -7,8 +7,8 @@ const PERSISTENT_COLLISION_DAMPING = 0.8
 const MAX_COLLISION_SPEED = 20.0
 const REST_THRESHOLD = 0.1
 const VELOCITY_LOSS_ON_COLLISION = 0.7  # How much velocity to maintain after collision
-const BARRIER_BOUNCE_MULTIPLIER = 1.5  # Extra bounce for barrier collisions
-const BARRIER_PUSH_FORCE = 3.0  # Additional force away from barrier
+const BARRIER_BOUNCE_MULTIPLIER = 1.0  # Extra bounce for barrier collisions
+const BARRIER_PUSH_FORCE = 0.25  # Additional force away from barrier
 const MIN_BARRIER_BOUNCE_SPEED = 2.0  # Minimum speed after barrier bounce
 const DEFAULT_MASS = 1.0
 

@@ -10,7 +10,7 @@ const CONTROL_DRAG = 0.9
 const DEAD_CONTROL_DRAG = 1.0
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
-const LUNGE_FORCE = 10.0
+const LUNGE_FORCE = 2.0
 const SEGMENT_PUSHBACK = 60.0
 const VELOCITY_SMOOTHING = 0.15
 const SPEED_BOOST_BASE = 1.0  # Rename IDLE_SPEED to SPEED_BOOST_BASE
@@ -18,7 +18,7 @@ const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
-const BONUS_SPEED_PER_FEED = 0.15  # Speed increase per food eaten
+const BONUS_SPEED_PER_FEED = 0.02  # Speed increase per food eaten
 const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
 const SEGMENT_SPAWN_OFFSET = 0.2  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.8  # Increased from 0.8 for better matching
@@ -65,6 +65,7 @@ var dead_time: float = 0.0
 var is_digesting: bool = false
 var digestion_timer: float = 0.0
 var digestion_flash_material: StandardMaterial3D
+var unkillable: bool = true
 
 var physics_basis: Basis
 var visual_basis: Basis
@@ -400,7 +401,7 @@ func lose():
 		game_manager.game_over()
 
 func die():
-	if is_dead:
+	if is_dead or unkillable:
 		return
 	
 	is_dead = true

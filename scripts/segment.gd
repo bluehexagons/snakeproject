@@ -19,10 +19,10 @@ const PULL_START_DISTANCE = 1.1  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 3.0    # Distance at which pull force peaks
 const PULL_FORCE = 300.0        # Reduced base pull force
 const PULL_VELOCITY_MATCH = 0.9  # How strongly to match target's velocity when pulling
-const COLLISION_BREAK_FORCE = 900.0  # Force required during collision to break
+const COLLISION_BREAK_FORCE = 1500.0  # Force required during collision to break
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
 const RECOVERY_EASE_POWER = 1.5       # How quickly targeting recovers (higher = more sudden)
-const PLAYER_PULL_REDUCTION = 0.9  # Reduce pull force when targeting player
+const PLAYER_PULL_REDUCTION = 0.25  # Reduce pull force when targeting player
 const CLUSTER_FORCE_REDUCTION = 0.7  # Reduce forces when in tight clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
 
@@ -214,7 +214,7 @@ func _physics_process(delta):
 					var pull_force = target_direction * pull_strength
 					velocity += pull_force  # Pull this segment toward target
 					if target is PhysicsObject:  # Only apply force if target can receive it
-						target.velocity -= pull_force * (1.0 if target.is_in_group("player") else PLAYER_PULL_REDUCTION)
+						target.velocity -= pull_force * (1.0 if not target.is_in_group("player") else PLAYER_PULL_REDUCTION) / pow(current_distance, 2.0)
 						
 						# Match velocities to reduce oscillation
 						var match_strength = PULL_VELOCITY_MATCH * pull_factor * delta
