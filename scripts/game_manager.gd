@@ -231,12 +231,17 @@ func spawn_rock(force_safe: bool = false):
 			spawn_rock(force_safe)  # Try again
 			return
 
-func on_food_collected(points: int):
+func add_score(points: int):
+	if is_game_over:
+		return
+
+	update_score(points)
+
+func on_food_collected():
 	if is_game_over:
 		return
 
 	var player = gameplay_container.get_node_or_null("Player")
-	update_score(points)
 	spawn_food()
 	
 	# Spawn new rock every ROCKS_SPAWN_INTERVAL food collections
@@ -288,6 +293,9 @@ func save_game_state():
 		return
 
 	var player = gameplay_container.get_node_or_null("Player")
+	if player.is_dead:
+		return
+		
 	var food = get_tree().get_first_node_in_group("food")
 	var rocks = get_tree().get_nodes_in_group("rock")
 	

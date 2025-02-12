@@ -28,3 +28,11 @@ func _process(delta):
 	# Pulsing scale that never goes to zero
 	var scale_factor = lerp(MIN_SCALE, MAX_SCALE, (sin(time * SCALE_SPEED) + 1.0) * 0.5)
 	mesh.scale = Vector3.ONE * scale_factor
+
+func eat() -> float:
+	queue_free()
+	return 10.0
+
+func dead_eat() -> float:
+	queue_free()
+	return 20.0

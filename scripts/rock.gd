@@ -99,3 +99,7 @@ func make_dangerous():
 	add_to_group("dangerous")
 	collision_layer = 4 | 2  # Both dangerous AND physical
 	collision_mask = 7  # Collide with everything
+
+func dead_eat() -> float:
+	queue_free()
+	return 2.0

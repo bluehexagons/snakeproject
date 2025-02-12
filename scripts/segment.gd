@@ -136,7 +136,7 @@ func _physics_process(delta):
 	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
 	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
 
-	if target:
+	if is_instance_valid(target):
 		# Calculate target distance based on current scales
 		var target_distance = TARGET_DISTANCE if target is Segment else PLAYER_TARGET_DISTANCE
 		var adjusted_distance = target_distance * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
@@ -277,3 +277,7 @@ func become_dangerous():
 		
 		tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 1.0, 0.3)
 		tween.tween_callback(func(): mesh_instance.material_override = null)
+
+func dead_eat() -> float:
+	queue_free()
+	return 5.0

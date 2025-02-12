@@ -7,6 +7,7 @@ const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 const MAX_SPEED = 100000.0
 const ACCELERATION = 200.0  # Increased since we're using forces now
 const CONTROL_DRAG = 0.8
+const DEAD_CONTROL_DRAG = 1.0
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
 const LUNGE_FORCE = 20.0
@@ -15,7 +16,7 @@ const VELOCITY_SMOOTHING = 0.15
 const IDLE_SPEED_BASE = 3.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
-const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
+const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
 const IDLE_SPEED_INCREASE = 0.5  # Speed increase per food eaten
 const MAX_IDLE_SPEED = 15.0  # Cap on how fast the minimum speed can get
@@ -50,6 +51,7 @@ var smoothed_velocity: Vector3 = Vector3.ZERO
 var current_scale: float = 1.0  # Add this for consistent scaling behavior
 var has_started_moving: bool = false
 var food_eaten: int = 0
+var filler_eaten: int = 0
 var current_idle_speed: float = IDLE_SPEED_BASE
 var is_dead: bool = false
 var has_lost: bool = false
@@ -86,6 +88,8 @@ func _physics_process(delta):
 	var target_emission_energy = BASE_EMISSION_ENERGY
 
 	var stuck_time = 0.0
+
+	var score_change = 0.0
 
 	# Update stuck detection
 	if has_started_moving:
@@ -141,9 +145,8 @@ func _physics_process(delta):
 	if input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
-		velocity += input_dir * (current_idle_speed * 0.5 if is_dead else ACCELERATION + (current_idle_speed * 10.0)) * delta
-		velocity *= 1.0 if is_dead else CONTROL_DRAG
-	
+		velocity += input_dir * (current_idle_speed / max(pow(stuck_time, 2.0), 1.0) if is_dead else ACCELERATION + (current_idle_speed * 10.0)) * delta
+		velocity *= DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
 	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
@@ -154,8 +157,13 @@ func _physics_process(delta):
 		var collider = collision.get_collider()
 		if collider.is_in_group("dangerous"):
 			die()  # Die immediately on contact with any dangerous object
+		
+		if is_dead:
+			if collider.has_method("dead_eat"):
+				score_change += collider.dead_eat()
+		elif collider.has_method("eat"):
+			score_change += collider.eat()
 				
-		# Let the collision handler manage non-lethal collisions
 		collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
 	
 	# Handle proximity with segments
@@ -177,10 +185,15 @@ func _physics_process(delta):
 		# Apply the rotation with normalized basis
 		mesh_instance.basis = mesh_instance.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 
+	var current_speed = min(max(velocity.length(), current_idle_speed) / current_idle_speed, MAX_SPEED_IDLE_MULTIPLIER)
+
 	# Food collection
-	for area in get_tree().get_nodes_in_group("food"):
-		if area.global_position.distance_to(global_position) < 0.75:
-			area.queue_free()
+	for food_node in get_tree().get_nodes_in_group("food"):
+		if food_node.global_position.distance_to(global_position) < 0.75:
+			if is_dead:
+				score_change += food_node.dead_eat()
+			else:
+				score_change += food_node.eat()
 			if len(segments) > 0:
 				segments[0].velocity -= facing_direction * SEGMENT_PUSHBACK
 
@@ -191,20 +204,25 @@ func _physics_process(delta):
 				IDLE_SPEED_BASE + (food_eaten * IDLE_SPEED_INCREASE),
 				MAX_IDLE_SPEED
 			)
-			 # Calculate score based on speed
-			var current_speed = min(max(velocity.length(), current_idle_speed) / current_idle_speed, MAX_SPEED_IDLE_MULTIPLIER)
-			var speed_points = int(current_speed * SPEED_SCORE_MULTIPLIER)
+			# Add extra momentum when collecting food
+			velocity += facing_direction * LUNGE_FORCE
+
 			# Find game manager and notify it
 			var game_manager = get_tree().get_first_node_in_group("game_manager")
 			if game_manager:
-				game_manager.on_food_collected(speed_points)
-			# Add extra momentum when collecting food
-			velocity += facing_direction * LUNGE_FORCE
+				game_manager.on_food_collected()
 			
+	if score_change > 0.0:
+		# Calculate score based on speed
+		score_change = int(current_speed * score_change * SPEED_SCORE_MULTIPLIER)
+		score_change = max(int(score_change), 1)
+		var game_manager = get_tree().get_first_node_in_group("game_manager")
+		if game_manager:
+			game_manager.add_score(score_change)
 			# Spawn score popup
 			var popup = SCORE_POPUP.instantiate()
 			popup.position = global_position + Vector3(0, 1.5, 0)  # Raise the spawn point
-			popup.text = "+" + str(speed_points)
+			popup.text = "+" + str(score_change)
 			get_parent().add_child(popup)
 
 	# Store physics state
