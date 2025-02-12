@@ -28,6 +28,11 @@ var current_color: Color = Color.WHITE
 var state_emission: Color = Color.BLACK
 var state_emission_energy: float = 0.0
 
+var static_friction: float = PhysicsConstants.BASE_STATIC_FRICTION
+var dynamic_friction: float = PhysicsConstants.BASE_DYNAMIC_FRICTION
+var rolling_friction: float = PhysicsConstants.BASE_ROLLING_FRICTION
+var is_static: bool = false
+
 func _ready():
     if mesh_instance and current_material:
         mesh_instance.mesh.surface_set_material(0, current_material)
@@ -117,10 +122,24 @@ func apply_gravity(delta: float) -> void:
                 velocity.y = 0
 
 func apply_drag(delta: float) -> void:
-    if velocity.length_squared() > PhysicsConstants.MIN_SPEED_THRESHOLD * PhysicsConstants.MIN_SPEED_THRESHOLD:
-        velocity = velocity.lerp(Vector3.ZERO, drag_coefficient * delta)
-    elif velocity.length_squared() > 0:
-        velocity = Vector3.ZERO
+    var speed_squared = velocity.length_squared()
+    
+    if speed_squared < PhysicsConstants.MIN_SPEED_THRESHOLD * PhysicsConstants.MIN_SPEED_THRESHOLD:
+        # Object is nearly stopped - apply static friction
+        if speed_squared < PhysicsConstants.STATIC_BREAKAWAY_THRESHOLD:
+            velocity = Vector3.ZERO
+            is_static = true
+            return
+    
+    # Object is moving - determine friction type
+    var friction = dynamic_friction
+    if speed_squared < PhysicsConstants.ROLLING_THRESHOLD:
+        friction = rolling_friction
+    
+    # Apply friction and air drag
+    var total_drag = (friction + drag_coefficient)
+    velocity = velocity.lerp(Vector3.ZERO, total_drag * delta)
+    is_static = false
 
 func limit_speed() -> void:
     if velocity.length_squared() > max_speed * max_speed:
@@ -153,6 +172,10 @@ func handle_impact(force: float) -> void:
         if is_instance_valid(mesh_instance):
             mesh_instance.material_override = null
     )
+
+func handle_collision(force: float) -> void:
+    is_static = false  # Break static friction on impact
+    handle_impact(force)
 
 func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: float = -1.0) -> void:
     if current_material:

@@ -21,6 +21,9 @@ func _ready():
 	mass = 8.0
 	drag_coefficient = PhysicsConstants.ROCK_DRAG
 	max_speed = PhysicsConstants.ROCK_MAX_SPEED
+	static_friction = PhysicsConstants.ROCK_STATIC_FRICTION
+	dynamic_friction = PhysicsConstants.ROCK_DYNAMIC_FRICTION
+	rolling_friction = PhysicsConstants.ROCK_ROLLING_FRICTION
 	target_color = SAFE_COLOR
 	current_color = SAFE_COLOR
 	base_emission = Color(0.2, 0.2, 0.2, 1.0) 

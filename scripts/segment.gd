@@ -41,9 +41,12 @@ var has_collision: bool = false
 
 func _ready():
 	super()
-	mass = 3.0
+	mass = 1.0
 	drag_coefficient = PhysicsConstants.SEGMENT_DRAG
 	max_speed = PhysicsConstants.SEGMENT_MAX_SPEED
+	static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION
+	dynamic_friction = PhysicsConstants.SEGMENT_DYNAMIC_FRICTION
+	rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION
 	# Set initial scale and positions
 	current_scale = INITIAL_SCALE
 	update_scale(current_scale)

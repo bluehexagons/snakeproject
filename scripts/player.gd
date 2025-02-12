@@ -63,6 +63,11 @@ var visual_basis: Basis
 
 func _ready():
 	super()
+	mass = 0.5
+	drag_coefficient = PhysicsConstants.PLAYER_DRAG
+	static_friction = PhysicsConstants.PLAYER_STATIC_FRICTION
+	dynamic_friction = PhysicsConstants.PLAYER_DYNAMIC_FRICTION
+	rolling_friction = PhysicsConstants.PLAYER_ROLLING_FRICTION
 	base_emission = BASE_EMISSION
 	base_emission_energy = BASE_EMISSION_ENERGY
 	state_color = BASE_COLOR
