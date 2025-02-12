@@ -1,6 +1,15 @@
-[gd_scene load_steps=2 format=3 uid="uid://dbkt4gaf6xf28"]
+[gd_scene load_steps=3 format=3 uid="uid://dbkt4gaf6xf28"]
 
 [ext_resource type="Script" path="res://scripts/ui.gd" id="1_script"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_u4k2p"]
+bg_color = Color(0.129412, 0.129412, 0.129412, 0.901961)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.25)
+shadow_size = 4
 
 [node name="UI" type="Control"]
 layout_mode = 3
@@ -44,94 +53,112 @@ horizontal_alignment = 1
 
 [node name="PauseMenu" type="Panel" parent="."]
 visible = false
+custom_minimum_size = Vector2(250, 250)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -100.0
-offset_top = -75.0
-offset_right = 100.0
-offset_bottom = 75.0
+offset_left = -125.0
+offset_top = -125.0
+offset_right = 125.0
+offset_bottom = 125.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_u4k2p")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="PauseMenu"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 10.0
-offset_top = 10.0
-offset_right = -10.0
-offset_bottom = -10.0
+offset_left = 25.0
+offset_top = 25.0
+offset_right = -25.0
+offset_bottom = -25.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/separation = 15
+alignment = 1
 
 [node name="PauseLabel" type="Label" parent="PauseMenu/VBoxContainer"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 32
 text = "PAUSED"
 horizontal_alignment = 1
 
 [node name="ResumeButton" type="Button" parent="PauseMenu/VBoxContainer"]
+custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 size_flags_vertical = 3
 text = "Resume"
 
 [node name="MainMenuButton" type="Button" parent="PauseMenu/VBoxContainer"]
+custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 size_flags_vertical = 3
 text = "Main Menu"
 
 [node name="QuitButton" type="Button" parent="PauseMenu/VBoxContainer"]
+custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 size_flags_vertical = 3
 text = "Quit"
 
 [node name="GameOverMenu" type="Panel" parent="."]
 visible = false
+custom_minimum_size = Vector2(250, 300)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -100.0
-offset_top = -100.0
-offset_right = 100.0
-offset_bottom = 100.0
+offset_left = -125.0
+offset_top = -150.0
+offset_right = 125.0
+offset_bottom = 150.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_u4k2p")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="GameOverMenu"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 10.0
-offset_top = 10.0
-offset_right = -10.0
-offset_bottom = -10.0
+offset_left = 25.0
+offset_top = 25.0
+offset_right = -25.0
+offset_bottom = -25.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/separation = 15
+alignment = 1
 
 [node name="GameOverLabel" type="Label" parent="GameOverMenu/VBoxContainer"]
 layout_mode = 2
+size_flags_vertical = 0
+theme_override_colors/font_color = Color(1, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 32
 text = "GAME OVER"
 horizontal_alignment = 1
 
 [node name="ScoreLabel" type="Label" parent="GameOverMenu/VBoxContainer"]
 layout_mode = 2
+size_flags_vertical = 0
 text = "Final Score: 0"
 horizontal_alignment = 1
 
 [node name="RetryButton" type="Button" parent="GameOverMenu/VBoxContainer"]
+custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 size_flags_vertical = 3
 text = "Retry"
 
 [node name="MainMenuButton" type="Button" parent="GameOverMenu/VBoxContainer"]
+custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
 size_flags_vertical = 3
 text = "Main Menu"
