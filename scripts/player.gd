@@ -135,7 +135,7 @@ func _physics_process(delta):
 		if is_stuck:
 			var stuck_time = stuck_detector.get_stuck_duration()
 			if stuck_time >= STUCK_TIMEOUT:
-				die()
+				lose()
 	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
@@ -326,6 +326,11 @@ func restore_from_save(data: Dictionary):
 		food_eaten = state.get("food_eaten", 0)
 		current_idle_speed = state.get("current_idle_speed", IDLE_SPEED_BASE)
 
+func lose():
+	var game_manager = get_tree().get_first_node_in_group("game_manager")
+	if game_manager:
+		game_manager.game_over()
+
 func die():
 	if is_dead:
 		return
@@ -334,7 +339,3 @@ func die():
 
 	for segment in segments:
 		segment.target = null
-
-	var game_manager = get_tree().get_first_node_in_group("game_manager")
-	if game_manager:
-		game_manager.game_over()
