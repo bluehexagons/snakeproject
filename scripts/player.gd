@@ -9,8 +9,8 @@ const ACCELERATION = 200.0  # Increased since we're using forces now
 const CONTROL_DRAG = 0.8
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
-const LUNGE_FORCE = 0.2
-const SEGMENT_PUSHBACK = 0.1
+const LUNGE_FORCE = 20.0
+const SEGMENT_PUSHBACK = 60.0
 const VELOCITY_SMOOTHING = 0.15
 const IDLE_SPEED_BASE = 3.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
@@ -19,8 +19,8 @@ const SPEED_SCORE_MULTIPLIER = 5.0  # Points per multiple of speed
 const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
 const IDLE_SPEED_INCREASE = 0.5  # Speed increase per food eaten
 const MAX_IDLE_SPEED = 15.0  # Cap on how fast the minimum speed can get
-const SEGMENT_SPAWN_OFFSET = 0.7  # Reduced from 1.2 to spawn closer
-const SEGMENT_SPAWN_VELOCITY = 0.9  # Increased from 0.8 for better matching
+const SEGMENT_SPAWN_OFFSET = 0.8  # Reduced from 1.2 to spawn closer
+const SEGMENT_SPAWN_VELOCITY = 0.7  # Increased from 0.8 for better matching
 const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
 
@@ -52,6 +52,7 @@ var has_started_moving: bool = false
 var food_eaten: int = 0
 var current_idle_speed: float = IDLE_SPEED_BASE
 var is_dead: bool = false
+var has_lost: bool = false
 var stuck_detector: RefCounted
 
 var physics_basis: Basis
@@ -83,13 +84,23 @@ func _physics_process(delta):
 	var target_base_color = BASE_COLOR
 	var target_emission = BASE_EMISSION
 	var target_emission_energy = BASE_EMISSION_ENERGY
+
+	var stuck_time = 0.0
+
+	# Update stuck detection
+	if has_started_moving:
+		var is_stuck = stuck_detector.update(global_position, delta)
+		if is_stuck:
+			stuck_time = stuck_detector.get_stuck_duration()
+			if stuck_time >= STUCK_TIMEOUT:
+				die()
+				lose()
 	
-	if is_dead:
+	if has_lost:
 		target_base_color = DEATH_COLOR
 		target_emission = DEAD_EMISSION
 		target_emission_energy = DEAD_EMISSION_ENERGY
 	elif has_started_moving and stuck_detector.is_stuck:
-		var stuck_time = stuck_detector.get_stuck_duration()
 		if stuck_time >= STUCK_TIMEOUT:
 			target_base_color = FLASH_COLOR
 			target_emission = DANGER_EMISSION
@@ -110,6 +121,10 @@ func _physics_process(delta):
 			target_emission = BASE_EMISSION
 			target_emission_energy = lerp(BASE_EMISSION_ENERGY, WARNING_EMISSION_ENERGY, gray_ratio)
 	
+	if is_dead:
+		target_base_color = DEATH_COLOR
+		target_emission = DEAD_EMISSION
+	
 	state_color = target_base_color
 	state_emission = target_emission
 	state_emission_energy = target_emission_energy
@@ -123,20 +138,12 @@ func _physics_process(delta):
 	input_dir.x = Input.get_axis("move_left", "move_right")
 	input_dir.z = Input.get_axis("move_up", "move_down")
 	
-	if not is_dead and input_dir != Vector3.ZERO:
+	if input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
-		velocity += input_dir * (ACCELERATION + (current_idle_speed * 10)) * delta
-		velocity *= CONTROL_DRAG
+		velocity += input_dir * (current_idle_speed * 0.5 if is_dead else ACCELERATION + (current_idle_speed * 10.0)) * delta
+		velocity *= 1.0 if is_dead else CONTROL_DRAG
 	
-	# Update stuck detection
-	if has_started_moving:
-		var is_stuck = stuck_detector.update(global_position, delta)
-		if is_stuck:
-			var stuck_time = stuck_detector.get_stuck_duration()
-			if stuck_time >= STUCK_TIMEOUT:
-				die()
-				lose()
 	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
@@ -145,9 +152,7 @@ func _physics_process(delta):
 	var collision_handler = get_node("/root/CollisionHandler")
 	if collision:
 		var collider = collision.get_collider()
-		if collider.is_in_group("barrier"):
-			die()
-		elif collider.is_in_group("dangerous"):
+		if collider.is_in_group("dangerous"):
 			die()  # Die immediately on contact with any dangerous object
 				
 		# Let the collision handler manage non-lethal collisions
@@ -176,6 +181,9 @@ func _physics_process(delta):
 	for area in get_tree().get_nodes_in_group("food"):
 		if area.global_position.distance_to(global_position) < 0.75:
 			area.queue_free()
+			if len(segments) > 0:
+				segments[0].velocity -= facing_direction * SEGMENT_PUSHBACK
+
 			add_segment()
 			food_eaten += 1
 			# Update minimum speed requirement
@@ -328,6 +336,10 @@ func restore_from_save(data: Dictionary):
 		current_idle_speed = state.get("current_idle_speed", IDLE_SPEED_BASE)
 
 func lose():
+	if has_lost:
+		return
+	has_lost = true
+
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		game_manager.game_over()
