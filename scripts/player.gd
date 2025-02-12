@@ -145,7 +145,7 @@ func _physics_process(delta):
 	if collision:
 		var collider = collision.get_collider()
 		if collider.is_in_group("barrier"):
-			die()  # Player still dies on barrier contact
+			die()
 		elif collider.is_in_group("dangerous"):
 			die()  # Die immediately on contact with any dangerous object
 				
@@ -330,10 +330,11 @@ func die():
 	if is_dead:
 		return
 	
+	is_dead = true
+
 	for segment in segments:
 		segment.target = null
 
-	is_dead = true
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
 	if game_manager:
 		game_manager.game_over()
