@@ -4,7 +4,7 @@ class_name Player
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
-const MAX_SPEED = 100000.0
+const EXPECTED_MAX_SPEED = 400.0
 const ACCELERATION = 200.0  # Increased since we're using forces now
 const CONTROL_DRAG = 0.8
 const DEAD_CONTROL_DRAG = 1.0
@@ -13,13 +13,13 @@ const ROTATION_SPEED = 15.0
 const LUNGE_FORCE = 20.0
 const SEGMENT_PUSHBACK = 60.0
 const VELOCITY_SMOOTHING = 0.15
-const IDLE_SPEED_BASE = 3.0  # Rename IDLE_SPEED to IDLE_SPEED_BASE
+const SPEED_BOOST_BASE = 3.0  # Rename IDLE_SPEED to SPEED_BOOST_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
-const MAX_SPEED_IDLE_MULTIPLIER = 3.0 # Max score multiplier for speed
-const IDLE_SPEED_INCREASE = 0.5  # Speed increase per food eaten
-const MAX_IDLE_SPEED = 15.0  # Cap on how fast the minimum speed can get
+const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
+const BONUS_SPEED_PER_FEED = 0.5  # Speed increase per food eaten
+const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
 const SEGMENT_SPAWN_OFFSET = 0.8  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.7  # Increased from 0.8 for better matching
 const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
@@ -52,10 +52,11 @@ var current_scale: float = 1.0  # Add this for consistent scaling behavior
 var has_started_moving: bool = false
 var food_eaten: int = 0
 var filler_eaten: int = 0
-var current_idle_speed: float = IDLE_SPEED_BASE
+var current_speed_boost: float = SPEED_BOOST_BASE
 var is_dead: bool = false
 var has_lost: bool = false
 var stuck_detector: RefCounted
+var dead_time: float = 0.0
 
 var physics_basis: Basis
 var visual_basis: Basis
@@ -69,7 +70,6 @@ func _ready():
 	physics_basis = mesh_instance.basis
 	visual_basis = mesh_instance.basis
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
-	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
 	mass = 0.5
 	
 	# Store initial emission color
@@ -141,11 +141,14 @@ func _physics_process(delta):
 	var input_dir = Vector3.ZERO
 	input_dir.x = Input.get_axis("move_left", "move_right")
 	input_dir.z = Input.get_axis("move_up", "move_down")
+
+	if is_dead:
+		dead_time += delta
 	
-	if input_dir != Vector3.ZERO:
+	if not has_lost and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
-		velocity += input_dir * (current_idle_speed / max(pow(stuck_time, 2.0), 1.0) if is_dead else ACCELERATION + (current_idle_speed * 10.0)) * delta
+		velocity += input_dir * (current_speed_boost / max(sqrt(dead_time), 1.0) if is_dead else ACCELERATION + (current_speed_boost * 10.0)) * delta
 		velocity *= DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
 	
 	if velocity != Vector3.ZERO:
@@ -172,7 +175,7 @@ func _physics_process(delta):
 	
 	# Update head rotation
 	if velocity != Vector3.ZERO:
-		var speed_factor = clamp(velocity.length() / MAX_SPEED, 0.0, 1.0)
+		var speed_factor = clamp(velocity.length() / EXPECTED_MAX_SPEED, 0.0, 1.0)
 		var forward = velocity.normalized()
 		var right = forward.cross(Vector3.UP).normalized()  # Normalize the right vector
 		var up = right.cross(forward).normalized()  # Normalize the up vector
@@ -185,7 +188,7 @@ func _physics_process(delta):
 		# Apply the rotation with normalized basis
 		mesh_instance.basis = mesh_instance.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 
-	var current_speed = min(max(velocity.length(), current_idle_speed) / current_idle_speed, MAX_SPEED_IDLE_MULTIPLIER)
+	var current_speed = min(max(velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
 
 	# Food collection
 	for food_node in get_tree().get_nodes_in_group("food"):
@@ -194,15 +197,18 @@ func _physics_process(delta):
 				score_change += food_node.dead_eat()
 			else:
 				score_change += food_node.eat()
-			if len(segments) > 0:
+
+			if len(segments) > 0 and is_instance_valid(segments[0]):
 				segments[0].velocity -= facing_direction * SEGMENT_PUSHBACK
 
-			add_segment()
+			if not is_dead:
+				add_segment()
+
 			food_eaten += 1
 			# Update minimum speed requirement
-			current_idle_speed = min(
-				IDLE_SPEED_BASE + (food_eaten * IDLE_SPEED_INCREASE),
-				MAX_IDLE_SPEED
+			current_speed_boost = min(
+				SPEED_BOOST_BASE + (food_eaten * BONUS_SPEED_PER_FEED),
+				MAX_SPEED_BOOST
 			)
 			# Add extra momentum when collecting food
 			velocity += facing_direction * LUNGE_FORCE
@@ -212,7 +218,7 @@ func _physics_process(delta):
 			if game_manager:
 				game_manager.on_food_collected()
 			
-	if score_change > 0.0:
+	if not has_lost and score_change > 0.0:
 		# Calculate score based on speed
 		score_change = int(current_speed * score_change * SPEED_SCORE_MULTIPLIER)
 		score_change = max(int(score_change), 1)
@@ -225,15 +231,18 @@ func _physics_process(delta):
 			popup.text = "+" + str(score_change)
 			get_parent().add_child(popup)
 
-	# Store physics state
+	# Store physics state with normalized basis
 	super._physics_process(delta)
-	physics_basis = mesh_instance.basis
+	physics_basis = mesh_instance.basis.orthonormalized()
 
 func _process(_delta):
 	# Interpolate visual position between physics updates
 	var fraction = Engine.get_physics_interpolation_fraction()
 	visual_pos = physics_pos.lerp(global_position, fraction)
-	visual_basis = physics_basis.slerp(mesh_instance.basis, fraction)
+	
+	# Ensure both bases are normalized before interpolating
+	var current_basis = mesh_instance.basis.orthonormalized()
+	visual_basis = physics_basis.slerp(current_basis, fraction).orthonormalized()
 	
 	# Update visual representation
 	mesh_instance.global_position = visual_pos
@@ -308,7 +317,7 @@ func get_save_data() -> Dictionary:
 		"z": facing_direction.z
 	}
 	base_data["food_eaten"] = food_eaten
-	base_data["current_idle_speed"] = current_idle_speed
+	base_data["current_speed_boost"] = current_speed_boost
 	base_data["segments"] = get_segment_positions()
 	return base_data
 
@@ -351,11 +360,12 @@ func restore_from_save(data: Dictionary):
 			float(state.facing_direction.z)
 		)
 		food_eaten = state.get("food_eaten", 0)
-		current_idle_speed = state.get("current_idle_speed", IDLE_SPEED_BASE)
+		current_speed_boost = state.get("current_speed_boost", SPEED_BOOST_BASE)
 
 func lose():
 	if has_lost:
 		return
+
 	has_lost = true
 
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
