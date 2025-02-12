@@ -135,6 +135,7 @@ func _physics_process(delta):
 		if is_stuck:
 			var stuck_time = stuck_detector.get_stuck_duration()
 			if stuck_time >= STUCK_TIMEOUT:
+				die()
 				lose()
 	
 	if velocity != Vector3.ZERO:
