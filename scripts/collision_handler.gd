@@ -123,6 +123,15 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	if body_b is CharacterBody3D:
 		body_b.velocity += separation
 
+	# Handle rock breaking
+	if body_b is Rock:
+		var force = body_a.velocity.length() * mass_a
+		if force > body_b.BREAK_FORCE_THRESHOLD:
+			body_b.break_rock()
+		else:
+			# Handle normal collision
+			return
+
 func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, _delta: float) -> void:
 	var impact_speed = body.velocity.dot(collision_normal)  # Used in calculation
 	var reflection = body.velocity.bounce(collision_normal) * COLLISION_BOUNCE

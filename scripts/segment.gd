@@ -171,6 +171,7 @@ func _physics_process(delta):
 					recovery_timer = 0.0
 					# Add velocity along collision normal instead of toward target
 					velocity += last_collision_normal * 50.0
+					velocity += Vector3.UP * last_collision_normal.length()
 				is_recovering = true
 
 				# Add some velocity opposite the direction we were being pulled

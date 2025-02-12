@@ -1,4 +1,5 @@
 extends PhysicsObject
+class_name Rock
 
 const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
 const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
@@ -7,6 +8,7 @@ const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
 const SPAWN_DURATION = 0.5
 const SPAWN_HEIGHT = 1.5  # How high to rise from ground
 const INITIAL_SCALE = 0.2  # Start very small
+const BREAK_FORCE_THRESHOLD = 100.0  # Force required to break the rock
 
 var is_dangerous: bool = false
 var is_initialized: bool = false
@@ -72,7 +74,11 @@ func _physics_process(delta):
 	var collision_handler = get_node("/root/CollisionHandler")
 	
 	if collision and collision.get_collider():
-		collision_handler.handle_collision(self, collision.get_collider(), collision.get_normal(), delta)
+		var force = collision.get_remainder().length() * mass
+		if force > BREAK_FORCE_THRESHOLD:
+			break_rock()
+		else:
+			collision_handler.handle_collision(self, collision.get_collider(), collision.get_normal(), delta)
 	
 	super._physics_process(delta)
 
@@ -106,3 +112,8 @@ func make_dangerous():
 func dead_eat() -> float:
 	queue_free()
 	return 2.0
+
+func break_rock():
+	# Add visual and sound effects for breaking the rock
+	# For now, just queue_free the rock
+	queue_free()
