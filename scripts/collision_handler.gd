@@ -3,15 +3,9 @@ extends Node
 const MINIMUM_SEPARATION = 0.1
 const SEPARATION_FORCE = 0.1
 const COLLISION_BOUNCE = 0.4
-const PLAYER_MASS = 0.5
-const SEGMENT_MASS = 3.0
-const ROCK_MASS = 8.0  # Increased rock mass
-const FRICTION_COEFFICIENT = 0.15  # Increased friction
-const ENERGY_TRANSFER = 0.85  # Reduced to lose more energy in collisions
 const PERSISTENT_COLLISION_DAMPING = 0.8
 const MAX_COLLISION_SPEED = 20.0
 const REST_THRESHOLD = 0.1
-const STATIC_BREAKAWAY_FORCE = 2.0  # Increased force needed to move rocks
 const VELOCITY_LOSS_ON_COLLISION = 0.7  # How much velocity to maintain after collision
 const BARRIER_BOUNCE_MULTIPLIER = 1.5  # Extra bounce for barrier collisions
 const BARRIER_PUSH_FORCE = 3.0  # Additional force away from barrier
