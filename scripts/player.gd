@@ -5,24 +5,24 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
 const EXPECTED_MAX_SPEED = 400.0
-const ACCELERATION = 200.0  # Increased since we're using forces now
-const CONTROL_DRAG = 0.8
+const ACCELERATION = 10.0  # Increased since we're using forces now
+const CONTROL_DRAG = 0.9
 const DEAD_CONTROL_DRAG = 1.0
 const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
-const LUNGE_FORCE = 20.0
+const LUNGE_FORCE = 10.0
 const SEGMENT_PUSHBACK = 60.0
 const VELOCITY_SMOOTHING = 0.15
-const SPEED_BOOST_BASE = 3.0  # Rename IDLE_SPEED to SPEED_BOOST_BASE
+const SPEED_BOOST_BASE = 1.0  # Rename IDLE_SPEED to SPEED_BOOST_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
-const BONUS_SPEED_PER_FEED = 0.5  # Speed increase per food eaten
+const BONUS_SPEED_PER_FEED = 0.15  # Speed increase per food eaten
 const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
-const SEGMENT_SPAWN_OFFSET = 0.8  # Reduced from 1.2 to spawn closer
-const SEGMENT_SPAWN_VELOCITY = 0.7  # Increased from 0.8 for better matching
-const SEGMENT_LUNGE_FORCE = 0.3  # New constant for forward momentum
+const SEGMENT_SPAWN_OFFSET = 0.2  # Reduced from 1.2 to spawn closer
+const SEGMENT_SPAWN_VELOCITY = 0.8  # Increased from 0.8 for better matching
+const SEGMENT_LUNGE_FORCE = 0.2  # New constant for forward momentum
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
 
 const IDLE_WARNING_START = 1.0  # When to start showing gray
@@ -44,6 +44,11 @@ const WARNING_EMISSION_ENERGY = 1.0
 const DANGER_EMISSION_ENERGY = 2.0
 const DEAD_EMISSION_ENERGY = 0.1
 
+const DIGESTION_DURATION = 0.16  # Time to digest food
+const DIGESTION_FLASH_INTENSITY = 0.3  # Max intensity of digestion flash
+const SEGMENT_SPAWN_PUSH = 20.0  # Force to push back existing segments
+const DIGESTION_PULSE_SCALE = 1.2  # How much to pulse when digesting
+
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[CharacterBody3D] = []
 var target_velocity: Vector3 = Vector3.ZERO
@@ -57,6 +62,9 @@ var is_dead: bool = false
 var has_lost: bool = false
 var stuck_detector: RefCounted
 var dead_time: float = 0.0
+var is_digesting: bool = false
+var digestion_timer: float = 0.0
+var digestion_flash_material: StandardMaterial3D
 
 var physics_basis: Basis
 var visual_basis: Basis
@@ -85,6 +93,10 @@ func _ready():
 	
 	# Set initial emission state
 	apply_color(BASE_COLOR, BASE_EMISSION, BASE_EMISSION_ENERGY)
+	
+	# Setup digestion flash material
+	digestion_flash_material = current_material.duplicate()
+	digestion_flash_material.emission_enabled = true
 
 func _physics_process(delta):
 	# Handle color updates before any potential impacts
@@ -95,6 +107,23 @@ func _physics_process(delta):
 	var stuck_time = 0.0
 
 	var score_change = 0.0
+
+	# Handle digestion first
+	if is_digesting:
+		digestion_timer += delta
+		var digest_progress = digestion_timer / DIGESTION_DURATION
+		var flash_intensity = sin(digest_progress * PI) * DIGESTION_FLASH_INTENSITY
+		
+		# Update flash material
+		digestion_flash_material.emission = BASE_EMISSION + Color(0.3, 0.3, 0.3) * flash_intensity
+		digestion_flash_material.emission_energy_multiplier = 1.0 + flash_intensity * 2.0
+		
+		# Pulse scale
+		var scale_pulse = 1.0 + sin(digest_progress * PI) * (DIGESTION_PULSE_SCALE - 1.0)
+		mesh_instance.scale = Vector3.ONE * scale_pulse
+		
+		if digestion_timer >= DIGESTION_DURATION:
+			finish_digestion()
 
 	# Update stuck detection
 	if has_started_moving:
@@ -153,8 +182,8 @@ func _physics_process(delta):
 	if not has_lost and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		input_dir = input_dir.normalized()
-		velocity += input_dir * (current_speed_boost / max(pow(dead_time * 0.5, 1.5), 1.0) if is_dead else ACCELERATION + (current_speed_boost * 10.0)) * delta
-		velocity *= DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
+		var drag = DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
+		velocity += (input_dir * (current_speed_boost / max(pow(dead_time * 0.5, 1.5), 1.0) if is_dead else ACCELERATION + (current_speed_boost * 10.0)) * delta) * drag
 	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
@@ -177,21 +206,6 @@ func _physics_process(delta):
 	# Handle proximity with segments
 	var nearby_segments = get_tree().get_nodes_in_group("segment")
 	collision_handler.handle_proximity(self, nearby_segments, delta)
-	
-	# Update head rotation
-	if velocity != Vector3.ZERO:
-		var speed_factor = clamp(velocity.length() / EXPECTED_MAX_SPEED, 0.0, 1.0)
-		var forward = velocity.normalized()
-		var right = forward.cross(Vector3.UP).normalized()  # Normalize the right vector
-		var up = right.cross(forward).normalized()  # Normalize the up vector
-		
-		# Create and normalize the basis
-		var target_basis = Basis(right, up, -forward).orthonormalized()
-		var tilt = Transform3D(Basis.from_euler(Vector3(deg_to_rad(-15 * speed_factor), 0, 0)))
-		target_basis = (target_basis * tilt.basis).orthonormalized()
-		
-		# Apply the rotation with normalized basis
-		mesh_instance.basis = mesh_instance.basis.slerp(target_basis, delta * ROTATION_SPEED).orthonormalized()
 
 	var current_speed = min(max(velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
 
@@ -208,27 +222,24 @@ func _physics_process(delta):
 			if is_dead:
 				score_change += food_node.dead_eat()
 			else:
-				score_change += food_node.eat()
+				if not is_digesting:  # Only collect if not currently digesting
+					score_change += food_node.eat()
+					start_digestion()
+					food_eaten += 1
+					
+					# Update minimum speed requirement
+					current_speed_boost = min(
+						SPEED_BOOST_BASE + (food_eaten * BONUS_SPEED_PER_FEED),
+						MAX_SPEED_BOOST
+					)
+					
+					# Add extra momentum when collecting food
+					velocity += facing_direction * LUNGE_FORCE
 
-			if len(segments) > 0 and is_instance_valid(segments[0]):
-				segments[0].velocity -= facing_direction * SEGMENT_PUSHBACK
-
-			if not is_dead:
-				add_segment()
-
-			food_eaten += 1
-			# Update minimum speed requirement
-			current_speed_boost = min(
-				SPEED_BOOST_BASE + (food_eaten * BONUS_SPEED_PER_FEED),
-				MAX_SPEED_BOOST
-			)
-			# Add extra momentum when collecting food
-			velocity += facing_direction * LUNGE_FORCE
-
-			# Find game manager and notify it
-			var game_manager = get_tree().get_first_node_in_group("game_manager")
-			if game_manager:
-				game_manager.on_food_collected()
+					# Find game manager and notify it
+					var game_manager = get_tree().get_first_node_in_group("game_manager")
+					if game_manager:
+						game_manager.on_food_collected()
 			break  # Only eat one food item per frame
 
 	if not has_lost and score_change > 0.0:
@@ -262,6 +273,9 @@ func _process(_delta):
 	mesh_instance.basis = visual_basis
 
 func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> CharacterBody3D:
+	if is_dead:
+		return
+	
 	var segment = SEGMENT_SCENE.instantiate()
 	segment.set_script(load("res://scripts/segment.gd"))
 	get_parent().add_child(segment)
@@ -393,3 +407,21 @@ func die():
 
 	for segment in segments:
 		segment.target = null
+
+func start_digestion():
+	is_digesting = true
+	digestion_timer = 0.0
+	mesh_instance.material_override = digestion_flash_material
+
+func finish_digestion():
+	is_digesting = false
+	digestion_timer = 0.0
+	mesh_instance.material_override = null
+	mesh_instance.scale = Vector3.ONE
+	
+	# Push back first segment if it exists
+	if not is_dead and not segments.is_empty():
+		segments[0].velocity -= facing_direction * SEGMENT_SPAWN_PUSH
+	
+	# Spawn new segment
+	add_segment()
