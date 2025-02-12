@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://brxsk2ks8iyg6"]
+[gd_scene load_steps=6 format=3 uid="uid://brxsk2ks8iyg6"]
 
 [ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_script"]
 
@@ -11,22 +11,41 @@ corner_radius_bottom_left = 12
 shadow_color = Color(0, 0, 0, 0.3)
 shadow_size = 8
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2"]
-bg_color = Color(0.08, 0.09, 0.1, 1)
-draw_center = false
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.3, 0.4, 0.5, 0.2)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-expand_margin_left = 2.0
-expand_margin_top = 2.0
-expand_margin_right = 2.0
-expand_margin_bottom = 2.0
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover"]
+bg_color = Color(0.2, 0.23, 0.26, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.35, 0.4, 0.3)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_pressed"]
+bg_color = Color(0.12, 0.14, 0.16, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.35, 0.4, 0.2)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_normal"]
+bg_color = Color(0.15, 0.17, 0.19, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.35, 0.4, 0.2)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -93,20 +112,23 @@ layout_mode = 2
 [node name="ContinueButton" type="Button" parent="Panel/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-theme_override_styles/focus = SubResource("StyleBoxFlat_2")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Continue"
 
 [node name="NewGameButton" type="Button" parent="Panel/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-theme_override_styles/focus = SubResource("StyleBoxFlat_2")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "New Game"
 
 [node name="QuitButton" type="Button" parent="Panel/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-theme_override_styles/focus = SubResource("StyleBoxFlat_2")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Quit"

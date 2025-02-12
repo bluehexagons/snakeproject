@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3 uid="uid://dbkt4gaf6xf28"]
+[gd_scene load_steps=6 format=3 uid="uid://dbkt4gaf6xf28"]
 
 [ext_resource type="Script" path="res://scripts/ui.gd" id="1_script"]
 
@@ -10,6 +10,42 @@ corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 shadow_color = Color(0, 0, 0, 0.25)
 shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover"]
+bg_color = Color(0.2, 0.23, 0.26, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.35, 0.4, 0.3)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_pressed"]
+bg_color = Color(0.12, 0.14, 0.16, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.35, 0.4, 0.2)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_normal"]
+bg_color = Color(0.15, 0.17, 0.19, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.3, 0.35, 0.4, 0.2)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="UI" type="Control"]
 layout_mode = 3
@@ -91,19 +127,25 @@ horizontal_alignment = 1
 [node name="ResumeButton" type="Button" parent="PauseMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-size_flags_vertical = 3
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Resume"
 
 [node name="MainMenuButton" type="Button" parent="PauseMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-size_flags_vertical = 3
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Main Menu"
 
 [node name="QuitButton" type="Button" parent="PauseMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-size_flags_vertical = 3
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Quit"
 
 [node name="GameOverMenu" type="Panel" parent="."]
@@ -154,11 +196,15 @@ horizontal_alignment = 1
 [node name="RetryButton" type="Button" parent="GameOverMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-size_flags_vertical = 3
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Retry"
 
 [node name="MainMenuButton" type="Button" parent="GameOverMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-size_flags_vertical = 3
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Main Menu"
