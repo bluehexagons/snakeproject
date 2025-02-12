@@ -135,7 +135,7 @@ func _physics_process(delta):
 	# Calculate spring force with spawn reduction
 	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
 	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
-	
+
 	if target:
 		# Calculate target distance based on current scales
 		var target_distance = TARGET_DISTANCE if target is Segment else PLAYER_TARGET_DISTANCE

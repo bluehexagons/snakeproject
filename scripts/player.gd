@@ -1,4 +1,5 @@
 extends PhysicsObject
+class_name Player
 
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
@@ -328,6 +329,9 @@ func restore_from_save(data: Dictionary):
 func die():
 	if is_dead:
 		return
+	
+	for segment in segments:
+		segment.target = null
 
 	is_dead = true
 	var game_manager = get_tree().get_first_node_in_group("game_manager")
