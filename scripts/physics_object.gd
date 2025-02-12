@@ -7,9 +7,9 @@ var visual_pos: Vector3
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var current_material: StandardMaterial3D = mesh_instance.mesh.surface_get_material(0).duplicate() if mesh_instance else null
 
-const IMPACT_FLASH_DURATION = 0.15
-const IMPACT_MIN_FORCE = 2.0
-const IMPACT_MAX_FORCE = 20.0
+const IMPACT_FLASH_DURATION = 0.15  # Slightly longer but softer flash
+const IMPACT_MIN_FORCE = 0.3       # Increased minimum threshold
+const IMPACT_MAX_FORCE = 50.0      # Increased range for better scaling
 
 var current_emission: Color = Color.BLACK
 var current_emission_energy: float = 1.0
@@ -134,19 +134,21 @@ func handle_impact(force: float) -> void:
     if flash_intensity <= 0.0:
         return
     
+    flash_intensity = 1.0 - (1.0 - flash_intensity) * 0.9 + flash_intensity
+    
     # Create flash material that respects current state colors
     var flash_material = current_material.duplicate()
     var flash_emission = state_emission if state_emission != Color.BLACK else current_material.emission
     flash_material.albedo_color = current_color
-    flash_material.emission = flash_emission + Color(1, 1, 1, 1) * flash_intensity
+    flash_material.emission = flash_emission + Color(0.5, 0.5, 0.5, 1.0) * flash_intensity
     flash_material.emission_energy_multiplier = state_emission_energy + flash_intensity * 2.0
     
     mesh_instance.material_override = flash_material
     
     var tween = create_tween()
-    tween.tween_property(flash_material, "emission", flash_emission, IMPACT_FLASH_DURATION)
+    tween.tween_property(flash_material, "emission", flash_emission, IMPACT_FLASH_DURATION).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
     tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 
-        state_emission_energy, IMPACT_FLASH_DURATION)
+        state_emission_energy, IMPACT_FLASH_DURATION).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
     tween.tween_callback(func():
         if is_instance_valid(mesh_instance):
             mesh_instance.material_override = null

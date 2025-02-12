@@ -265,17 +265,17 @@ func become_dangerous():
 		# Ensure material color updates immediately
 		current_material.albedo_color = DANGER_COLOR
 		
-		# Visual feedback
+		 # Reduced visual feedback
 		var tween = create_tween()
-		tween.tween_property(mesh_instance, "scale", mesh_instance.scale * 1.3, 0.1)
-		tween.tween_property(mesh_instance, "scale", mesh_instance.scale, 0.2)
+		tween.tween_property(mesh_instance, "scale", mesh_instance.scale * 1.2, 0.15)  # Reduced scale pop
+		tween.tween_property(mesh_instance, "scale", mesh_instance.scale, 0.25)
 		
-		# Emission pulse
+		# Softer emission pulse
 		var flash_material = current_material.duplicate()
 		mesh_instance.material_override = flash_material
-		flash_material.emission_energy_multiplier = 4.0
+		flash_material.emission_energy_multiplier = 2.0  # Reduced from 4.0
 		
-		tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 1.0, 0.3)
+		tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 1.0, 0.4)  # Longer fade
 		tween.tween_callback(func(): mesh_instance.material_override = null)
 
 func dead_eat() -> float:
