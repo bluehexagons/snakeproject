@@ -18,7 +18,62 @@ const BARRIER_PUSH_FORCE = 3.0  # Additional force away from barrier
 const MIN_BARRIER_BOUNCE_SPEED = 2.0  # Minimum speed after barrier bounce
 const DEFAULT_MASS = 1.0
 
+# New constants for optimization
+const MAX_IMPULSE = 1000.0  # Cap maximum collision response
+const FORCE_DISSIPATION_FACTOR = 0.7  # Reduce force in tight clusters
+const PROXIMITY_GRID_SIZE = 2.0  # Size of spatial grid cells
+const MAX_BODIES_PER_CELL = 8  # Limit checks in dense areas
+const CLUSTER_CHECK_RADIUS = 3.0  # Radius to check for clustered objects
+
+# Spatial partitioning for broad phase
+var proximity_grid = {}
+var frame_index: int = 0
+
+func _physics_process(_delta):
+	# Clear grid each physics frame
+	proximity_grid.clear()
+	frame_index += 1
+
+func get_grid_cell(pos: Vector3) -> Vector2i:
+	return Vector2i(
+		floor(pos.x / PROXIMITY_GRID_SIZE),
+		floor(pos.z / PROXIMITY_GRID_SIZE)
+	)
+
+func add_to_grid(body: Node3D, cell: Vector2i):
+	var key = str(cell)
+	if !proximity_grid.has(key):
+		proximity_grid[key] = []
+	if proximity_grid[key].size() < MAX_BODIES_PER_CELL:
+		proximity_grid[key].append(body)
+
+func get_nearby_bodies(pos: Vector3) -> Array:
+	var cell = get_grid_cell(pos)
+	var nearby = []
+	
+	# Check 3x3 grid of cells
+	for x in range(-1, 2):
+		for z in range(-1, 2):
+			var check_cell = cell + Vector2i(x, z)
+			var key = str(check_cell)
+			if proximity_grid.has(key):
+				nearby.append_array(proximity_grid[key])
+	
+	return nearby
+
 func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: Vector3, delta: float) -> void:
+	# Add bodies to spatial grid
+	var cell_a = get_grid_cell(body_a.global_position)
+	add_to_grid(body_a, cell_a)
+	
+	if body_b is CharacterBody3D:
+		var cell_b = get_grid_cell(body_b.global_position)
+		add_to_grid(body_b, cell_b)
+	
+	# Check for clustered collisions
+	var nearby_count = get_nearby_bodies(body_a.global_position).size()
+	var cluster_factor = clamp(float(nearby_count) / MAX_BODIES_PER_CELL, 0.0, 1.0)
+	
 	# Handle barrier collisions first
 	if body_b.is_in_group("barrier"):
 		handle_barrier_collision(body_a, collision_normal, delta)
@@ -39,7 +94,15 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	# Calculate velocities and impact characteristics
 	var relative_velocity = body_b.velocity - body_a.velocity
 	var normal_speed = relative_velocity.dot(collision_normal)
-	var impact_force = abs(normal_speed)
+	
+	# Skip tiny collisions
+	if abs(normal_speed) < REST_THRESHOLD:
+		return
+		
+	var impact_force = min(abs(normal_speed), MAX_COLLISION_SPEED)
+	
+	# Apply cluster-based force reduction
+	impact_force *= (1.0 - cluster_factor * FORCE_DISSIPATION_FACTOR)
 	
 	# Trigger impact flashes with calculated force
 	if body_a.has_method("handle_impact"):
@@ -47,64 +110,24 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	if body_b is CharacterBody3D and body_b.has_method("handle_impact"):
 		body_b.handle_impact(impact_force)
 	
-	# Calculate how head-on the collision is (1.0 = head-on, 0.0 = glancing)
-	var a_dir = body_a.velocity.normalized()
-	var b_dir = body_b.velocity.normalized()
-	var collision_alignment = abs(a_dir.dot(collision_normal))
-	var velocity_alignment = max(0.0, -a_dir.dot(b_dir))  # How opposed the velocities are
-	var impact_factor = (collision_alignment + velocity_alignment) * 0.5
+	# Calculate collision response
+	var restitution = COLLISION_BOUNCE * (1.0 - cluster_factor * 0.5)  # Reduce bounce in clusters
+	var impulse = -(1.0 + restitution) * normal_speed / ((1.0 / mass_a) + (1.0 / mass_b))
 	
-	# Trigger impact flashes
-	if body_a.has_method("handle_impact"):
-		body_a.handle_impact(impact_force)
-	if body_b.has_method("handle_impact"):
-		body_b.handle_impact(impact_force)
+	# Cap maximum impulse
+	impulse = clamp(impulse, -MAX_IMPULSE, MAX_IMPULSE)
 	
-	# Scale effects based on impact_factor
-	var velocity_loss = lerp(1.0, VELOCITY_LOSS_ON_COLLISION, impact_factor)
-	var friction_scale = impact_factor
-	var restitution = COLLISION_BOUNCE * ENERGY_TRANSFER * impact_factor
+	# Apply impulse with cluster-based reduction
+	var force_scale = 1.0 - (cluster_factor * FORCE_DISSIPATION_FACTOR)
+	body_a.velocity -= collision_normal * (impulse / mass_a) * force_scale
+	if body_b is CharacterBody3D:
+		body_b.velocity += collision_normal * (impulse / mass_b) * force_scale
 	
-	# Apply scaled velocity loss
-	body_a.velocity *= velocity_loss
-	body_b.velocity *= velocity_loss
-	
-	# Handle static friction for rocks with scaled effect
-	var rock_mass_multiplier = lerp(1.0, 3.0, impact_factor)
-	if body_a.is_in_group("rock") and relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
-		mass_a *= rock_mass_multiplier
-	if body_b.is_in_group("rock") and relative_velocity.length() < STATIC_BREAKAWAY_FORCE:
-		mass_b *= rock_mass_multiplier
-	
-	# Calculate impulse with scaled restitution
-	var impulse_magnitude = -(1.0 + restitution) * normal_speed
-	impulse_magnitude /= (1.0 / mass_a) + (1.0 / mass_b)
-	
-	# Apply impulses
-	var impulse = collision_normal * impulse_magnitude
-	var vel_change_a = -impulse / mass_a
-	var vel_change_b = impulse / mass_b
-	
-	# Apply scaled friction
-	var tangent_velocity = relative_velocity - (normal_speed * collision_normal)
-	if tangent_velocity.length_squared() > 0.001:
-		var tangent = tangent_velocity.normalized()
-		var friction_impulse = -tangent * abs(impulse_magnitude) * FRICTION_COEFFICIENT * friction_scale
-		
-		vel_change_a -= friction_impulse / mass_a
-		vel_change_b += friction_impulse / mass_b
-	
-	# Apply final velocity changes
-	body_a.velocity += vel_change_a
-	body_b.velocity += vel_change_b
-	
-	# Apply separation (always needed regardless of collision type)
-	var separation_vector = (body_b.global_position - body_a.global_position)
-	var penetration = MINIMUM_SEPARATION - separation_vector.length()
-	if penetration > 0:
-		var separation = collision_normal * SEPARATION_FORCE * delta * penetration
-		body_a.velocity -= separation / mass_a
-		body_b.velocity += separation / mass_b
+	# Apply separation to prevent sticking
+	var separation = collision_normal * SEPARATION_FORCE * delta
+	body_a.velocity -= separation
+	if body_b is CharacterBody3D:
+		body_b.velocity += separation
 
 func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, _delta: float) -> void:
 	var impact_speed = body.velocity.dot(collision_normal)  # Used in calculation

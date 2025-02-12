@@ -23,6 +23,8 @@ const COLLISION_BREAK_FORCE = 900.0  # Force required during collision to break
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
 const RECOVERY_EASE_POWER = 1.5       # How quickly targeting recovers (higher = more sudden)
 const PLAYER_PULL_REDUCTION = 0.9  # Reduce pull force when targeting player
+const CLUSTER_FORCE_REDUCTION = 0.7  # Reduce forces when in tight clusters
+const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -112,6 +114,10 @@ func init_from_save_data(data: Dictionary):
 	growth_timer = GROWTH_DURATION  # Mark growth as complete
 
 func _physics_process(delta):
+	# Add early exit for extreme velocities
+	if velocity.length() > PhysicsConstants.SEGMENT_MAX_SPEED * 2.0:
+		velocity = velocity.normalized() * PhysicsConstants.SEGMENT_MAX_SPEED
+
 	if is_growing:
 		growth_timer += delta
 		var t = growth_timer / GROWTH_DURATION
@@ -135,6 +141,9 @@ func _physics_process(delta):
 	# Calculate spring force with spawn reduction
 	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
 	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
+	var spring_force = Vector3.ZERO
+	var damping_force = Vector3.ZERO
+	var collision_handler = get_node("/root/CollisionHandler")
 
 	if is_instance_valid(target):
 		# Calculate target distance based on current scales
@@ -145,9 +154,6 @@ func _physics_process(delta):
 		var current_distance = to_target.length()
 		
 		if current_distance > 0:
-			var spring_force = Vector3.ZERO
-			var damping_force = Vector3.ZERO
-			
 			# Calculate forces but only apply if not in recovery or gradually during recovery
 			var target_direction = to_target.normalized()
 			var desired_pos = target.global_position - target_direction * adjusted_distance
@@ -174,6 +180,17 @@ func _physics_process(delta):
 				
 				spring_force = to_desired * current_stiffness * force_multiplier * delta
 				damping_force = -velocity * SPRING_DAMPING * delta
+				
+				 # Get nearby bodies for cluster detection
+				var nearby = collision_handler.get_nearby_bodies(global_position)
+				var nearby_count = nearby.size()
+				
+				# Calculate cluster factor
+				var cluster_factor = clamp(float(nearby_count) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
+				
+				# Reduce spring forces in crowded areas
+				spring_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
+				damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION * 0.5)
 				
 				# Apply forces
 				velocity += spring_force + damping_force
@@ -208,7 +225,6 @@ func _physics_process(delta):
 	
 	has_collision = false  # Reset collision flag
 	var collision = move_and_collide(velocity * delta)
-	var collision_handler = get_node("/root/CollisionHandler")
 	if collision:
 		has_collision = true
 		last_collision_normal = collision.get_normal()

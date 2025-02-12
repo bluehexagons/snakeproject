@@ -134,7 +134,7 @@ func handle_impact(force: float) -> void:
     if flash_intensity <= 0.0:
         return
     
-    flash_intensity = 1.0 - (1.0 - flash_intensity) * 0.9 + flash_intensity
+    flash_intensity = 1.0 - (1.0 - flash_intensity) * 0.95 + flash_intensity
     
     # Create flash material that respects current state colors
     var flash_material = current_material.duplicate()
