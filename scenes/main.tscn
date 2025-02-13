@@ -101,7 +101,7 @@ turbulence_enabled = true
 turbulence_noise_strength = 0.1
 turbulence_noise_scale = 2.0
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_b1t1k"]
 transparency = 1
 blend_mode = 1
 shading_mode = 0
@@ -109,7 +109,7 @@ vertex_color_use_as_albedo = true
 albedo_color = Color(0.878431, 0.819608, 0, 0.054902)
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
-material = SubResource("StandardMaterial3D_2")
+material = SubResource("StandardMaterial3D_b1t1k")
 radius = 0.1
 height = 0.2
 radial_segments = 8
@@ -197,7 +197,7 @@ draw_pass_1 = SubResource("SphereMesh_1")
 
 [node name="Particles" type="GPUParticles3D" parent="GameplayContainer"]
 transform = Transform3D(0.806092, 0, 0, 0, 0.209052, 0, 0, 0, 0.816343, 0, 0.959085, 0)
-amount = 25
+amount = 100
 lifetime = 73.85
 preprocess = 4.0
 visibility_aabb = AABB(-12, -1, -12, 24, 12, 24)
