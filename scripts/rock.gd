@@ -20,9 +20,9 @@ var spawn_start_pos: Vector3
 
 func _ready():
 	super()
+	material_type = PhysicsConstants.MATERIAL_ROCK
 	base_mass = PhysicsConstants.ROCK_MASS
 	mass = base_mass
-	minimum_speed = PhysicsConstants.ROCK_MIN_SPEED
 	pull_reduction = 2.0  # Rocks are harder to pull
 	target_distance = 1.5  # Rocks maintain more distance
 	collision_force_multiplier = 1.5  # Rocks deal more collision damage

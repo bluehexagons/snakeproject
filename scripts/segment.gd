@@ -20,10 +20,10 @@ const PULL_FORCE = 1730.0        # Reduced base pull force
 const PULL_VELOCITY_MATCH = 0.9  # How strongly to match target's velocity when pulling
 const COLLISION_BREAK_FORCE = 2500.0  # Force required during collision to break
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
-const RECOVERY_EASE_POWER = 3.0       # How quickly targeting recovers (higher = more sudden)
 const CLUSTER_FORCE_REDUCTION = 0.7  # Reduce forces when in tight clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
 const POP_FORCE = 1.0
+const POP_FORCE_OPPOSITE = 10.0
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -40,9 +40,9 @@ var has_collision: bool = false
 
 func _ready():
 	super()
+	material_type = PhysicsConstants.MATERIAL_SEGMENT
 	base_mass = PhysicsConstants.SEGMENT_MASS
 	mass = base_mass
-	minimum_speed = PhysicsConstants.SEGMENT_MIN_SPEED
 	pull_reduction = 1.0  # Normal pull force
 	target_distance = TARGET_DISTANCE  # Use existing constant
 	collision_force_multiplier = 1.0  # Normal collision force
@@ -172,14 +172,12 @@ func _physics_process(delta):
 				if not is_recovering:
 					recovery_timer = 0.0
 					# Apply break impulse
-					apply_impulse(last_collision_normal * 50.0 * mass)
+					apply_impulse(last_collision_normal * POP_FORCE_OPPOSITE * mass)
 					apply_impulse(Vector3.UP * POP_FORCE * mass)
 				is_recovering = true
 			else:
 				# Calculate mass-based spring forces
 				var force_multiplier = 1.0
-				if is_recovering:
-					force_multiplier = ease(recovery_timer / RECOVERY_DURATION, RECOVERY_EASE_POWER)
 				
 				var spring_force = to_desired * current_stiffness * force_multiplier
 				var damping_force = -velocity * SPRING_DAMPING

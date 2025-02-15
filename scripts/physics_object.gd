@@ -33,8 +33,8 @@ var dynamic_friction: float = PhysicsConstants.BASE_DYNAMIC_FRICTION
 var rolling_friction: float = PhysicsConstants.BASE_ROLLING_FRICTION
 var is_static: bool = false
 
-# Add property for minimum speed
-var min_speed_threshold: float = PhysicsConstants.BASE_MIN_SPEED_THRESHOLD
+# Add material type property
+var material_type: String = "default"  # Will be overridden by specific objects
 
 # Physics properties
 var minimum_speed: float
@@ -63,25 +63,33 @@ func _ready():
 	mass = base_mass
 	minimum_speed = PhysicsConstants.BASE_MIN_SPEED_THRESHOLD * sqrt(mass) * dynamic_friction
 
-	# Set appropriate minimum speed threshold based on object type
-	if self is Player:
-		min_speed_threshold = PhysicsConstants.PLAYER_MIN_SPEED
-	elif self is Rock:
-		min_speed_threshold = PhysicsConstants.ROCK_MIN_SPEED
-	elif self is Segment:
-		min_speed_threshold = PhysicsConstants.SEGMENT_MIN_SPEED
-	else:
-		# Calculate default based on mass
-		min_speed_threshold = PhysicsConstants.BASE_MIN_SPEED_THRESHOLD * sqrt(mass) * dynamic_friction
+func is_valid_vector(v: Vector3) -> bool:
+	return v.is_finite() and v.length_squared() < 10000000.0  # Limit to reasonable values
 
 func _physics_process(delta):
+	# Add safety checks for accumulated values
+	if not is_valid_vector(accumulated_force):
+		push_warning("Invalid accumulated force detected, resetting")
+		accumulated_force = Vector3.ZERO
+	
+	if not is_valid_vector(accumulated_impulse):
+		push_warning("Invalid accumulated impulse detected, resetting")
+		accumulated_impulse = Vector3.ZERO
+	
 	# Apply accumulated forces
 	if mass > 0:
-		velocity += accumulated_force * (delta / mass)
+		var force_delta = accumulated_force * (delta / mass)
+		if is_valid_vector(force_delta):
+			velocity += force_delta
+		
+		var impulse_delta = accumulated_impulse / mass
+		if is_valid_vector(impulse_delta):
+			velocity += impulse_delta
 	
-	# Apply accumulated impulses
-	if mass > 0:
-		velocity += accumulated_impulse / mass
+	# Safety check for velocity
+	if not is_valid_vector(velocity):
+		push_warning("Invalid velocity detected, resetting")
+		velocity = Vector3.ZERO
 	
 	# Reset accumulators
 	accumulated_force = Vector3.ZERO
@@ -238,7 +246,35 @@ func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: f
 		state_emission_energy = emission_energy if emission_energy >= 0 else base_emission_energy
 
 func apply_force(force: Vector3) -> void:
+	if not is_valid_vector(force):
+		push_warning("Invalid force vector detected: ", force)
+		return
 	accumulated_force += force
 
 func apply_impulse(impulse: Vector3) -> void:
+	if not is_valid_vector(impulse):
+		push_warning("Invalid impulse vector detected: ", impulse)
+		return
 	accumulated_impulse += impulse
+
+# Add method to calculate friction with another object
+func calculate_friction_force(other: PhysicsObject, normal_force: float, relative_velocity: Vector3) -> Vector3:
+	if not is_valid_vector(relative_velocity) or not is_finite(normal_force):
+		return Vector3.ZERO
+
+	# Get friction coefficients between the two materials
+	var coefficients = PhysicsConstants.get_friction_coefficients(material_type, other.material_type)
+	var static_friction = coefficients[0]
+	var dynamic_friction = coefficients[1]
+	
+	# Calculate tangential velocity (remove normal component)
+	var normal = relative_velocity.normalized()
+	var tangential_velocity = relative_velocity - normal * relative_velocity.dot(normal)
+	var tangential_speed = tangential_velocity.length()
+	
+	# If speed is very low, use static friction
+	if tangential_speed < minimum_speed:
+		return -tangential_velocity.normalized() * static_friction * normal_force
+	
+	# Otherwise use dynamic friction
+	return -tangential_velocity.normalized() * dynamic_friction * normal_force

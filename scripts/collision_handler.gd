@@ -55,7 +55,14 @@ func get_nearby_bodies(pos: Vector3) -> Array:
 	
 	return nearby
 
+func is_valid_vector(v: Vector3) -> bool:
+	return v.is_finite() and v.length_squared() < 1000000.0
+
 func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: Vector3, delta: float) -> void:
+	if not is_valid_vector(collision_normal):
+		push_warning("Invalid collision normal detected")
+		return
+
 	# Add bodies to spatial grid
 	var cell_a = get_grid_cell(body_a.global_position)
 	add_to_grid(body_a, cell_a)
@@ -87,7 +94,14 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	
 	# Calculate velocities and impact characteristics
 	var relative_velocity = body_b.velocity - body_a.velocity
+	if not is_valid_vector(relative_velocity):
+		push_warning("Invalid relative velocity detected")
+		return
+		
 	var normal_speed = relative_velocity.dot(collision_normal)
+	if not is_finite(normal_speed):
+		push_warning("Invalid normal speed detected")
+		return
 	
 	# Skip tiny collisions
 	if abs(normal_speed) < REST_THRESHOLD:
@@ -104,24 +118,51 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	if body_b is CharacterBody3D and body_b.has_method("handle_impact"):
 		body_b.handle_impact(impact_force)
 	
-	# Calculate collision response
+	# Calculate collision response with safety checks
 	var restitution = COLLISION_BOUNCE * (1.0 - cluster_factor * 0.5)  # Reduce bounce in clusters
-	var impulse = -(1.0 + restitution) * normal_speed / ((1.0 / mass_a) + (1.0 / mass_b))
+	var denominator = (1.0 / mass_a) + (1.0 / mass_b)
+	if denominator <= 0.0 or not is_finite(denominator):
+		push_warning("Invalid mass calculation detected")
+		return
+		
+	var impulse = -(1.0 + restitution) * normal_speed / denominator
 	
 	# Cap maximum impulse
 	impulse = clamp(impulse, -MAX_IMPULSE, MAX_IMPULSE)
 	
-	# Apply impulse with cluster-based reduction
+	# Apply impulse with safety checks
 	var force_scale = 1.0 - (cluster_factor * FORCE_DISSIPATION_FACTOR)
-	body_a.velocity -= collision_normal * (impulse / mass_a) * force_scale
-	if body_b is CharacterBody3D:
-		body_b.velocity += collision_normal * (impulse / mass_b) * force_scale
+	var impulse_a = collision_normal * (impulse / mass_a) * force_scale
+	var impulse_b = collision_normal * (impulse / mass_b) * force_scale
+	
+	if is_valid_vector(impulse_a):
+		body_a.velocity -= impulse_a
+	if body_b is CharacterBody3D and is_valid_vector(impulse_b):
+		body_b.velocity += impulse_b
 	
 	# Apply separation to prevent sticking
 	var separation = collision_normal * SEPARATION_FORCE * delta
 	body_a.velocity -= separation
 	if body_b is CharacterBody3D:
 		body_b.velocity += separation
+
+	# Handle friction between physics objects
+	if body_a is PhysicsObject and body_b is PhysicsObject:
+		var normal_force = abs(relative_velocity.dot(collision_normal)) * (mass_a + mass_b) / delta
+		
+		# Calculate friction forces for both bodies
+		var friction_force_a = body_a.calculate_friction_force(body_b, normal_force, relative_velocity)
+		var friction_force_b = body_b.calculate_friction_force(body_a, normal_force, -relative_velocity)
+		
+		# Apply friction forces
+		body_a.apply_force(friction_force_a)
+		body_b.apply_force(friction_force_b)
+		
+		# Reduce tangential velocity directly for better stability
+		var tangential = (relative_velocity - collision_normal * relative_velocity.dot(collision_normal))
+		var reduction = clamp(1.0 - cluster_factor * 0.5, 0.3, 1.0)  # Less reduction in clusters
+		body_a.velocity = body_a.velocity - tangential * reduction * delta
+		body_b.velocity = body_b.velocity + tangential * reduction * delta
 
 	# Handle rock breaking
 	if body_b is Rock:

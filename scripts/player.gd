@@ -8,7 +8,6 @@ const EXPECTED_MAX_SPEED = 400.0
 const ACCELERATION = 100.0  # Increased since we're using forces now
 const CONTROL_DRAG = 0.9
 const DEAD_CONTROL_DRAG = 1.0
-const MIN_SPEED_THRESHOLD = 0.1
 const ROTATION_SPEED = 15.0
 const LUNGE_FORCE = 20.0
 const SEGMENT_PUSHBACK = 60.0
@@ -72,11 +71,11 @@ var visual_basis: Basis
 
 func _ready():
 	super()
+	material_type = PhysicsConstants.MATERIAL_PLAYER
 	base_mass = PhysicsConstants.PLAYER_MASS
 	mass = base_mass
-	minimum_speed = PhysicsConstants.PLAYER_MIN_SPEED
-	pull_reduction = PhysicsConstants.PLAYER_PULL_REDUCTION
-	target_distance = PhysicsConstants.PLAYER_TARGET_DISTANCE
+	pull_reduction = 0.85
+	target_distance = 1.1
 	collision_force_multiplier = 0.8  # Player takes less collision damage
 	spring_stiffness_multiplier = 1.2  # Player has stronger spring forces
 	
@@ -84,9 +83,9 @@ func _ready():
 	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
 	mass = 0.5
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
-	static_friction = PhysicsConstants.PLAYER_STATIC_FRICTION
-	dynamic_friction = PhysicsConstants.PLAYER_DYNAMIC_FRICTION
-	rolling_friction = PhysicsConstants.PLAYER_ROLLING_FRICTION
+	static_friction = 0.01
+	dynamic_friction = 0.005
+	rolling_friction = 0.002
 	base_emission = BASE_EMISSION
 	base_emission_energy = BASE_EMISSION_ENERGY
 	state_color = BASE_COLOR
