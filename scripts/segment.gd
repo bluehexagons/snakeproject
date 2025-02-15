@@ -2,8 +2,8 @@ extends PhysicsObject
 
 class_name Segment
 
-const SPRING_STIFFNESS = 730.0
-const SPRING_DAMPING = 40.0
+const SPRING_STIFFNESS = 1000.0
+const SPRING_DAMPING = 100.0
 const TARGET_DISTANCE = 1.0
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2
@@ -18,12 +18,16 @@ const PULL_START_DISTANCE = 1.6  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 2.0    # Distance at which pull force peaks
 const PULL_FORCE = 1730.0        # Reduced base pull force
 const PULL_VELOCITY_MATCH = 0.9  # How strongly to match target's velocity when pulling
-const COLLISION_BREAK_FORCE = 2500.0  # Force required during collision to break
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
 const CLUSTER_FORCE_REDUCTION = 0.7  # Reduce forces when in tight clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
 const POP_FORCE = 1.0
 const POP_FORCE_OPPOSITE = 10.0
+const MAX_STRETCH = 1.4  # Maximum stretch multiplier before constraint kicks in
+const HARD_MAX_STRETCH = 1.6  # Absolute maximum stretch before breaking
+const STRETCH_STIFFNESS_SCALE = 4.0  # How much to increase stiffness when stretching
+const SNAP_THRESHOLD = 0.1  # How close to max stretch before increasing stiffness
+const BREAK_THRESHOLD = 0.999  # How close to HARD_MAX_STRETCH before breaking
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -147,68 +151,100 @@ func _physics_process(delta):
 		if recovery_timer >= RECOVERY_DURATION:
 			is_recovering = false
 	
-	# Calculate spring force with spawn reduction
-	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
-	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
+	# Calculate base spring force with spawn reduction
+	var base_stiffness = SPRING_STIFFNESS * lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
 	
 	var collision_handler = get_node("/root/CollisionHandler")
 
 	if is_instance_valid(target):
 		# Calculate target distance based on current scales
 		var adjusted_distance = target_distance * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
+		var max_distance = adjusted_distance * MAX_STRETCH
+		var hard_max_distance = adjusted_distance * HARD_MAX_STRETCH
 		
 		var to_target = target.global_position - global_position
 		var current_distance = to_target.length()
 		
 		if current_distance > 0:
 			var target_direction = to_target.normalized()
+			
+			# Check for breaking condition first
+			if current_distance > hard_max_distance * BREAK_THRESHOLD:
+				if not is_recovering:
+					recovery_timer = 0.0
+					# Apply break impulse away from excessive stretch
+					apply_impulse(-target_direction * POP_FORCE_OPPOSITE * mass)
+					apply_impulse(Vector3.UP * POP_FORCE * mass)
+				is_recovering = true
+				return  # Skip normal spring forces
+			
+			# Calculate stretch factor
+			var stretch_factor = current_distance / adjusted_distance
+			
+			# Apply hard distance constraint
+			if current_distance > max_distance:
+				# Calculate positions for constraint
+				var constraint_center = (global_position + target.global_position) * 0.5
+				var to_center = global_position - constraint_center
+				var constraint_distance = max_distance * 0.5
+				
+				# Apply constraint through velocity adjustment
+				if target is PhysicsObject:
+					var total_mass = mass + target.mass
+					var mass_ratio_a = mass / total_mass
+					var mass_ratio_b = target.mass / total_mass
+					
+					var new_pos_a = constraint_center + to_center.normalized() * constraint_distance
+					var new_pos_b = constraint_center - to_center.normalized() * constraint_distance
+					
+					var correction_a = (new_pos_a - global_position) / delta
+					var correction_b = (new_pos_b - target.global_position) / delta
+					
+					velocity += correction_a * mass_ratio_b
+					target.velocity += correction_b * mass_ratio_a
+			
+			# Calculate spring force with progressive stiffness
 			var desired_pos = target.global_position - target_direction * adjusted_distance
 			var to_desired = desired_pos - global_position
 			
-			# Store the magnitude of force for break detection
+			# Increase stiffness as we approach max stretch
+			var stretch_progress = clamp((stretch_factor - 1.0) / (MAX_STRETCH - 1.0), 0.0, 1.0)
+			var current_stiffness = base_stiffness * (1.0 + stretch_progress * STRETCH_STIFFNESS_SCALE)
+			
+			# Store the magnitude of force for debugging
 			last_force = (to_desired * current_stiffness).length()
 			
-			if has_collision and last_force > COLLISION_BREAK_FORCE:
-				if not is_recovering:
-					recovery_timer = 0.0
-					# Apply break impulse
-					apply_impulse(last_collision_normal * POP_FORCE_OPPOSITE * mass)
-					apply_impulse(Vector3.UP * POP_FORCE * mass)
-				is_recovering = true
-			else:
-				# Calculate mass-based spring forces
-				var force_multiplier = 1.0
+			# Calculate and apply spring forces
+			var spring_force = to_desired * current_stiffness
+			var damping_force = -velocity * SPRING_DAMPING
+			
+			# Get nearby bodies for cluster detection
+			var nearby = collision_handler.get_nearby_bodies(global_position)
+			var cluster_factor = clamp(float(nearby.size()) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
+			
+			# Apply forces with proper mass calculations
+			spring_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
+			damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION * 0.5)
+			
+			apply_force(spring_force)
+			apply_force(damping_force)
+			
+			if current_distance > PULL_START_DISTANCE:
+				var pull_factor = clamp(
+					(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
+					0.0, 1.0
+					)
 				
-				var spring_force = to_desired * current_stiffness * force_multiplier
-				var damping_force = -velocity * SPRING_DAMPING
+				# Calculate pull force based on masses
+				var base_pull_force = PULL_FORCE * pull_factor
 				
-				# Get nearby bodies for cluster detection
-				var nearby = collision_handler.get_nearby_bodies(global_position)
-				var cluster_factor = clamp(float(nearby.size()) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
+				var pull_force = target_direction * base_pull_force
+				apply_force(pull_force)
 				
-				# Apply forces with proper mass calculations
-				spring_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
-				damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION * 0.5)
-				
-				apply_force(spring_force)
-				apply_force(damping_force)
-				
-				if current_distance > PULL_START_DISTANCE:
-					var pull_factor = clamp(
-						(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
-						0.0, 1.0
-						)
-					
-					# Calculate pull force based on masses
-					var base_pull_force = PULL_FORCE * pull_factor
-					
-					var pull_force = target_direction * base_pull_force
-					apply_force(pull_force)
-					
-					if target is PhysicsObject:
-						var target_mass_ratio = target.mass / (mass + target.mass)
-						var opposite_force = -pull_force * target_mass_ratio * target.pull_reduction
-						target.apply_force(opposite_force)
+				if target is PhysicsObject:
+					var target_mass_ratio = target.mass / (mass + target.mass)
+					var opposite_force = -pull_force * target_mass_ratio * target.pull_reduction
+					target.apply_force(opposite_force)
 
 	has_collision = false  # Reset collision flag
 	var collision = move_and_collide(velocity * delta)
