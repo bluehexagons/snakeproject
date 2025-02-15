@@ -1,1 +1,1 @@
-This is a real-time 3D game, in Godot 4.3, programmed using GDScript. Remember to consider performance, but not at any cost. Remember to use tabs and not spaces.
+This is a real-time 3D game, in Godot 4.3, programmed using GDScript. Remember to consider performance, but not at any cost. Remember to use tabs and not spaces. Remember that comments start with a `#` and not `//`. Ternary uses the `true_value if condition else false_value` syntax.
