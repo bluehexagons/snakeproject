@@ -49,12 +49,7 @@ var score: int = 0
 var was_toggle_pressed: bool = false
 
 func _ready():
-	if GameState.has_saved_game():
-		load_game_state()
-	else:
-		spawn_player()
-		spawn_food()
-		spawn_initial_rocks()
+	load_game_state()
 	
 	get_tree().root.size_changed.connect(_on_window_resize)
 	_on_window_resize()
@@ -102,60 +97,55 @@ func spawn_player():
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
 	player.position = Vector3(random_x, 0, random_z)
 
-func spawn_food():
-	var current_food_count = get_tree().get_nodes_in_group("food").size() - 1
+func spawn_food(force_spawn: bool = false) -> bool:
+	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f.is_available())
+	var current_count = available_food.size()
 	
-	# Don't spawn if we're at or above minimum food count
-	if current_food_count >= MIN_FOOD_COUNT:
-		return
+	# Don't spawn if we're at or above max food count
+	if current_count >= MAX_FOOD_COUNT:
+		return false
 		
-	# Only spawn enough to reach minimum
-	var to_spawn = MIN_FOOD_COUNT - current_food_count
-	var max_attempts = 10
+	# Only spawn if forcing or below minimum
+	if !force_spawn and current_count >= MIN_FOOD_COUNT:
+		return false
 	
-	for i in range(to_spawn):
-		# Don't exceed maximum food count
-		if get_tree().get_nodes_in_group("food").size() >= MAX_FOOD_COUNT:
-			break
-			
-		var attempts = 0
-		var food = FOOD_SCENE.instantiate()
-		gameplay_container.add_child(food)
+	var food = FOOD_SCENE.instantiate()
+	get_parent().add_child(food)
+	
+	# Try multiple positions
+	for _attempt in range(10):
+		var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
+		var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
+		var pos = Vector3(random_x, 0, random_z)
 		
-		while attempts < max_attempts:
-			var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
-			var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-			var pos = Vector3(random_x, 0, random_z)
-			food.position = pos
-			
-			# Check distance from dangerous segments, rocks, and other food
-			var too_close = false
-			
-			# Check distance from dangerous objects
-			for node in get_tree().get_nodes_in_group("dangerous"):
-				if node.global_position.distance_to(pos) < 2.0:
-					too_close = true
-					break
-			
-			# Check distance from rocks
-			for rock in get_tree().get_nodes_in_group("rock"):
-				if rock.global_position.distance_to(pos) < 1.5:
-					too_close = true
-					break
-			
-			# Check distance from other food
-			for other_food in get_tree().get_nodes_in_group("food"):
-				if other_food != food and other_food.global_position.distance_to(pos) < MIN_FOOD_DISTANCE:
-					too_close = true
-					break
-					
-			if !too_close:
+		# Check if position is valid
+		var valid_position = true
+		
+		# Check distance from dangerous objects
+		for node in get_tree().get_nodes_in_group("dangerous"):
+			if node.global_position.distance_to(pos) < 2.0:
+				valid_position = false
 				break
-				
-			attempts += 1
 		
-		if attempts >= max_attempts:
-			food.queue_free()  # Remove food if we couldn't find a good spot
+		# Check distance from rocks
+		for rock in get_tree().get_nodes_in_group("rock"):
+			if rock.global_position.distance_to(pos) < 1.5:
+				valid_position = false
+				break
+		
+		# Check distance from other food
+		for other_food in available_food:
+			if other_food != food and other_food.global_position.distance_to(pos) < MIN_FOOD_DISTANCE:
+				valid_position = false
+				break
+		
+		if valid_position:
+			food.position = pos
+			return true
+	
+	# If we couldn't find a valid position after all attempts
+	food.queue_free()
+	return false
 
 func spawn_initial_rocks():
 	for i in range(INITIAL_ROCKS):
@@ -213,7 +203,7 @@ func spawn_rock(force_safe: bool = false):
 func add_score(points: int):
 	if is_game_over:
 		return
-
+	
 	update_score(points)
 
 func on_food_collected():
@@ -226,10 +216,12 @@ func on_food_collected():
 	if player.food_eaten % ROCKS_SPAWN_INTERVAL == 0:
 		spawn_rock()
 	
-	# Check if removing this food would put us below minimum
-	var current_food_count = get_tree().get_nodes_in_group("food").size()
-	if current_food_count <= MIN_FOOD_COUNT:
-		# Try to spawn more food to maintain minimum
+	# Check available food count (excluding those being consumed)
+	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f.is_available())
+	var current_food_count = available_food.size()
+	
+	# Only spawn new food if we're below minimum
+	if current_food_count < MIN_FOOD_COUNT:
 		spawn_food()
 
 func _on_window_resize():
@@ -301,18 +293,20 @@ func save_game_state():
 	GameState.save_game_state(save_data)
 
 func load_game_state():
+	# Clear any existing food first
+	for food in get_tree().get_nodes_in_group("food"):
+		food.queue_free()
+	
 	var save_data = GameState.load_game_state()
 	if save_data.is_empty():
 		spawn_player()
-		spawn_food()
+		spawn_initial_food()  # Use new function instead of single food spawn
 		spawn_initial_rocks()
 		return false
 		
 	# Spawn and setup player
 	var player = PLAYER_SCENE.instantiate()
 	gameplay_container.add_child(player)
-	
-	# First set the player's position and state
 	player.restore_from_save(save_data)
 	
 	# Then restore segments with their growth states in reverse order
@@ -331,8 +325,8 @@ func load_game_state():
 			var segment = player.add_segment(0.0, pos)  # Initial growth of 0
 			segment.init_from_save_data(segment_data)
 	
-	# Spawn and setup food
-	if save_data.has("food_positions"):
+	# Only spawn food if none were saved
+	if save_data.has("food_positions") and !save_data.food_positions.is_empty():
 		for food_pos in save_data.food_positions:
 			var food = FOOD_SCENE.instantiate()
 			gameplay_container.add_child(food)
@@ -342,15 +336,8 @@ func load_game_state():
 				float(food_pos.z)
 			)
 	else:
-		# Backward compatibility for old save files with single food
-		if save_data.has("food_position"):
-			var food = FOOD_SCENE.instantiate()
-			gameplay_container.add_child(food)
-			food.position = Vector3(
-				float(save_data["food_position"]["x"]),
-				float(save_data["food_position"]["y"]),
-				float(save_data["food_position"]["z"])
-			)
+		# Spawn minimum required food if no saved food exists
+		spawn_initial_food()
 	
 	# Load rocks
 	if save_data.has("rocks"):
@@ -383,6 +370,15 @@ func load_game_state():
 	score = save_data["score"]
 	update_score(0)
 	return true
+
+func spawn_initial_food():
+	# Clear any existing food first
+	for food in get_tree().get_nodes_in_group("food"):
+		food.queue_free()
+	
+	# Spawn minimum required food
+	for i in range(MIN_FOOD_COUNT):
+		spawn_food(true)
 
 func _notification(what):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:

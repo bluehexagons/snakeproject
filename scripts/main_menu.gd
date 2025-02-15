@@ -21,5 +21,6 @@ func _on_continue_button_pressed():
 		var game_manager = get_tree().get_first_node_in_group("game_manager")
 		if game_manager:
 			game_manager.load_game_state()
-			
+
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
+			

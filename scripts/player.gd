@@ -19,7 +19,7 @@ const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
 const BONUS_SPEED_PER_FEED = 0.2  # Speed increase per food eaten
 const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
-const SEGMENT_SPAWN_OFFSET = 0.5  # Reduced from 1.2 to spawn closer
+const SEGMENT_SPAWN_OFFSET = 0.2  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.95  # Increased from 0.8 for better matching
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
 
@@ -70,6 +70,7 @@ var unkillable: bool = false
 
 var physics_basis: Basis
 var visual_basis: Basis
+var collected_food: bool = false  # Add this variable
 
 func _ready():
 	super()
@@ -116,6 +117,8 @@ func _ready():
 	target_scale = 1.0
 
 func _physics_process(delta):
+	collected_food = false  # Reset at start of frame
+	
 	# Handle color updates before any potential impacts
 	var target_base_color = BASE_COLOR
 	var target_emission = BASE_EMISSION
@@ -267,16 +270,18 @@ func _physics_process(delta):
 		return a.global_position.distance_to(global_position) < b.global_position.distance_to(global_position)
 	)
 	
-	# Check closest food first
+	# Check closest food first and only collect one per frame
 	for food_node in food_nodes:
-		if food_node.global_position.distance_to(global_position) < 0.75:
+		if food_node.is_available() and food_node.global_position.distance_to(global_position) < 0.75 and not collected_food:
 			if is_dead:
 				score_change += food_node.dead_eat()
+				collected_food = true
 			else:
 				if not is_digesting:  # Only collect if not currently digesting
 					score_change += food_node.eat()
 					start_digestion()
 					food_eaten += 1
+					collected_food = true
 					
 					# Update minimum speed requirement
 					current_speed_boost = min(
@@ -311,6 +316,7 @@ func _physics_process(delta):
 	physics_basis = mesh_instance.basis.orthonormalized()
 
 func _process(_delta):
+	collected_food = false  # Reset in process too for safety
 	# Interpolate visual position between physics updates
 	var fraction = Engine.get_physics_interpolation_fraction()
 	visual_pos = physics_pos.lerp(global_position, fraction)
@@ -470,19 +476,20 @@ func die():
 		segment.target = null
 
 func start_digestion():
+	if is_digesting:  # Prevent starting digestion if already in progress
+		return
 	is_digesting = true
 	digestion_timer = 0.0
 	mesh_instance.material_override = digestion_flash_material
 
 func finish_digestion():
+	if not is_digesting:
+		return
+
 	is_digesting = false
 	digestion_timer = 0.0
 	mesh_instance.material_override = null
 	apply_physics_scale(1.0)
-	
-	# Push back first segment if it exists
-	if not is_dead and not segments.is_empty():
-		segments[0].velocity -= facing_direction * SEGMENT_SPAWN_PUSH
 	
 	# Spawn new segment
 	add_segment()
