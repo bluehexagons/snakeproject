@@ -258,8 +258,8 @@ func apply_impulse(impulse: Vector3) -> void:
 	accumulated_impulse += impulse
 
 # Add method to calculate friction with another object
-func calculate_friction_force(other: PhysicsObject, normal_force: float, relative_velocity: Vector3) -> Vector3:
-	if not is_valid_vector(relative_velocity) or not is_finite(normal_force):
+func calculate_friction_force(other: PhysicsObject, normal_force: float, relative_velocity: Vector3, collision_normal: Vector3) -> Vector3:
+	if not is_valid_vector(relative_velocity) or not is_finite(normal_force) or not is_valid_vector(collision_normal):
 		return Vector3.ZERO
 
 	# Get friction coefficients between the two materials
@@ -267,14 +267,25 @@ func calculate_friction_force(other: PhysicsObject, normal_force: float, relativ
 	var static_friction = coefficients[0]
 	var dynamic_friction = coefficients[1]
 	
-	# Calculate tangential velocity (remove normal component)
-	var normal = relative_velocity.normalized()
-	var tangential_velocity = relative_velocity - normal * relative_velocity.dot(normal)
+	# Calculate tangential velocity using the collision normal
+	var tangential_velocity = relative_velocity - collision_normal * relative_velocity.dot(collision_normal)
 	var tangential_speed = tangential_velocity.length()
+	
+	# Early exit if no tangential motion
+	if tangential_speed < 0.0001:
+		return Vector3.ZERO
+	
+	# Calculate friction direction (opposite to tangential velocity)
+	var friction_direction = -tangential_velocity.normalized()
 	
 	# If speed is very low, use static friction
 	if tangential_speed < minimum_speed:
-		return -tangential_velocity.normalized() * static_friction * normal_force
+		# Limit static friction to prevent sticking
+		var max_static_force = static_friction * normal_force
+		var stopping_force = mass * tangential_speed / get_physics_process_delta_time()
+		return friction_direction * min(max_static_force, stopping_force)
 	
 	# Otherwise use dynamic friction
-	return -tangential_velocity.normalized() * dynamic_friction * normal_force
+	# Scale friction with velocity to prevent abrupt changes
+	var friction_scale = clamp(tangential_speed / (minimum_speed * 2.0), 0.0, 1.0)
+	return friction_direction * dynamic_friction * normal_force * friction_scale

@@ -47,15 +47,14 @@ const ROLLING_THRESHOLD = 0.5
 # Minimum speed thresholds (calculated based on mass and friction)
 const BASE_MIN_SPEED_THRESHOLD = 0.1
 
-# Friction coefficients between different materials
-# Format: [static_friction, dynamic_friction]
+# Adjusted friction coefficients for smoother sliding
 const FRICTION_COEFFICIENTS = {
-    "segment_segment": [0.001, 0.05],  # Segments slide easily against each other
-    "segment_player": [0.15, 0.08],  # Player has slightly more grip
-    "segment_rock": [0.4, 0.2],      # Rocks are rougher
-    "player_rock": [0.4, 0.2],
-    "rock_rock": [0.5, 0.25],
-    "default": [0.3, 0.15]           # Default values for unspecified pairs
+	"segment_segment": [0.001, 0.0005],  # Very low friction between segments
+	"segment_player": [0.08, 0.04],      # Moderate friction with player
+	"segment_rock": [0.2, 0.1],          # Higher friction with rocks
+	"player_rock": [0.15, 0.07],         # Reduced rock friction for better sliding
+	"rock_rock": [0.3, 0.15],
+	"default": [0.1, 0.05],               # Lower default friction
 }
 
 # Material type identifiers
@@ -65,9 +64,9 @@ const MATERIAL_ROCK = "rock"
 
 # Helper functions
 static func get_friction_coefficients(material1: String, material2: String) -> Array:
-    # Sort materials to ensure consistent lookup regardless of order
-    var key = [material1, material2]
-    key.sort()
-    var lookup_key = key[0] + "_" + key[1]
-    
-    return FRICTION_COEFFICIENTS.get(lookup_key, FRICTION_COEFFICIENTS.default)
+	# Sort materials to ensure consistent lookup regardless of order
+	var key = [material1, material2]
+	key.sort()
+	var lookup_key = key[0] + "_" + key[1]
+	
+	return FRICTION_COEFFICIENTS.get(lookup_key, FRICTION_COEFFICIENTS.default)

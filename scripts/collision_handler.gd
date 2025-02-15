@@ -148,21 +148,21 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 
 	# Handle friction between physics objects
 	if body_a is PhysicsObject and body_b is PhysicsObject:
+		# Calculate true normal force based on collision normal and masses
 		var normal_force = abs(relative_velocity.dot(collision_normal)) * (mass_a + mass_b) / delta
+		normal_force += (mass_a + mass_b) * PhysicsConstants.GRAVITY  # Add weight component
 		
-		# Calculate friction forces for both bodies
-		var friction_force_a = body_a.calculate_friction_force(body_b, normal_force, relative_velocity)
-		var friction_force_b = body_b.calculate_friction_force(body_a, normal_force, -relative_velocity)
+		# Calculate friction forces for both bodies using collision normal
+		var friction_force_a = body_a.calculate_friction_force(body_b, normal_force, relative_velocity, collision_normal)
+		var friction_force_b = body_b.calculate_friction_force(body_a, normal_force, -relative_velocity, -collision_normal)
 		
-		# Apply friction forces
-		body_a.apply_force(friction_force_a)
-		body_b.apply_force(friction_force_b)
+		# Apply friction forces scaled by cluster factor
+		var friction_scale = 1.0 - (cluster_factor * 0.7)  # Reduce friction in clusters
+		body_a.apply_force(friction_force_a * friction_scale)
+		body_b.apply_force(friction_force_b * friction_scale)
 		
-		# Reduce tangential velocity directly for better stability
-		var tangential = (relative_velocity - collision_normal * relative_velocity.dot(collision_normal))
-		var reduction = clamp(1.0 - cluster_factor * 0.5, 0.3, 1.0)  # Less reduction in clusters
-		body_a.velocity = body_a.velocity - tangential * reduction * delta
-		body_b.velocity = body_b.velocity + tangential * reduction * delta
+		# Remove direct velocity reduction and let forces handle it
+		# This prevents the abrupt jumps we were seeing
 
 	# Handle rock breaking
 	if body_b is Rock:
