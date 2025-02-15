@@ -335,6 +335,14 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	segment.set_script(load("res://scripts/segment.gd"))
 	get_parent().add_child(segment)
 	
+	# Set chain properties
+	segment.chain_index = segments.size()  # Index in the chain
+	segment.chain_length = segments.size() + 1  # Total length including new segment
+	
+	# Update chain length for all segments
+	for existing_segment in segments:
+		existing_segment.chain_length = segment.chain_length
+	
 	# Calculate spawn position with closer offset
 	var spawn_pos: Vector3
 	if saved_pos != Vector3.ZERO:

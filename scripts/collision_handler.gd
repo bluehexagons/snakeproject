@@ -1,7 +1,7 @@
 extends Node
 
-const MINIMUM_SEPARATION = 0.1
-const SEPARATION_FORCE = 0.1
+const MINIMUM_SEPARATION = 0.2  # Increased from 0.1
+const SEPARATION_FORCE = 0.3    # Increased from 0.1
 const COLLISION_BOUNCE = 0.5  # Increased from 0.4 for more lively collisions
 const PERSISTENT_COLLISION_DAMPING = 0.85  # Slightly reduced damping
 const MAX_COLLISION_SPEED = 20.0
@@ -18,6 +18,15 @@ const FORCE_DISSIPATION_FACTOR = 0.6  # Reduced from 0.7 for more force transfer
 const PROXIMITY_GRID_SIZE = 2.0  # Size of spatial grid cells
 const MAX_BODIES_PER_CELL = 8  # Limit checks in dense areas
 const CLUSTER_CHECK_RADIUS = 3.0  # Radius to check for clustered objects
+
+const SEGMENT_COLLISION_BOUNCE = 0.6   # Increased from 0.4 for more responsive collisions
+const SEGMENT_SEPARATION_FORCE = 0.4   # Increased from 0.2
+const SEGMENT_TANGENT_FORCE = 0.15   # Force to help segments slide past each other
+const SEGMENT_REPULSION_RADIUS = 0.6  # Radius for repulsion between segments
+const SEGMENT_REPULSION_FORCE = 0.8   # Strength of repulsion
+const SEGMENT_MASS_SCALE = 0.4        # Reduced from 1.5 to make segments more responsive to hits
+const ROCK_COLLISION_SCALE = 1.2      # Changed from 0.6 to increase rock impact
+const ROCK_SEGMENT_IMPULSE_BOOST = 2.0 # Additional scaling for rock->segment impacts
 
 # Spatial partitioning for broad phase
 var proximity_grid = {}
@@ -109,6 +118,27 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	var mass_a = get_body_mass(body_a)
 	var mass_b = get_body_mass(body_b)
 	
+	# Scale masses for collision response early
+	var effective_mass_a = mass_a
+	var effective_mass_b = mass_b
+	
+	# Adjust mass scaling for specific collision types
+	if body_a.is_in_group("segment"):
+		effective_mass_a *= SEGMENT_MASS_SCALE
+		if body_b.is_in_group("rock"):
+			effective_mass_a *= SEGMENT_MASS_SCALE
+	
+	if body_b.is_in_group("segment"):
+		effective_mass_b *= SEGMENT_MASS_SCALE
+		if body_a.is_in_group("rock"):
+			effective_mass_b *= SEGMENT_MASS_SCALE
+	
+	# Special boost for rock impacts
+	var rock_impact_boost = 1.0
+	if (body_a.is_in_group("rock") and body_b.is_in_group("segment")) or \
+	   (body_b.is_in_group("rock") and body_a.is_in_group("segment")):
+		rock_impact_boost = ROCK_SEGMENT_IMPULSE_BOOST
+	
 	# Calculate velocities and impact characteristics
 	var relative_velocity = body_b.velocity - body_a.velocity
 	if not is_valid_vector(relative_velocity):
@@ -135,53 +165,41 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	if body_b is CharacterBody3D and body_b.has_method("handle_impact"):
 		body_b.handle_impact(impact_force)
 	
-	# Calculate collision response with safety checks
-	var restitution = COLLISION_BOUNCE * (1.0 - cluster_factor * 0.5)  # Reduce bounce in clusters
-	var denominator = (1.0 / mass_a) + (1.0 / mass_b)
-	if denominator <= 0.0 or not is_finite(denominator):
-		push_warning("Invalid mass calculation detected")
-		return
-		
+	# Calculate collision response with adjusted masses
+	var restitution = COLLISION_BOUNCE * (1.0 - cluster_factor * 0.5)
+	if body_a.is_in_group("segment") and body_b is CharacterBody3D and body_b.is_in_group("segment"):
+		restitution = SEGMENT_COLLISION_BOUNCE
+	
+	var denominator = (1.0 / effective_mass_a) + (1.0 / effective_mass_b)
 	var impulse = -(1.0 + restitution) * normal_speed / denominator
-	
-	# Cap maximum impulse
 	impulse = clamp(impulse, -MAX_IMPULSE, MAX_IMPULSE)
-
-	var force_scale = 1.0 - (cluster_factor * FORCE_DISSIPATION_FACTOR)
 	
-	# Special handling for segment collisions
-	var segment_collision = false
+	# Calculate final impulse scale
+	var impulse_scale = (1.0 - (cluster_factor * FORCE_DISSIPATION_FACTOR)) * rock_impact_boost
 	if body_a.is_in_group("segment") or (body_b is CharacterBody3D and body_b.is_in_group("segment")):
-		segment_collision = true
-			# Check if either segment is newly spawned and reduce forces accordingly
-		var spawn_factor = 1.0
-		if body_a.is_in_group("segment") and body_a.spawn_timer < body_a.SPAWN_DURATION:
-			spawn_factor = body_a.spawn_timer / body_a.SPAWN_DURATION
-		if body_b is CharacterBody3D and body_b.is_in_group("segment") and body_b.spawn_timer < body_b.SPAWN_DURATION:
-			spawn_factor = min(spawn_factor, body_b.spawn_timer / body_b.SPAWN_DURATION)
-		
-		force_scale *= 1.25 * spawn_factor
-		restitution *= 1.2 * spawn_factor
+		impulse_scale *= 1.25  # Additional scale for segment collisions
 	
-	# Apply impulse with safety checks
-	if segment_collision:
-		force_scale *= 1.25  # Increase force scale for segment collisions
-	
-	var impulse_a = collision_normal * (impulse / mass_a) * force_scale
-	var impulse_b = collision_normal * (impulse / mass_b) * force_scale
+	# Apply impulses with all scaling factors
+	var impulse_a = collision_normal * (impulse / effective_mass_a) * impulse_scale
+	var impulse_b = collision_normal * (impulse / effective_mass_b) * impulse_scale
 	
 	if is_valid_vector(impulse_a):
 		body_a.velocity -= impulse_a
 	if body_b is CharacterBody3D and is_valid_vector(impulse_b):
 		body_b.velocity += impulse_b
 	
-	# Apply separation to prevent sticking
-	var separation = collision_normal * SEPARATION_FORCE * delta
+	# Calculate separation with rock impact consideration
+	var separation_scale = 2.0 if rock_impact_boost > 1.0 else 1.0
+	var separation = collision_normal * (
+		SEGMENT_SEPARATION_FORCE if body_a.is_in_group("segment") and body_b.is_in_group("segment") else SEPARATION_FORCE
+	) * delta * separation_scale
+	
+	# Apply separation
 	body_a.velocity -= separation
 	if body_b is CharacterBody3D:
 		body_b.velocity += separation
-
-	# Handle friction between physics objects
+	
+	# Handle friction and tangential forces
 	if body_a is PhysicsObject and body_b is PhysicsObject:
 		# Calculate true normal force based on collision normal and masses
 		var normal_force = abs(relative_velocity.dot(collision_normal)) * (mass_a + mass_b) / delta
@@ -198,7 +216,7 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 		
 		# Remove direct velocity reduction and let forces handle it
 		# This prevents the abrupt jumps we were seeing
-
+	
 	# Handle rock breaking
 	if body_b is Rock:
 		var force = body_a.velocity.length() * mass_a
@@ -207,6 +225,19 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 		else:
 			# Handle normal collision
 			return
+
+	# Special handling for segment collisions
+	if body_a.is_in_group("segment") and body_b is CharacterBody3D and body_b.is_in_group("segment"):
+		# Calculate tangent direction for sliding
+		var tangent = (body_b.velocity - body_a.velocity).normalized()
+		tangent = (tangent - collision_normal * tangent.dot(collision_normal)).normalized()
+		
+		# Apply tangential force to help segments slide past each other
+		var tangent_force = tangent * SEGMENT_TANGENT_FORCE * (effective_mass_a + effective_mass_b)
+		if is_valid_vector(tangent_force):
+			body_a.apply_force(-tangent_force)
+			if body_b is PhysicsObject:
+				body_b.apply_force(tangent_force)
 
 func handle_static_collision(body: CharacterBody3D, collision_normal: Vector3, _delta: float) -> void:
 	var impact_speed = body.velocity.dot(collision_normal)  # Used in calculation
@@ -240,19 +271,55 @@ func handle_barrier_collision(body: CharacterBody3D, collision_normal: Vector3, 
 # Check for nearby segments and apply separation forces
 func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float) -> void:
 	# Skip proximity checks for dangerous segments
+	if body.is_in_group("dangerous"):
+		return
 		
-	# Only check segments that are close to this one in the chain
 	for other in nearby_bodies:
-		if other == body:
+		if other == body or not is_instance_valid(other) or not other is CharacterBody3D:
 			continue
 			
+		# Skip checks between connected segments
+		if body.is_in_group("segment") and other.is_in_group("segment"):
+			if body.target and other.target:
+				if body.target == other or other.target == body:
+					continue
+		
 		var direction = body.global_position - other.global_position
-		var distance_squared = direction.length_squared()  # Optimization: avoid square root
+		var distance_squared = direction.length_squared()
+		
+		# Apply repulsion force between segments
+		if body.is_in_group("segment") and other.is_in_group("segment"):
+			if distance_squared < SEGMENT_REPULSION_RADIUS * SEGMENT_REPULSION_RADIUS:
+				var distance = sqrt(distance_squared)
+				var repulsion = direction.normalized() * (
+					SEGMENT_REPULSION_FORCE * 
+					(1.0 - distance / SEGMENT_REPULSION_RADIUS)
+				) * delta
+				
+				# Scale repulsion based on relative velocity
+				var rel_vel = body.velocity - other.velocity
+				var approach_speed = -rel_vel.dot(direction.normalized())
+				if approach_speed > 0:
+					repulsion *= (1.0 + approach_speed)
+				
+				body.apply_force(repulsion * body.mass)
+				other.apply_force(-repulsion * other.mass)
 		
 		if distance_squared < MINIMUM_SEPARATION * MINIMUM_SEPARATION:
-			var distance = sqrt(distance_squared)  # Only calculate when needed
-			var separation = direction.normalized() * (MINIMUM_SEPARATION - distance) * SEPARATION_FORCE * delta
-			body.velocity -= separation
+			var distance = sqrt(distance_squared)
+			var separation = direction.normalized() * (
+				MINIMUM_SEPARATION - distance
+			) * SEPARATION_FORCE * delta
+			
+			# Add velocity-based separation
+			var rel_vel = body.velocity - (other.velocity if other is CharacterBody3D else Vector3.ZERO)
+			var approach_speed = -rel_vel.dot(direction.normalized())
+			if approach_speed > 0:
+				separation *= (1.0 + approach_speed)
+			
+			body.velocity += separation * 2.0  # Increased separation effect
+			if other is CharacterBody3D:
+				other.velocity -= separation * 2.0
 
 func get_body_mass(body: Node) -> float:
 	if body is PhysicsObject:

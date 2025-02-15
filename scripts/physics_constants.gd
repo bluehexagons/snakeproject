@@ -47,14 +47,14 @@ const ROLLING_THRESHOLD = 0.5
 # Minimum speed thresholds (calculated based on mass and friction)
 const BASE_MIN_SPEED_THRESHOLD = 0.1
 
-# Adjusted friction coefficients for smoother sliding
+# Further reduced segment friction coefficients
 const FRICTION_COEFFICIENTS = {
-	"segment_segment": [0.001, 0.0005],  # Very low friction between segments
-	"segment_player": [0.08, 0.04],      # Moderate friction with player
-	"segment_rock": [0.2, 0.1],          # Higher friction with rocks
-	"player_rock": [0.15, 0.07],         # Reduced rock friction for better sliding
+	"segment_segment": [0.0001, 0.00005],  # Keep very low friction between segments
+	"segment_player": [0.03, 0.01],        # Reduced friction with player
+	"segment_rock": [0.08, 0.04],          # Significantly reduced friction with rocks
+	"player_rock": [0.15, 0.07],           # Reduced rock friction for better sliding
 	"rock_rock": [0.3, 0.15],
-	"default": [0.1, 0.05],               # Lower default friction
+	"default": [0.1, 0.05],                # Lower default friction
 }
 
 # Material type identifiers

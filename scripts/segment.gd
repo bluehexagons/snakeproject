@@ -2,8 +2,8 @@ extends PhysicsObject
 
 class_name Segment
 
-const SPRING_STIFFNESS = 400.0  # Reduced further for smoother behavior
-const SPRING_DAMPING = 40.0     # Reduced for less jittery movement
+const SPRING_STIFFNESS = 200.0  # Significantly reduced from 400.0
+const SPRING_DAMPING = 35.0     # Slightly reduced from 45.0
 const TARGET_DISTANCE = 1.0
 const GROWTH_DURATION = 0.33  # Faster growth
 const INITIAL_SCALE = 0.4  # Slightly larger initial scale
@@ -14,7 +14,7 @@ const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
 const PULL_START_DISTANCE = 1.6  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 2.0    # Distance at which pull force peaks
-const PULL_FORCE = 1200.0       # Reduced from 1730
+const PULL_FORCE = 400.0        # Reduced from 800.0 to allow more external influence
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
 const CLUSTER_FORCE_REDUCTION = 0.85  # Increased force reduction in clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
@@ -29,6 +29,14 @@ const GROWTH_CURVE = 0.5  # Less aggressive easing
 const SPAWN_DURATION = 0.5  # Duration of spawn state
 const SPAWN_COLLISION_MASK = 0b111  # Actually collide with everything, but...
 const NORMAL_COLLISION_MASK = 0b111  # Normal collision mask (all layers)
+const CHAIN_POSITION_FACTOR = 0.08  # Reduced for more gradual change
+const CHAIN_LENGTH_SCALING = 0.92   # Less aggressive length scaling
+const MIN_STIFFNESS = 0.3          # Minimum spring stiffness multiplier
+const MAX_CHAIN_LENGTH = 20        # Length after which to apply extra scaling
+const CHAIN_PULL_DECAY = 0.7    # How much pull force carries through chain
+const MIN_PULL_FORCE = 100.0    # Minimum pull force at chain end
+const RECOVERY_COOLDOWN = 0.5   # Time before segment can break again
+const SPRING_FORCE_DELAY = 0.1  # Time to wait after collision before full spring force
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -41,6 +49,9 @@ var is_recovering: bool = false
 var last_force: float = 0.0
 var last_collision_normal: Vector3 = Vector3.ZERO
 var has_collision: bool = false
+var chain_index: int = 0  # Position in the chain, set during add_segment
+var chain_length: int = 1 # Total chain length, updated by player
+var collision_recovery_timer: float = 0.0  # Track time since last collision
 
 func _ready():
 	super()
@@ -78,6 +89,9 @@ func init_with_growth(initial_growth: float):
 	is_growing = initial_growth < 1.0
 	# Reset spawn timer to avoid collision issues
 	spawn_timer = SPAWN_DURATION if is_growing else 0.0
+	# Initialize chain properties
+	chain_index = 0
+	chain_length = 1
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
@@ -234,43 +248,57 @@ func _physics_process(delta):
 			# Store the magnitude of force for debugging
 			last_force = (to_desired * current_stiffness).length()
 			
-			# Calculate and apply spring forces
-			var spring_force = to_desired * current_stiffness * spring_stiffness_multiplier
-			var damping_force = -velocity * SPRING_DAMPING * spring_stiffness_multiplier
+			# Apply chain-based scaling factors with smoother progression
+			var position_scale = pow(1.0 - (chain_index * CHAIN_POSITION_FACTOR), 0.7)
+			position_scale = clamp(position_scale, MIN_STIFFNESS, 1.0)
+			
+			var length_factor = 1.0
+			if chain_length > MAX_CHAIN_LENGTH:
+				length_factor = pow(CHAIN_LENGTH_SCALING, chain_length - MAX_CHAIN_LENGTH)
+			
+			# Progressive damping that increases more toward the tail
+			var damping_scale = lerp(1.0, 3.0, pow(float(chain_index) / chain_length, 0.6))
+			
+			# Calculate base forces with new scaling
+			var force_scale = position_scale * length_factor * spring_stiffness_multiplier
+			var spring_force = to_desired * current_stiffness * force_scale
+			var damping_force = -velocity * (SPRING_DAMPING * damping_scale) * force_scale
+			
+			# Calculate pull force that propagates through the chain
+			if current_distance > PULL_START_DISTANCE:
+				var pull_factor = clamp(
+					(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
+					0.0, 1.0
+				)
+				
+				# Calculate chain-aware pull force
+				var chain_pull = PULL_FORCE * pow(CHAIN_PULL_DECAY, chain_index)
+				chain_pull = max(chain_pull, MIN_PULL_FORCE)
+				var pull_force = target_direction * chain_pull * pull_factor
+				
+				# Apply pull force both to self and target
+				apply_force(pull_force)
+				if target is PhysicsObject:
+					var target_mass_ratio = target.mass / (mass + target.mass)
+					var opposite_force = -pull_force * target_mass_ratio * target.pull_reduction
+					target.apply_force(opposite_force)
 			
 			# Get nearby bodies for cluster detection
 			var nearby = collision_handler.get_nearby_bodies(global_position)
 			var cluster_factor = clamp(float(nearby.size()) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
 			
-			# Apply stronger force reduction in clusters
+			# Apply cluster-based force reduction
 			spring_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
 			damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
 			
 			apply_force(spring_force)
 			apply_force(damping_force)
-			
-			if current_distance > PULL_START_DISTANCE:
-				var pull_factor = clamp(
-					(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
-					0.0, 1.0
-					)
-				
-				# Calculate pull force based on masses
-				var base_pull_force = PULL_FORCE * pull_factor
-				
-				var pull_force = target_direction * base_pull_force
-				apply_force(pull_force)
-				
-				if target is PhysicsObject:
-					var target_mass_ratio = target.mass / (mass + target.mass)
-					var opposite_force = -pull_force * target_mass_ratio * target.pull_reduction
-					target.apply_force(opposite_force)
 
-	has_collision = false  # Reset collision flag
 	var collision = move_and_collide(velocity * delta)
 	if collision:
 		has_collision = true
 		last_collision_normal = collision.get_normal()
+		collision_recovery_timer = SPRING_FORCE_DELAY  # Reset recovery timer on collision
 		var collider = collision.get_collider()
 		collision_handler.handle_collision(self, collider, last_collision_normal, delta)
 	
