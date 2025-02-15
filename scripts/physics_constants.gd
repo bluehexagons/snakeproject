@@ -7,7 +7,7 @@ const BOUNCE_DAMPENING = 0.5
 # Mass constants (in kg)
 const PLAYER_MASS = 0.5
 const ROCK_MASS = 8.0
-const SEGMENT_MASS = 1.0
+const SEGMENT_MASS = 0.8  # Reduced from 1.0 to make segments lighter
 
 # Drag coefficients (adjusted for mass-based system)
 const BASE_DRAG_COEFFICIENT = 0.3
@@ -30,9 +30,9 @@ const ROCK_STATIC_FRICTION = 0.4
 const ROCK_DYNAMIC_FRICTION = 0.15
 const ROCK_ROLLING_FRICTION = 0.1
 
-const SEGMENT_STATIC_FRICTION = 0.05
-const SEGMENT_DYNAMIC_FRICTION = 0.02
-const SEGMENT_ROLLING_FRICTION = 0.01
+const SEGMENT_STATIC_FRICTION = 0.03   # Reduced from 0.05
+const SEGMENT_DYNAMIC_FRICTION = 0.015  # Reduced from 0.02
+const SEGMENT_ROLLING_FRICTION = 0.008  # Reduced from 0.01
 
 const PLAYER_STATIC_FRICTION = 0.01
 const PLAYER_DYNAMIC_FRICTION = 0.005

@@ -2,8 +2,8 @@ extends Node
 
 const MINIMUM_SEPARATION = 0.1
 const SEPARATION_FORCE = 0.1
-const COLLISION_BOUNCE = 0.4
-const PERSISTENT_COLLISION_DAMPING = 0.8
+const COLLISION_BOUNCE = 0.5  # Increased from 0.4 for more lively collisions
+const PERSISTENT_COLLISION_DAMPING = 0.85  # Slightly reduced damping
 const MAX_COLLISION_SPEED = 20.0
 const REST_THRESHOLD = 0.1
 const VELOCITY_LOSS_ON_COLLISION = 0.7  # How much velocity to maintain after collision
@@ -14,7 +14,7 @@ const DEFAULT_MASS = 1.0
 
 # New constants for optimization
 const MAX_IMPULSE = 1000.0  # Cap maximum collision response
-const FORCE_DISSIPATION_FACTOR = 0.7  # Reduce force in tight clusters
+const FORCE_DISSIPATION_FACTOR = 0.6  # Reduced from 0.7 for more force transfer
 const PROXIMITY_GRID_SIZE = 2.0  # Size of spatial grid cells
 const MAX_BODIES_PER_CELL = 8  # Limit checks in dense areas
 const CLUSTER_CHECK_RADIUS = 3.0  # Radius to check for clustered objects
@@ -88,6 +88,23 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	# Only proceed with CharacterBody3D collisions
 	if not body_b is CharacterBody3D:
 		return
+
+	# Skip collision processing if either body is a spawning segment
+	if (body_a.is_in_group("segment") and body_a.spawn_timer > 0) or \
+	   (body_b is CharacterBody3D and body_b.is_in_group("segment") and body_b.spawn_timer > 0):
+		return
+
+	# Special handling for spawning segments
+	var spawn_ignores_collision = false
+	if (body_a.is_in_group("segment") and body_a.spawn_timer > 0):
+		# Only ignore collisions with other segments and player during spawn
+		spawn_ignores_collision = body_b.is_in_group("segment") or body_b.is_in_group("player")
+	elif (body_b is CharacterBody3D and body_b.is_in_group("segment") and body_b.spawn_timer > 0):
+		# Only ignore collisions with other segments and player during spawn
+		spawn_ignores_collision = body_a.is_in_group("segment") or body_a.is_in_group("player")
+	
+	if spawn_ignores_collision:
+		return
 		
 	var mass_a = get_body_mass(body_a)
 	var mass_b = get_body_mass(body_b)
@@ -129,9 +146,27 @@ func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: V
 	
 	# Cap maximum impulse
 	impulse = clamp(impulse, -MAX_IMPULSE, MAX_IMPULSE)
+
+	var force_scale = 1.0 - (cluster_factor * FORCE_DISSIPATION_FACTOR)
+	
+	# Special handling for segment collisions
+	var segment_collision = false
+	if body_a.is_in_group("segment") or (body_b is CharacterBody3D and body_b.is_in_group("segment")):
+		segment_collision = true
+			# Check if either segment is newly spawned and reduce forces accordingly
+		var spawn_factor = 1.0
+		if body_a.is_in_group("segment") and body_a.spawn_timer < body_a.SPAWN_DURATION:
+			spawn_factor = body_a.spawn_timer / body_a.SPAWN_DURATION
+		if body_b is CharacterBody3D and body_b.is_in_group("segment") and body_b.spawn_timer < body_b.SPAWN_DURATION:
+			spawn_factor = min(spawn_factor, body_b.spawn_timer / body_b.SPAWN_DURATION)
+		
+		force_scale *= 1.25 * spawn_factor
+		restitution *= 1.2 * spawn_factor
 	
 	# Apply impulse with safety checks
-	var force_scale = 1.0 - (cluster_factor * FORCE_DISSIPATION_FACTOR)
+	if segment_collision:
+		force_scale *= 1.25  # Increase force scale for segment collisions
+	
 	var impulse_a = collision_normal * (impulse / mass_a) * force_scale
 	var impulse_b = collision_normal * (impulse / mass_b) * force_scale
 	

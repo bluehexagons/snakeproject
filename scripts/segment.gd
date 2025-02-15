@@ -2,21 +2,21 @@ extends PhysicsObject
 
 class_name Segment
 
-const SPRING_STIFFNESS = 1000.0
-const SPRING_DAMPING = 100.0
+const SPRING_STIFFNESS = 600.0  # Reduced from 1000
+const SPRING_DAMPING = 60.0    # Reduced from 100
 const TARGET_DISTANCE = 1.0
 const GROWTH_DURATION = 0.33  # Faster growth
-const INITIAL_SCALE = 0.2  # Slightly larger initial scale
-const INITIAL_SPRING_REDUCTION = 0.3  # Reduce spring force when first spawned
+const INITIAL_SCALE = 0.4  # Slightly larger initial scale
+const INITIAL_SPRING_REDUCTION = 0.7  # Adjusted from 0.5 for smoother initial forces
 const SAFE_COLOR = Color(0.3, 0.8, 1.0, 0.9)
 const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)
 const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
 const PULL_START_DISTANCE = 1.6  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 2.0    # Distance at which pull force peaks
-const PULL_FORCE = 1730.0        # Reduced base pull force
+const PULL_FORCE = 1200.0       # Reduced from 1730
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
-const CLUSTER_FORCE_REDUCTION = 0.7  # Reduce forces when in tight clusters
+const CLUSTER_FORCE_REDUCTION = 0.85  # Increased force reduction in clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
 const POP_FORCE = 1.0
 const POP_FORCE_OPPOSITE = 10.0
@@ -26,12 +26,15 @@ const STRETCH_STIFFNESS_SCALE = 10.0  # How much to increase stiffness when stre
 const SNAP_THRESHOLD = 0.1  # How close to max stretch before increasing stiffness
 const BREAK_THRESHOLD = 0.999  # How close to HARD_MAX_STRETCH before breaking
 const GROWTH_CURVE = 0.5  # Less aggressive easing
+const SPAWN_DURATION = 0.5  # Duration of spawn state
+const SPAWN_COLLISION_MASK = 0b111  # Actually collide with everything, but...
+const NORMAL_COLLISION_MASK = 0b111  # Normal collision mask (all layers)
 
 var target: Node3D
 var smoothed_velocity: Vector3
 var growth_timer: float = 0.0
 var is_growing: bool = true
-var spawn_timer: float = 0.5  # Time to use reduced spring force
+var spawn_timer: float = SPAWN_DURATION  # Changed from 0.5 to match SPAWN_DURATION
 var is_dangerous: bool = false
 var recovery_timer: float = 0.0
 var is_recovering: bool = false
@@ -44,10 +47,10 @@ func _ready():
 	material_type = PhysicsConstants.MATERIAL_SEGMENT
 	base_mass = PhysicsConstants.SEGMENT_MASS
 	mass = base_mass
-	pull_reduction = 1.0  # Normal pull force
+	pull_reduction = 1.2  # Slightly easier to pull
 	target_distance = TARGET_DISTANCE  # Use existing constant
-	collision_force_multiplier = 1.0  # Normal collision force
-	spring_stiffness_multiplier = 1.0  # Normal spring forces
+	collision_force_multiplier = 1.2  # Take more impact from collisions
+	spring_stiffness_multiplier = 0.8  # Reduced spring forces
 	
 	drag_coefficient = PhysicsConstants.SEGMENT_DRAG
 	max_speed = PhysicsConstants.SEGMENT_MAX_SPEED
@@ -63,6 +66,10 @@ func _ready():
 	base_emission = Color(0.2, 0.6, 0.3, 1.0)
 	apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
 	apply_physics_scale(INITIAL_SCALE, true)
+	
+	# Initially set up collisions - we'll just ignore them in the collision handler
+	collision_mask = SPAWN_COLLISION_MASK
+	collision_layer = 2  # Always be on physics layer
 
 func init_with_growth(initial_growth: float):
 	growth_timer = GROWTH_DURATION * initial_growth
@@ -134,6 +141,14 @@ func _physics_process(delta):
 			is_growing = false
 			apply_physics_scale(1.0)
 	
+	# Update spawn timer and collision masks
+	if spawn_timer > 0:
+		spawn_timer = max(0.0, spawn_timer - delta)
+		if spawn_timer <= 0:
+			# Enable full collisions when spawn is complete
+			collision_mask = NORMAL_COLLISION_MASK
+			collision_layer = 2  # Physical objects layer
+	
 	# Update spawn timer
 	spawn_timer = max(0.0, spawn_timer - delta)
 	
@@ -164,8 +179,8 @@ func _physics_process(delta):
 				if not is_recovering:
 					recovery_timer = 0.0
 					# Apply break impulse away from excessive stretch
-					apply_impulse(-target_direction * POP_FORCE_OPPOSITE * mass)
-					apply_impulse(Vector3.UP * POP_FORCE * mass)
+					apply_impulse(-target_direction * POP_FORCE_OPPOSITE * mass * randf_range(0, 1))
+					apply_impulse(Vector3.UP * POP_FORCE * mass * randf_range(0, 1))
 				is_recovering = true
 				return  # Skip normal spring forces
 			
@@ -198,24 +213,24 @@ func _physics_process(delta):
 			var desired_pos = target.global_position - target_direction * adjusted_distance
 			var to_desired = desired_pos - global_position
 			
-			# Increase stiffness as we approach max stretch
+			# Increase stiffness as we approach max stretch, but with less intensity
 			var stretch_progress = clamp((stretch_factor - 1.0) / (MAX_STRETCH - 1.0), 0.0, 1.0)
-			var current_stiffness = base_stiffness * (1.0 + stretch_progress * STRETCH_STIFFNESS_SCALE)
+			var current_stiffness = base_stiffness * (1.0 + stretch_progress * (STRETCH_STIFFNESS_SCALE * 0.7))
 			
 			# Store the magnitude of force for debugging
 			last_force = (to_desired * current_stiffness).length()
 			
 			# Calculate and apply spring forces
-			var spring_force = to_desired * current_stiffness
-			var damping_force = -velocity * SPRING_DAMPING
+			var spring_force = to_desired * current_stiffness * spring_stiffness_multiplier
+			var damping_force = -velocity * SPRING_DAMPING * spring_stiffness_multiplier
 			
 			# Get nearby bodies for cluster detection
 			var nearby = collision_handler.get_nearby_bodies(global_position)
 			var cluster_factor = clamp(float(nearby.size()) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
 			
-			# Apply forces with proper mass calculations
+			# Apply stronger force reduction in clusters
 			spring_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
-			damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION * 0.5)
+			damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
 			
 			apply_force(spring_force)
 			apply_force(damping_force)

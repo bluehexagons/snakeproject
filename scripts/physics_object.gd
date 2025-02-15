@@ -198,10 +198,9 @@ func restore_from_save_data(data: Dictionary) -> void:
 			float(data.velocity.z)
 		)
 
-func apply_gravity(delta: float) -> void:
+func apply_gravity(_delta: float) -> void:
 	if position.y > PhysicsConstants.GROUND_LEVEL:
-		# Gravity is a force, but we can optimize by applying it directly as acceleration
-		velocity.y -= PhysicsConstants.GRAVITY * delta
+		apply_force(Vector3.DOWN * mass * PhysicsConstants.GRAVITY)
 	elif position.y < PhysicsConstants.GROUND_LEVEL:
 		position.y = PhysicsConstants.GROUND_LEVEL
 		if velocity.y < 0:

@@ -19,8 +19,8 @@ const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
 const BONUS_SPEED_PER_FEED = 0.2  # Speed increase per food eaten
 const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
-const SEGMENT_SPAWN_OFFSET = 0.5  # Reduced from 1.2 to spawn closer
-const SEGMENT_SPAWN_VELOCITY = 0.95  # Increased from 0.8 for better matching
+const SEGMENT_SPAWN_OFFSET = 0.3  # Reduced from 0.5 to spawn much closer
+const SEGMENT_SPAWN_VELOCITY = 0.98  # Increased from 0.95 for better matching
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
 
 const IDLE_WARNING_START = 1.0  # When to start showing gray
@@ -44,7 +44,7 @@ const DEAD_EMISSION_ENERGY = 0.1
 
 const DIGESTION_DURATION = 0.16  # Time to digest food
 const DIGESTION_FLASH_INTENSITY = 0.3  # Max intensity of digestion flash
-const SEGMENT_SPAWN_PUSH = 20.0  # Force to push back existing segments
+const SEGMENT_SPAWN_PUSH = 15.0  # Reduced from 20.0
 const DIGESTION_PULSE_SCALE = 1.2  # How much to pulse when digesting
 
 var facing_direction: Vector3 = Vector3.FORWARD
@@ -298,21 +298,17 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	if saved_pos != Vector3.ZERO:
 		spawn_pos = saved_pos
 	else:
-		# Use a smaller offset and add a slight random variation to prevent perfect overlap
-		var random_offset = Vector3(
-			randf_range(-0.1, 0.1),
-			0,
-			randf_range(-0.1, 0.1)
-		)
-		var spawn_offset = -facing_direction * (SEGMENT_SPAWN_OFFSET + segment.INITIAL_SCALE)
-		spawn_pos = global_position + spawn_offset + random_offset
-		# Give segment better initial velocity
-		segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY
+			# Simplified spawn position calculation with minimal random variation
+			var random_offset = Vector3(
+				randf_range(-0.05, 0.05),  # Reduced randomness
+				0,
+				randf_range(-0.05, 0.05)
+			)
+			spawn_pos = global_position + (-facing_direction * SEGMENT_SPAWN_OFFSET) + random_offset
+			segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY
 	
-	# Initialize segment with proper scale first
+	# Initialize segment
 	segment.init_with_growth(growth_state)
-	
-	# Then set position and chain properties
 	segment.global_position = spawn_pos
 	segment.physics_pos = spawn_pos
 	segment.visual_pos = spawn_pos
@@ -320,7 +316,8 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	if segments.is_empty():
 		segment.target = self
 	else:
-		segments[0].apply_impulse(-facing_direction * SEGMENT_PUSHBACK)
+		# Reduced push force on existing segments
+		segments[0].apply_impulse(-facing_direction * SEGMENT_SPAWN_PUSH * 0.7)
 		segment.target = self
 		segments[0].target = segment
 	
