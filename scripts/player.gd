@@ -72,6 +72,16 @@ var visual_basis: Basis
 
 func _ready():
 	super()
+	base_mass = PhysicsConstants.PLAYER_MASS
+	mass = base_mass
+	minimum_speed = PhysicsConstants.PLAYER_MIN_SPEED
+	pull_reduction = PhysicsConstants.PLAYER_PULL_REDUCTION
+	target_distance = PhysicsConstants.PLAYER_TARGET_DISTANCE
+	collision_force_multiplier = 0.8  # Player takes less collision damage
+	spring_stiffness_multiplier = 1.2  # Player has stronger spring forces
+	
+	drag_coefficient = PhysicsConstants.PLAYER_DRAG
+	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
 	mass = 0.5
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	static_friction = PhysicsConstants.PLAYER_STATIC_FRICTION

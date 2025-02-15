@@ -4,8 +4,7 @@ class_name Segment
 
 const SPRING_STIFFNESS = 730.0
 const SPRING_DAMPING = 40.0
-const PLAYER_TARGET_DISTANCE = 0.9
-const TARGET_DISTANCE = 0.8
+const TARGET_DISTANCE = 1.0
 const GROWTH_DURATION = 0.33
 const INITIAL_SCALE = 0.2
 const FOLLOW_STRENGTH = 0.8  # How strongly to match target's velocity
@@ -15,16 +14,16 @@ const SAFE_COLOR = Color(0.3, 0.8, 1.0, 0.9)
 const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)
 const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
-const PULL_START_DISTANCE = 1.1  # Distance at which pull force starts
-const PULL_MAX_DISTANCE = 3.0    # Distance at which pull force peaks
-const PULL_FORCE = 300.0        # Reduced base pull force
+const PULL_START_DISTANCE = 1.6  # Distance at which pull force starts
+const PULL_MAX_DISTANCE = 2.0    # Distance at which pull force peaks
+const PULL_FORCE = 1730.0        # Reduced base pull force
 const PULL_VELOCITY_MATCH = 0.9  # How strongly to match target's velocity when pulling
-const COLLISION_BREAK_FORCE = 1500.0  # Force required during collision to break
+const COLLISION_BREAK_FORCE = 2500.0  # Force required during collision to break
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
-const RECOVERY_EASE_POWER = 1.5       # How quickly targeting recovers (higher = more sudden)
-const PLAYER_PULL_REDUCTION = 0.25  # Reduce pull force when targeting player
+const RECOVERY_EASE_POWER = 3.0       # How quickly targeting recovers (higher = more sudden)
 const CLUSTER_FORCE_REDUCTION = 0.7  # Reduce forces when in tight clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
+const POP_FORCE = 1.0
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -41,7 +40,14 @@ var has_collision: bool = false
 
 func _ready():
 	super()
-	mass = 1.0
+	base_mass = PhysicsConstants.SEGMENT_MASS
+	mass = base_mass
+	minimum_speed = PhysicsConstants.SEGMENT_MIN_SPEED
+	pull_reduction = 1.0  # Normal pull force
+	target_distance = TARGET_DISTANCE  # Use existing constant
+	collision_force_multiplier = 1.0  # Normal collision force
+	spring_stiffness_multiplier = 1.0  # Normal spring forces
+	
 	drag_coefficient = PhysicsConstants.SEGMENT_DRAG
 	max_speed = PhysicsConstants.SEGMENT_MAX_SPEED
 	static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION
@@ -149,7 +155,6 @@ func _physics_process(delta):
 
 	if is_instance_valid(target):
 		# Calculate target distance based on current scales
-		var target_distance = TARGET_DISTANCE if target is Segment else PLAYER_TARGET_DISTANCE
 		var adjusted_distance = target_distance * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
 		
 		var to_target = target.global_position - global_position
@@ -168,7 +173,7 @@ func _physics_process(delta):
 					recovery_timer = 0.0
 					# Apply break impulse
 					apply_impulse(last_collision_normal * 50.0 * mass)
-					apply_impulse(Vector3.UP * last_collision_normal.length() * mass)
+					apply_impulse(Vector3.UP * POP_FORCE * mass)
 				is_recovering = true
 			else:
 				# Calculate mass-based spring forces
@@ -190,7 +195,7 @@ func _physics_process(delta):
 				apply_force(spring_force)
 				apply_force(damping_force)
 				
-				if !is_recovering and current_distance > PULL_START_DISTANCE:
+				if current_distance > PULL_START_DISTANCE:
 					var pull_factor = clamp(
 						(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
 						0.0, 1.0
@@ -198,17 +203,13 @@ func _physics_process(delta):
 					
 					# Calculate pull force based on masses
 					var base_pull_force = PULL_FORCE * pull_factor
-					if target.is_in_group("player"):
-						base_pull_force *= PLAYER_PULL_REDUCTION
 					
 					var pull_force = target_direction * base_pull_force
 					apply_force(pull_force)
 					
 					if target is PhysicsObject:
 						var target_mass_ratio = target.mass / (mass + target.mass)
-						var opposite_force = -pull_force * target_mass_ratio
-						if target.is_in_group("player"):
-							opposite_force *= PLAYER_PULL_REDUCTION
+						var opposite_force = -pull_force * target_mass_ratio * target.pull_reduction
 						target.apply_force(opposite_force)
 
 	has_collision = false  # Reset collision flag

@@ -37,6 +37,8 @@ const SEGMENT_ROLLING_FRICTION = 0.01
 const PLAYER_STATIC_FRICTION = 0.01
 const PLAYER_DYNAMIC_FRICTION = 0.005
 const PLAYER_ROLLING_FRICTION = 0.002
+const PLAYER_PULL_REDUCTION = 0.75  # Reduce pull force when targeting player
+const PLAYER_TARGET_DISTANCE = 1.1
 
 # Friction breakaway thresholds
 const STATIC_BREAKAWAY_THRESHOLD = 0.1

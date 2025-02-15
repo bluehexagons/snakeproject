@@ -36,6 +36,14 @@ var is_static: bool = false
 # Add property for minimum speed
 var min_speed_threshold: float = PhysicsConstants.BASE_MIN_SPEED_THRESHOLD
 
+# Physics properties
+var minimum_speed: float
+var pull_reduction: float = 1.0  # Default to no reduction
+var target_distance: float = 1.0  # Default following distance
+var collision_force_multiplier: float = 1.0  # Default collision force multiplier
+var spring_stiffness_multiplier: float = 1.0  # Default spring force multiplier
+var base_mass: float = 1.0
+
 # Physics state
 var accumulated_force: Vector3 = Vector3.ZERO
 var accumulated_impulse: Vector3 = Vector3.ZERO
@@ -50,6 +58,10 @@ func _ready():
 	visual_pos = global_position
 	if mesh_instance:
 		mesh_instance.global_position = global_position
+
+	# Set base properties with reasonable defaults
+	mass = base_mass
+	minimum_speed = PhysicsConstants.BASE_MIN_SPEED_THRESHOLD * sqrt(mass) * dynamic_friction
 
 	# Set appropriate minimum speed threshold based on object type
 	if self is Player:
@@ -157,7 +169,7 @@ func apply_gravity(delta: float) -> void:
 func apply_drag(_delta: float) -> void:
 	var speed_squared = velocity.length_squared()
 	
-	if speed_squared < min_speed_threshold * min_speed_threshold:
+	if speed_squared < minimum_speed * minimum_speed:
 		if speed_squared < PhysicsConstants.STATIC_BREAKAWAY_THRESHOLD:
 			velocity = Vector3.ZERO
 			is_static = true

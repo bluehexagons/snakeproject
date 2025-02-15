@@ -20,7 +20,14 @@ var spawn_start_pos: Vector3
 
 func _ready():
 	super()
-	mass = 8.0
+	base_mass = PhysicsConstants.ROCK_MASS
+	mass = base_mass
+	minimum_speed = PhysicsConstants.ROCK_MIN_SPEED
+	pull_reduction = 2.0  # Rocks are harder to pull
+	target_distance = 1.5  # Rocks maintain more distance
+	collision_force_multiplier = 1.5  # Rocks deal more collision damage
+	spring_stiffness_multiplier = 0.7  # Rocks have weaker spring forces
+	
 	drag_coefficient = PhysicsConstants.ROCK_DRAG
 	max_speed = PhysicsConstants.ROCK_MAX_SPEED
 	static_friction = PhysicsConstants.ROCK_STATIC_FRICTION
