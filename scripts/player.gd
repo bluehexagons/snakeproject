@@ -9,8 +9,8 @@ const ACCELERATION = 100.0  # Increased since we're using forces now
 const CONTROL_DRAG = 0.9
 const DEAD_CONTROL_DRAG = 1.0
 const ROTATION_SPEED = 15.0
-const LUNGE_FORCE = 20.0
-const SEGMENT_PUSHBACK = 60.0
+const LUNGE_FORCE = 10.0
+const SEGMENT_PUSHBACK = 3.0
 const VELOCITY_SMOOTHING = 0.15
 const SPEED_BOOST_BASE = 1.0  # Rename IDLE_SPEED to SPEED_BOOST_BASE
 const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
@@ -19,9 +19,8 @@ const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
 const BONUS_SPEED_PER_FEED = 0.2  # Speed increase per food eaten
 const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
-const SEGMENT_SPAWN_OFFSET = 0.2  # Reduced from 1.2 to spawn closer
-const SEGMENT_SPAWN_VELOCITY = 0.8  # Increased from 0.8 for better matching
-const SEGMENT_LUNGE_FORCE = 0.2  # New constant for forward momentum
+const SEGMENT_SPAWN_OFFSET = 0.5  # Reduced from 1.2 to spawn closer
+const SEGMENT_SPAWN_VELOCITY = 0.95  # Increased from 0.8 for better matching
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
 
 const IDLE_WARNING_START = 1.0  # When to start showing gray
@@ -49,7 +48,7 @@ const SEGMENT_SPAWN_PUSH = 20.0  # Force to push back existing segments
 const DIGESTION_PULSE_SCALE = 1.2  # How much to pulse when digesting
 
 var facing_direction: Vector3 = Vector3.FORWARD
-var segments: Array[CharacterBody3D] = []
+var segments: Array[Segment] = []
 var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
 var current_scale: float = 1.0  # Add this for consistent scaling behavior
@@ -245,7 +244,7 @@ func _physics_process(delta):
 					)
 					
 					# Add extra momentum when collecting food
-					velocity += facing_direction * LUNGE_FORCE
+					apply_impulse(facing_direction * LUNGE_FORCE)
 
 					# Find game manager and notify it
 					var game_manager = get_tree().get_first_node_in_group("game_manager")
@@ -305,7 +304,7 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 		var spawn_offset = -facing_direction * (SEGMENT_SPAWN_OFFSET + segment.INITIAL_SCALE)
 		spawn_pos = global_position + spawn_offset + random_offset
 		# Give segment better initial velocity
-		segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY + facing_direction * SEGMENT_LUNGE_FORCE
+		segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY
 	
 	segment.global_position = spawn_pos
 	segment.physics_pos = spawn_pos
@@ -318,6 +317,7 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 		# First segment follows player
 		segment.target = self
 	else:
+		segments[0].apply_impulse(-facing_direction * SEGMENT_PUSHBACK)
 		# New segment follows player
 		segment.target = self
 		# Previous first segment now follows new segment
@@ -326,8 +326,6 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	# Add new segment at beginning of array
 	segments.push_front(segment)
 	
-	# Add forward impulse to player to maintain momentum
-	velocity += facing_direction * LUNGE_FORCE
 	return segment
 
 func get_segment_positions() -> Array:
