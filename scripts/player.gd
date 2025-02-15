@@ -47,6 +47,10 @@ const DIGESTION_FLASH_INTENSITY = 0.3  # Max intensity of digestion flash
 const SEGMENT_SPAWN_PUSH = 20.0  # Force to push back existing segments
 const DIGESTION_PULSE_SCALE = 1.2  # How much to pulse when digesting
 
+const UNKILLABLE_COLOR = Color(0.7, 0.9, 1.0)  # Light blue tint
+const UNKILLABLE_EMISSION = Color(0.4, 0.6, 1.0)  # Brighter blue emission
+const UNKILLABLE_EMISSION_ENERGY = 1.2
+
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[Segment] = []
 var target_velocity: Vector3 = Vector3.ZERO
@@ -62,7 +66,7 @@ var dead_time: float = 0.0
 var is_digesting: bool = false
 var digestion_timer: float = 0.0
 var digestion_flash_material: StandardMaterial3D
-var unkillable: bool = true
+var unkillable: bool = false
 
 var physics_basis: Basis
 var visual_basis: Basis
@@ -116,6 +120,12 @@ func _physics_process(delta):
 	var target_base_color = BASE_COLOR
 	var target_emission = BASE_EMISSION
 	var target_emission_energy = BASE_EMISSION_ENERGY
+
+	# Update visuals based on unkillable state
+	if unkillable:
+		target_base_color = UNKILLABLE_COLOR
+		target_emission = UNKILLABLE_EMISSION
+		target_emission_energy = UNKILLABLE_EMISSION_ENERGY
 
 	var stuck_time = 0.0
 
@@ -313,6 +323,10 @@ func _process(_delta):
 	mesh_instance.global_position = visual_pos
 	mesh_instance.basis = visual_basis
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_unkillable"):
+		unkillable = !unkillable
+
 func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> CharacterBody3D:
 	if is_dead:
 		return
@@ -436,7 +450,10 @@ func lose():
 		game_manager.game_over()
 
 func die():
-	if is_dead or unkillable:
+	if unkillable:  # Early return if unkillable
+		return
+	
+	if is_dead:
 		return
 	
 	is_dead = true

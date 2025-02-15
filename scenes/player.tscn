@@ -15,7 +15,6 @@ emission_energy_multiplier = 0.8
 material = SubResource("StandardMaterial3D_1")
 radius = 0.4
 height = 0.8
-is_hemisphere = true
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_1"]
 radius = 0.4
@@ -25,7 +24,6 @@ collision_mask = 3
 script = ExtResource("1_script")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
 mesh = SubResource("SphereMesh_1")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

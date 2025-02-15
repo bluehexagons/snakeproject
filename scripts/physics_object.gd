@@ -199,10 +199,12 @@ func restore_from_save_data(data: Dictionary) -> void:
 		)
 
 func apply_gravity(_delta: float) -> void:
-	if position.y > PhysicsConstants.GROUND_LEVEL:
+	# Adjust ground check to account for sphere radius
+	var collision_radius = 0.4  # This should match your collision shape radius
+	if position.y > PhysicsConstants.GROUND_LEVEL + collision_radius:
 		apply_force(Vector3.DOWN * mass * PhysicsConstants.GRAVITY)
-	elif position.y < PhysicsConstants.GROUND_LEVEL:
-		position.y = PhysicsConstants.GROUND_LEVEL
+	elif position.y < PhysicsConstants.GROUND_LEVEL + collision_radius:
+		position.y = PhysicsConstants.GROUND_LEVEL + collision_radius
 		if velocity.y < 0:
 			# Convert impact to an impulse
 			var impulse = Vector3.UP * (-velocity.y * mass * (1.0 + PhysicsConstants.BOUNCE_DAMPENING))
