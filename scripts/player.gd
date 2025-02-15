@@ -19,8 +19,8 @@ const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
 const BONUS_SPEED_PER_FEED = 0.2  # Speed increase per food eaten
 const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
-const SEGMENT_SPAWN_OFFSET = 0.3  # Reduced from 0.5 to spawn much closer
-const SEGMENT_SPAWN_VELOCITY = 0.98  # Increased from 0.95 for better matching
+const SEGMENT_SPAWN_OFFSET = 0.5  # Reduced from 1.2 to spawn closer
+const SEGMENT_SPAWN_VELOCITY = 0.95  # Increased from 0.8 for better matching
 const STUCK_TIMEOUT = 3.0  # Time in seconds before game over when stuck
 
 const IDLE_WARNING_START = 1.0  # When to start showing gray
@@ -44,7 +44,7 @@ const DEAD_EMISSION_ENERGY = 0.1
 
 const DIGESTION_DURATION = 0.16  # Time to digest food
 const DIGESTION_FLASH_INTENSITY = 0.3  # Max intensity of digestion flash
-const SEGMENT_SPAWN_PUSH = 15.0  # Reduced from 20.0
+const SEGMENT_SPAWN_PUSH = 20.0  # Force to push back existing segments
 const DIGESTION_PULSE_SCALE = 1.2  # How much to pulse when digesting
 
 var facing_direction: Vector3 = Vector3.FORWARD
@@ -182,22 +182,49 @@ func _physics_process(delta):
 	current_color = current_color.lerp(state_color, delta * COLOR_CHANGE_SPEED)
 	apply_color(current_color, state_emission, state_emission_energy)
 	
-	# Now handle physics and potential impacts
-
 	var input_dir = Vector3.ZERO
-	input_dir.x = Input.get_axis("move_left", "move_right")
-	input_dir.z = Input.get_axis("move_up", "move_down")
-
+	var raw_input = Vector2(
+		Input.get_axis("move_left", "move_right"),
+		Input.get_axis("move_up", "move_down")
+	)
+	
+	# Get camera basis for input transformation
+	var camera = get_viewport().get_camera_3d()
+	if camera and raw_input != Vector2.ZERO:
+		# Get camera's forward and right vectors projected onto XZ plane
+		var cam_forward = -camera.global_transform.basis.z
+		var cam_right = camera.global_transform.basis.x
+		
+		# Project vectors to ground plane
+		cam_forward.y = 0
+		cam_right.y = 0
+		
+		# Normalize after projection
+		if cam_forward.length_squared() > 0.001:
+			cam_forward = cam_forward.normalized()
+		else:
+			cam_forward = Vector3.FORWARD
+		
+		if cam_right.length_squared() > 0.001:
+			cam_right = cam_right.normalized()
+		else:
+			cam_right = Vector3.RIGHT
+		
+		# Combine movement relative to camera orientation
+		input_dir = (cam_right * raw_input.x + cam_forward * -raw_input.y)
+		
+		# Ensure normalized movement
+		if input_dir.length_squared() > 1.0:
+			input_dir = input_dir.normalized()
+	
 	if is_dead:
 		dead_time += delta
 	
 	if not has_lost and input_dir != Vector3.ZERO:
 		has_started_moving = true
-		input_dir = input_dir.normalized()
 		var drag = DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
 		velocity += (input_dir * (current_speed_boost / max(pow(dead_time * 0.5, 1.5), 1.0) if is_dead else ACCELERATION + (current_speed_boost * 10.0)) * delta)
 		velocity *= drag
-	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
 	
@@ -298,17 +325,21 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	if saved_pos != Vector3.ZERO:
 		spawn_pos = saved_pos
 	else:
-			# Simplified spawn position calculation with minimal random variation
-			var random_offset = Vector3(
-				randf_range(-0.05, 0.05),  # Reduced randomness
-				0,
-				randf_range(-0.05, 0.05)
-			)
-			spawn_pos = global_position + (-facing_direction * SEGMENT_SPAWN_OFFSET) + random_offset
-			segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY
+		# Use a smaller offset and add a slight random variation to prevent perfect overlap
+		var random_offset = Vector3(
+			randf_range(-0.1, 0.1),
+			0,
+			randf_range(-0.1, 0.1)
+		)
+		var spawn_offset = -facing_direction * (SEGMENT_SPAWN_OFFSET + segment.INITIAL_SCALE)
+		spawn_pos = global_position + spawn_offset + random_offset
+		# Give segment better initial velocity
+		segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY
 	
-	# Initialize segment
+	# Initialize segment with proper scale first
 	segment.init_with_growth(growth_state)
+	
+	# Then set position and chain properties
 	segment.global_position = spawn_pos
 	segment.physics_pos = spawn_pos
 	segment.visual_pos = spawn_pos
@@ -316,8 +347,7 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	if segments.is_empty():
 		segment.target = self
 	else:
-		# Reduced push force on existing segments
-		segments[0].apply_impulse(-facing_direction * SEGMENT_SPAWN_PUSH * 0.7)
+		segments[0].apply_impulse(-facing_direction * SEGMENT_PUSHBACK)
 		segment.target = self
 		segments[0].target = segment
 	

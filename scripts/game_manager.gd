@@ -4,21 +4,7 @@ const PLAYER_SCENE = preload("res://scenes/player.tscn")
 const FOOD_SCENE = preload("res://scenes/food.tscn")
 const ROCK_SCENE = preload("res://scenes/rock.tscn")
 const SPAWN_AREA_SIZE = Vector2(8, 8)  # Reduced from previous size to account for barriers
-const BASE_CAMERA_SIZE = 15.0  # This is our reference size for 1:1 aspect ratio
-const CAMERA_HEIGHT = 10.0
-const CAMERA_FOLLOW_SPEED = 5.0
-const CAMERA_TILT_ANGLE = 15.0  # Maximum tilt in degrees
 
-const INITIAL_CAMERA_HEIGHT = 20.0  # Starting height
-const FINAL_CAMERA_HEIGHT = 10.0    # Height to zoom to
-const INITIAL_CAMERA_SIZE = 30.0    # Starting orthographic size
-const FINAL_CAMERA_SIZE = 15.0      # Size to zoom to
-const ZOOM_DURATION = 1.5           # How long the zoom takes
-const ZOOM_DELAY = 0.5              # Wait before starting zoom
-
-const CAMERA_HORIZONTAL_SMOOTHING = 3.0  # Lower = smoother horizontal movement
-const CAMERA_VERTICAL_SMOOTHING = 2.0    # Separate smoothing for height changes
-const CAMERA_PREDICTION_STRENGTH = 0.3   # How much to look ahead based on velocity
 const INITIAL_ROCKS = 10  # Number of rocks to spawn at start
 const ROCKS_SPAWN_INTERVAL = 2  # Spawn a new rock every X food collections
 const DANGER_START_SCORE = 50  # Score at which rocks start becoming dangerous
@@ -28,11 +14,11 @@ const MAX_DANGER_PROBABILITY = 0.8  # Maximum probability of a rock being danger
 const SAFE_SPAWN_DISTANCE = 4.0  # Minimum distance from player for dangerous rocks
 const SAFE_FORWARD_ANGLE = 60.0  # Angle in degrees to check in front of player
 
-const CAMERA_OFFSET = Vector3(0, 0, 0)  # Offset from target to maintain perspective
-
 const MIN_FOOD_COUNT = 1  # Minimum number of food items in the world
 const MAX_FOOD_COUNT = 5  # Maximum number of food items in the world
 const MIN_FOOD_DISTANCE = 3.0  # Minimum distance between food items
+
+var is_isometric: bool = false
 
 var target_camera_pos: Vector3
 var target_camera_rot: Vector3
@@ -40,9 +26,12 @@ var target_camera_rot: Vector3
 # Camera state
 var zoom_timer: float = 0.0
 var is_zooming: bool = false
-var camera_height: float = INITIAL_CAMERA_HEIGHT
-var camera_size: float = INITIAL_CAMERA_SIZE
-var camera_velocity: Vector3 = Vector3.ZERO
+
+var previous_player_direction: Vector3 = Vector3.FORWARD
+var camera_transition: float = 0.0  # 0 = top-down, 1 = third-person
+
+var look_target_pos: Vector3  # Keep track of where we're looking
+var predicted_direction: Vector3 = Vector3.FORWARD  # Smoothed prediction vector
 
 # UI state
 var is_paused: bool = false # In this state, all game-related features are paused
@@ -56,6 +45,9 @@ var score: int = 0
 @onready var ui = $UI
 @onready var gameplay_container = $GameplayContainer
 
+# Add toggle state tracking
+var was_toggle_pressed: bool = false
+
 func _ready():
 	if GameState.has_saved_game():
 		load_game_state()
@@ -67,58 +59,18 @@ func _ready():
 	get_tree().root.size_changed.connect(_on_window_resize)
 	_on_window_resize()
 	update_score(0)
-	target_camera_pos = camera.position
-	target_camera_rot = camera.rotation_degrees
-	
-	camera.position.y = INITIAL_CAMERA_HEIGHT
-	camera.size = INITIAL_CAMERA_SIZE
-	target_camera_pos = camera.position
-	target_camera_rot = camera.rotation_degrees
-	
-	await get_tree().create_timer(ZOOM_DELAY).timeout
-	is_zooming = true
 
-func _unhandled_input(event):
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_camera_angle"):
+		camera.toggle_view()
 	if event.is_action_pressed("ui_cancel"):  # ESC key
 		toggle_pause()
 	elif event.is_action_pressed("gameplay_pause"):
 		if !is_paused:  # Only toggle gameplay pause when menu isn't open
 			toggle_gameplay_pause()
 
-func _process(delta):
-	if is_zooming:
-		zoom_timer = min(zoom_timer + delta, ZOOM_DURATION)
-		var t = ease(zoom_timer / ZOOM_DURATION, 0.5)  # Smooth easing
-		
-		camera_height = lerp(INITIAL_CAMERA_HEIGHT, FINAL_CAMERA_HEIGHT, t)
-		camera_size = lerp(INITIAL_CAMERA_SIZE, FINAL_CAMERA_SIZE, t)
-		
-		if zoom_timer >= ZOOM_DURATION:
-			is_zooming = false
-	
-	var player = gameplay_container.get_node_or_null("Player")
-	if player:
-		# Calculate predicted position based on player velocity
-		var prediction = Vector3.ZERO
-		if player.velocity.length() > 0.1:
-			prediction = player.velocity.normalized() * CAMERA_PREDICTION_STRENGTH
-		
-		# Update target position to follow player with prediction and offset
-		var target_pos = player.position + prediction
-		target_camera_pos = Vector3(
-			target_pos.x + CAMERA_OFFSET.x,
-			camera_height,
-			target_pos.z + CAMERA_OFFSET.z
-		)
-		
-		# Update camera position with smoothing
-		var new_pos = camera.position
-		new_pos.x = lerp(new_pos.x, target_camera_pos.x, delta * CAMERA_HORIZONTAL_SMOOTHING)
-		new_pos.z = lerp(new_pos.z, target_camera_pos.z, delta * CAMERA_HORIZONTAL_SMOOTHING)
-		new_pos.y = lerp(new_pos.y, target_camera_pos.y, delta * CAMERA_VERTICAL_SMOOTHING)
-		
-		camera.position = new_pos
-		camera.size = camera_size
+func _process(_delta: float) -> void:
+	pass
 
 func toggle_gameplay_pause():
 	if is_game_over:
@@ -281,15 +233,7 @@ func on_food_collected():
 		spawn_food()
 
 func _on_window_resize():
-	var window_size = DisplayServer.window_get_size()
-	var aspect_ratio = float(window_size.x) / float(window_size.y)
-	
-	# If window is wider than tall, maintain vertical size
-	if aspect_ratio > 1.0:
-		camera.size = camera_size
-	# If window is taller than wide, maintain horizontal size
-	else:
-		camera.size = camera_size / aspect_ratio
+	pass
 
 func update_score(points: int):
 	score += points
