@@ -69,6 +69,7 @@ var visual_basis: Basis
 
 func _ready():
 	super()
+	add_to_group("player")
 	material_type = PhysicsConstants.MATERIAL_PLAYER
 	base_mass = PhysicsConstants.PLAYER_MASS
 	mass = base_mass

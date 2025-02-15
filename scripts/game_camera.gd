@@ -10,9 +10,10 @@ const FINAL_SIZE = 15.0
 const ZOOM_DURATION = 1.5
 const ZOOM_DELAY = 0.25
 
-const TRANSITION_SPEED = 2.0
-const SMOOTHING = 5.0
-const ROTATION_SMOOTHING = 3.0
+const TRANSITION_SPEED = 5.0  # Increased for snappier transitions
+const POSITION_SMOOTHING = 4.0
+const ROTATION_SMOOTHING = 4.0
+const TOP_DOWN_ROTATION_SPEED = 6.0  # Increased for faster top-down return
 const LAG_SPEED = 2.5
 const PREDICTION_STRENGTH = 0.3
 
@@ -50,7 +51,7 @@ func _process(delta: float) -> void:
 	if not player:
 		return
 	
-	# Smooth camera mode transition
+	# Simpler transition without smoothstep
 	var target_transition = float(is_third_person)
 	camera_transition = lerp(camera_transition, target_transition, delta * TRANSITION_SPEED)
 	
@@ -60,23 +61,17 @@ func _process(delta: float) -> void:
 	
 	var target_pos = player.position
 	
-	# Calculate camera position
 	if camera_transition < 0.01:
-		# Top-down view
-		var target_camera_pos = Vector3(
-			target_pos.x,
-			TOP_DOWN_HEIGHT,
-			target_pos.z
-		)
-		position = position.lerp(target_camera_pos, delta * SMOOTHING)
+		# Pure top-down view
+		var top_down_pos = Vector3(target_pos.x, TOP_DOWN_HEIGHT, target_pos.z)
+		position = position.lerp(top_down_pos, delta * POSITION_SMOOTHING)
 		
-		# Maintain top-down rotation
-		var current_angle = Vector3(deg_to_rad(-90), 0, 0)
-		rotation = rotation.slerp(current_angle, delta * ROTATION_SMOOTHING)
+		var target_basis = Basis.from_euler(Vector3(deg_to_rad(-90), 0, 0))
+		global_transform.basis = global_transform.basis.slerp(target_basis, delta * TOP_DOWN_ROTATION_SPEED)
 	else:
 		# Third-person view
 		var height = lerp(TOP_DOWN_HEIGHT, THIRD_PERSON_HEIGHT, camera_transition)
-		var behind = -predicted_direction * THIRD_PERSON_DISTANCE
+		var behind = -predicted_direction * (THIRD_PERSON_DISTANCE * camera_transition)
 		
 		var target_camera_pos = Vector3(
 			target_pos.x + behind.x,
@@ -84,14 +79,13 @@ func _process(delta: float) -> void:
 			target_pos.z + behind.z
 		)
 		
-		position = position.lerp(target_camera_pos, delta * SMOOTHING)
+		position = position.lerp(target_camera_pos, delta * POSITION_SMOOTHING)
 		
 		# Look at point ahead of player
-		var look_target = target_pos + predicted_direction * LOOK_AHEAD_DISTANCE
-		look_target.y += 1.0  # Look slightly above ground
+		var look_ahead = target_pos + (predicted_direction * LOOK_AHEAD_DISTANCE)
+		look_ahead.y += 1.0  # Fixed height offset
 		
-		# Use looking_at for more stable rotation
-		var desired_transform = Transform3D().looking_at(look_target - position, Vector3.UP)
+		var desired_transform = Transform3D().looking_at(look_ahead - position, Vector3.UP)
 		global_transform = global_transform.interpolate_with(desired_transform, delta * ROTATION_SMOOTHING)
 
 func toggle_view() -> void:
