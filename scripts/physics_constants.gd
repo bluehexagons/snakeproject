@@ -1,22 +1,25 @@
 extends Node
 
-const GRAVITY = 20.0
+const GRAVITY = 20.0  # Remains the same as it's an acceleration
 const GROUND_LEVEL = 0.0
 const BOUNCE_DAMPENING = 0.5
 
-# Common physics constants
-const BASE_DRAG_COEFFICIENT = 0.6
-const MIN_SPEED_THRESHOLD = 0.1
-const MAX_SPEED = 40.0
+# Mass constants (in kg)
+const PLAYER_MASS = 0.5
+const ROCK_MASS = 8.0
+const SEGMENT_MASS = 1.0
 
-# Object-specific constants
-const PLAYER_DRAG = 0.8
-const ROCK_DRAG = 0.2
-const SEGMENT_DRAG = 0.4
+# Drag coefficients (adjusted for mass-based system)
+const BASE_DRAG_COEFFICIENT = 0.3
+const PLAYER_DRAG = 0.4
+const ROCK_DRAG = 0.1
+const SEGMENT_DRAG = 0.2
 
-const PLAYER_MAX_SPEED = 100.0
-const ROCK_MAX_SPEED = 30.0
-const SEGMENT_MAX_SPEED = 40.0
+# Speed limits (now in m/s)
+const PLAYER_MAX_SPEED = 30.0
+const ROCK_MAX_SPEED = 15.0
+const SEGMENT_MAX_SPEED = 20.0
+const MAX_SPEED = 30.0
 
 # Friction constants
 const BASE_STATIC_FRICTION = 0.02
@@ -38,3 +41,9 @@ const PLAYER_ROLLING_FRICTION = 0.002
 # Friction breakaway thresholds
 const STATIC_BREAKAWAY_THRESHOLD = 0.1
 const ROLLING_THRESHOLD = 0.5
+
+# Minimum speed thresholds (calculated based on mass and friction)
+const BASE_MIN_SPEED_THRESHOLD = 0.1
+const PLAYER_MIN_SPEED = BASE_MIN_SPEED_THRESHOLD * sqrt(PLAYER_MASS) * PLAYER_DYNAMIC_FRICTION
+const ROCK_MIN_SPEED = BASE_MIN_SPEED_THRESHOLD * sqrt(ROCK_MASS) * ROCK_DYNAMIC_FRICTION
+const SEGMENT_MIN_SPEED = BASE_MIN_SPEED_THRESHOLD * sqrt(SEGMENT_MASS) * SEGMENT_DYNAMIC_FRICTION

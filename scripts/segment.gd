@@ -144,8 +144,7 @@ func _physics_process(delta):
 	# Calculate spring force with spawn reduction
 	var spring_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
 	var current_stiffness = SPRING_STIFFNESS * spring_multiplier
-	var spring_force = Vector3.ZERO
-	var damping_force = Vector3.ZERO
+	
 	var collision_handler = get_node("/root/CollisionHandler")
 
 	if is_instance_valid(target):
@@ -157,7 +156,6 @@ func _physics_process(delta):
 		var current_distance = to_target.length()
 		
 		if current_distance > 0:
-			# Calculate forces but only apply if not in recovery or gradually during recovery
 			var target_direction = to_target.normalized()
 			var desired_pos = target.global_position - target_direction * adjusted_distance
 			var to_desired = desired_pos - global_position
@@ -165,68 +163,54 @@ func _physics_process(delta):
 			# Store the magnitude of force for break detection
 			last_force = (to_desired * current_stiffness).length()
 			
-			 # Only break if we're colliding AND force is high enough
 			if has_collision and last_force > COLLISION_BREAK_FORCE:
 				if not is_recovering:
 					recovery_timer = 0.0
-					# Add velocity along collision normal instead of toward target
-					velocity += last_collision_normal * 50.0
-					velocity += Vector3.UP * last_collision_normal.length()
+					# Apply break impulse
+					apply_impulse(last_collision_normal * 50.0 * mass)
+					apply_impulse(Vector3.UP * last_collision_normal.length() * mass)
 				is_recovering = true
-
-				# Add some velocity opposite the direction we were being pulled
 			else:
-				# Calculate normal spring forces
+				# Calculate mass-based spring forces
 				var force_multiplier = 1.0
 				if is_recovering:
-					# Gradually restore targeting force
 					force_multiplier = ease(recovery_timer / RECOVERY_DURATION, RECOVERY_EASE_POWER)
 				
-				spring_force = to_desired * current_stiffness * force_multiplier * delta
-				damping_force = -velocity * SPRING_DAMPING * delta
+				var spring_force = to_desired * current_stiffness * force_multiplier
+				var damping_force = -velocity * SPRING_DAMPING
 				
-				 # Get nearby bodies for cluster detection
+				# Get nearby bodies for cluster detection
 				var nearby = collision_handler.get_nearby_bodies(global_position)
-				var nearby_count = nearby.size()
+				var cluster_factor = clamp(float(nearby.size()) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
 				
-				# Calculate cluster factor
-				var cluster_factor = clamp(float(nearby_count) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
-				
-				# Reduce spring forces in crowded areas
+				# Apply forces with proper mass calculations
 				spring_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
 				damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION * 0.5)
 				
-				# Apply forces
-				velocity += spring_force + damping_force
+				apply_force(spring_force)
+				apply_force(damping_force)
 				
-				# Only apply pull forces if not recovering
 				if !is_recovering and current_distance > PULL_START_DISTANCE:
 					var pull_factor = clamp(
 						(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
 						0.0, 1.0
-					)
-					var pull_strength = PULL_FORCE * pull_factor * delta
+						)
 					
-					 # Reduce pull force when targeting player
+					# Calculate pull force based on masses
+					var base_pull_force = PULL_FORCE * pull_factor
 					if target.is_in_group("player"):
-						pull_strength *= PLAYER_PULL_REDUCTION
+						base_pull_force *= PLAYER_PULL_REDUCTION
 					
-					# Apply opposite forces to both objects
-					var pull_force = target_direction * pull_strength
-					velocity += pull_force  # Pull this segment toward target
-					if target is PhysicsObject:  # Only apply force if target can receive it
-						target.velocity -= pull_force * (1.0 if not target.is_in_group("player") else PLAYER_PULL_REDUCTION) / pow(current_distance, 2.0)
-						
-						# Match velocities to reduce oscillation
-						var match_strength = PULL_VELOCITY_MATCH * pull_factor * delta
+					var pull_force = target_direction * base_pull_force
+					apply_force(pull_force)
+					
+					if target is PhysicsObject:
+						var target_mass_ratio = target.mass / (mass + target.mass)
+						var opposite_force = -pull_force * target_mass_ratio
 						if target.is_in_group("player"):
-							# When targeting player, match player's velocity more strongly
-							velocity = velocity.lerp(target.velocity, match_strength * 1.5)
-						else:
-							var avg_velocity = (velocity + target.velocity) * 0.5
-							velocity = velocity.lerp(avg_velocity, match_strength)
-							target.velocity = target.velocity.lerp(avg_velocity, match_strength)
-	
+							opposite_force *= PLAYER_PULL_REDUCTION
+						target.apply_force(opposite_force)
+
 	has_collision = false  # Reset collision flag
 	var collision = move_and_collide(velocity * delta)
 	if collision:
