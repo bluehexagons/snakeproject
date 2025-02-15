@@ -51,7 +51,6 @@ var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[Segment] = []
 var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
-var current_scale: float = 1.0  # Add this for consistent scaling behavior
 var has_started_moving: bool = false
 var food_eaten: int = 0
 var filler_eaten: int = 0
@@ -107,6 +106,10 @@ func _ready():
 	digestion_flash_material = current_material.duplicate()
 	digestion_flash_material.emission_enabled = true
 
+	base_scale = 1.0
+	current_scale = 1.0
+	target_scale = 1.0
+
 func _physics_process(delta):
 	# Handle color updates before any potential impacts
 	var target_base_color = BASE_COLOR
@@ -129,7 +132,7 @@ func _physics_process(delta):
 		
 		# Pulse scale
 		var scale_pulse = 1.0 + sin(digest_progress * PI) * (DIGESTION_PULSE_SCALE - 1.0)
-		mesh_instance.scale = Vector3.ONE * scale_pulse
+		apply_physics_scale(scale_pulse)
 		
 		if digestion_timer >= DIGESTION_DURATION:
 			finish_digestion()
@@ -306,26 +309,22 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 		# Give segment better initial velocity
 		segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY
 	
+	# Initialize segment with proper scale first
+	segment.init_with_growth(growth_state)
+	
+	# Then set position and chain properties
 	segment.global_position = spawn_pos
 	segment.physics_pos = spawn_pos
 	segment.visual_pos = spawn_pos
 	
-	segment.init_with_growth(growth_state)
-	
-	# Update targeting chain
 	if segments.is_empty():
-		# First segment follows player
 		segment.target = self
 	else:
 		segments[0].apply_impulse(-facing_direction * SEGMENT_PUSHBACK)
-		# New segment follows player
 		segment.target = self
-		# Previous first segment now follows new segment
 		segments[0].target = segment
 	
-	# Add new segment at beginning of array
 	segments.push_front(segment)
-	
 	return segment
 
 func get_segment_positions() -> Array:
@@ -426,7 +425,7 @@ func finish_digestion():
 	is_digesting = false
 	digestion_timer = 0.0
 	mesh_instance.material_override = null
-	mesh_instance.scale = Vector3.ONE
+	apply_physics_scale(1.0)
 	
 	# Push back first segment if it exists
 	if not is_dead and not segments.is_empty():

@@ -5,8 +5,8 @@ class_name Segment
 const SPRING_STIFFNESS = 1000.0
 const SPRING_DAMPING = 100.0
 const TARGET_DISTANCE = 1.0
-const GROWTH_DURATION = 0.99
-const INITIAL_SCALE = 0.1
+const GROWTH_DURATION = 0.33  # Faster growth
+const INITIAL_SCALE = 0.2  # Slightly larger initial scale
 const INITIAL_SPRING_REDUCTION = 0.3  # Reduce spring force when first spawned
 const SAFE_COLOR = Color(0.3, 0.8, 1.0, 0.9)
 const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)
@@ -25,12 +25,12 @@ const HARD_MAX_STRETCH = 2.6  # Absolute maximum stretch before breaking
 const STRETCH_STIFFNESS_SCALE = 10.0  # How much to increase stiffness when stretching
 const SNAP_THRESHOLD = 0.1  # How close to max stretch before increasing stiffness
 const BREAK_THRESHOLD = 0.999  # How close to HARD_MAX_STRETCH before breaking
+const GROWTH_CURVE = 0.5  # Less aggressive easing
 
 var target: Node3D
 var smoothed_velocity: Vector3
 var growth_timer: float = 0.0
 var is_growing: bool = true
-var current_scale: float = INITIAL_SCALE
 var spawn_timer: float = 0.5  # Time to use reduced spring force
 var is_dangerous: bool = false
 var recovery_timer: float = 0.0
@@ -55,23 +55,20 @@ func _ready():
 	dynamic_friction = PhysicsConstants.SEGMENT_DYNAMIC_FRICTION
 	rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION
 	# Set initial scale and positions
-	current_scale = INITIAL_SCALE
-	update_scale(current_scale)
+	base_scale = 1.0
 	
 	# Set initial colors
 	current_color = SAFE_COLOR
 	target_color = SAFE_COLOR
 	base_emission = Color(0.2, 0.6, 0.3, 1.0)
 	apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
-
-func update_scale(new_scale: float):
-	mesh_instance.scale = Vector3.ONE * new_scale
+	apply_physics_scale(INITIAL_SCALE, true)
 
 func init_with_growth(initial_growth: float):
 	growth_timer = GROWTH_DURATION * initial_growth
-	current_scale = lerp(INITIAL_SCALE, 1.0, ease(initial_growth, 0.7))
+	var growth = ease(initial_growth, GROWTH_CURVE)
+	apply_physics_scale(lerp(INITIAL_SCALE, 1.0, growth), true)  # Immediate scale
 	is_growing = initial_growth < 1.0
-	update_scale(current_scale)
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
@@ -100,7 +97,6 @@ func init_from_save_data(data: Dictionary):
 	
 	# Initialize scale and growth first
 	current_scale = data.get("current_scale", 1.0)  # Default to full size if not specified
-	update_scale(current_scale)
 
 	growth_timer = GROWTH_DURATION * data.get("growth")
 	
@@ -132,13 +128,11 @@ func _physics_process(delta):
 		growth_timer += delta
 		var t = growth_timer / GROWTH_DURATION
 		if t <= 1.0:
-			var growth = ease(t, 0.7)
-			current_scale = lerp(INITIAL_SCALE, 1.0, growth)
-			update_scale(current_scale)
+			var growth = ease(t, GROWTH_CURVE)
+			apply_physics_scale(lerp(INITIAL_SCALE, 1.0, growth))
 		else:
 			is_growing = false
-			current_scale = 1.0
-			update_scale(current_scale)
+			apply_physics_scale(1.0)
 	
 	# Update spawn timer
 	spawn_timer = max(0.0, spawn_timer - delta)

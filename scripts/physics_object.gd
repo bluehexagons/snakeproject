@@ -48,6 +48,16 @@ var base_mass: float = 1.0
 var accumulated_force: Vector3 = Vector3.ZERO
 var accumulated_impulse: Vector3 = Vector3.ZERO
 
+# Scale properties
+var base_scale: float = 1.0
+var current_scale: float = 1.0
+var target_scale: float = 1.0
+var scale_velocity: float = 0.0
+const SCALE_SPRING_STIFFNESS = 80.0  # Increased for snappier response
+const SCALE_DAMPING = 12.0  # Increased to prevent oscillation
+const MIN_SCALE = 0.1
+const MAX_SCALE = 2.0
+
 func _ready():
 	if mesh_instance and current_material:
 		mesh_instance.mesh.surface_set_material(0, current_material)
@@ -63,10 +73,37 @@ func _ready():
 	mass = base_mass
 	minimum_speed = PhysicsConstants.BASE_MIN_SPEED_THRESHOLD * sqrt(mass) * dynamic_friction
 
+	update_physical_properties()
+
+func update_physical_properties() -> void:
+	# Scale affects mass quadratically (as if object was getting bigger in all dimensions)
+	mass = base_mass * current_scale * current_scale
+	if mesh_instance:
+		mesh_instance.scale = Vector3.ONE * current_scale
+
+func apply_physics_scale(new_scale: float, immediate: bool = false) -> void:
+	target_scale = clamp(new_scale, MIN_SCALE, MAX_SCALE)
+	if immediate:
+		current_scale = target_scale
+		scale_velocity = 0.0
+		update_physical_properties()
+
 func is_valid_vector(v: Vector3) -> bool:
 	return v.is_finite() and v.length_squared() < 10000000.0  # Limit to reasonable values
 
 func _physics_process(delta):
+	# Scale spring physics
+	var scale_error = target_scale - current_scale
+	var spring_force = scale_error * SCALE_SPRING_STIFFNESS
+	var damping_force = -scale_velocity * SCALE_DAMPING
+	var scale_acceleration = spring_force + damping_force
+	
+	scale_velocity += scale_acceleration * delta
+	current_scale += scale_velocity * delta
+	
+	if abs(scale_error) > 0.001 or abs(scale_velocity) > 0.001:
+		update_physical_properties()
+
 	# Add safety checks for accumulated values
 	if not is_valid_vector(accumulated_force):
 		push_warning("Invalid accumulated force detected, resetting")
