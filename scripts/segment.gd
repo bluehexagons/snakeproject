@@ -2,12 +2,12 @@ extends PhysicsObject
 
 class_name Segment
 
-const SPRING_STIFFNESS = 600.0  # Reduced from 1000
-const SPRING_DAMPING = 60.0    # Reduced from 100
+const SPRING_STIFFNESS = 400.0  # Reduced further for smoother behavior
+const SPRING_DAMPING = 40.0     # Reduced for less jittery movement
 const TARGET_DISTANCE = 1.0
 const GROWTH_DURATION = 0.33  # Faster growth
 const INITIAL_SCALE = 0.4  # Slightly larger initial scale
-const INITIAL_SPRING_REDUCTION = 0.7  # Adjusted from 0.5 for smoother initial forces
+const INITIAL_SPRING_REDUCTION = 0.5  # More force reduction when small
 const SAFE_COLOR = Color(0.3, 0.8, 1.0, 0.9)
 const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)
 const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
@@ -74,8 +74,10 @@ func _ready():
 func init_with_growth(initial_growth: float):
 	growth_timer = GROWTH_DURATION * initial_growth
 	var growth = ease(initial_growth, GROWTH_CURVE)
-	apply_physics_scale(lerp(INITIAL_SCALE, 1.0, growth), true)  # Immediate scale
+	apply_physics_scale(lerp(INITIAL_SCALE, 1.0, growth), true)
 	is_growing = initial_growth < 1.0
+	# Reset spawn timer to avoid collision issues
+	spawn_timer = SPAWN_DURATION if is_growing else 0.0
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
@@ -104,8 +106,15 @@ func init_from_save_data(data: Dictionary):
 	
 	# Initialize scale and growth first
 	current_scale = data.get("current_scale", 1.0)  # Default to full size if not specified
-
-	growth_timer = GROWTH_DURATION * data.get("growth")
+	var growth = data.get("growth", 1.0)
+	growth_timer = GROWTH_DURATION * growth
+	is_growing = growth < 1.0
+	
+	# Apply scale immediately
+	apply_physics_scale(current_scale, true)
+	
+	# Set spawn timer based on growth
+	spawn_timer = SPAWN_DURATION if is_growing else 0.0
 	
 	# Then handle danger state to prevent scale reset
 	if data.has("is_dangerous") and data.is_dangerous:
@@ -136,10 +145,15 @@ func _physics_process(delta):
 		var t = growth_timer / GROWTH_DURATION
 		if t <= 1.0:
 			var growth = ease(t, GROWTH_CURVE)
-			apply_physics_scale(lerp(INITIAL_SCALE, 1.0, growth))
+			# Smoother scale transition
+			var target = lerp(INITIAL_SCALE, 1.0, growth)
+			apply_physics_scale(target)
+			# Scale spring forces with size
+			spring_stiffness_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, growth)
 		else:
 			is_growing = false
 			apply_physics_scale(1.0)
+			spring_stiffness_multiplier = 1.0
 	
 	# Update spawn timer and collision masks
 	if spawn_timer > 0:
