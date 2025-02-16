@@ -1,8 +1,8 @@
 extends Node
 
-const GRAVITY = 20.0  # Remains the same as it's an acceleration
+const GRAVITY = 25.0  # Increased from 20.0 to make objects feel more grounded
 const GROUND_LEVEL = 0.0
-const BOUNCE_DAMPENING = 0.5
+const BOUNCE_DAMPENING = 0.3  # Reduced from 0.5 for less bouncy impacts
 
 # Mass constants (in kg)
 const PLAYER_MASS = 0.5

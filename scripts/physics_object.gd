@@ -58,6 +58,13 @@ const SCALE_DAMPING = 12.0  # Increased to prevent oscillation
 const MIN_SCALE = 0.1
 const MAX_SCALE = 2.0
 
+# Ground contact properties
+var is_grounded: bool = false
+var ground_contact_timer: float = 0.0
+const GROUND_CONTACT_TIME: float = 0.1  # How long to maintain ground state
+const GROUND_LIFT_RESISTANCE: float = 3.5  # Multiplier for downward force when lifting
+const GROUND_CHECK_DISTANCE: float = 0.1  # Distance to check below for ground
+
 func _ready():
 	if mesh_instance and current_material:
 		mesh_instance.mesh.surface_set_material(0, current_material)
@@ -149,7 +156,7 @@ func _process(_delta):
 		mesh_instance.global_position = visual_pos
 
 func get_save_data() -> Dictionary:
-	return {
+	var base_data = {
 		"position": {
 			"x": global_position.x,
 			"y": global_position.y,
@@ -171,6 +178,9 @@ func get_save_data() -> Dictionary:
 			"z": velocity.z
 		}
 	}
+	base_data["is_grounded"] = is_grounded
+	base_data["ground_contact_timer"] = ground_contact_timer
+	return base_data
 
 func restore_from_save_data(data: Dictionary) -> void:
 	if data.has("position"):
@@ -197,12 +207,25 @@ func restore_from_save_data(data: Dictionary) -> void:
 			float(data.velocity.y),
 			float(data.velocity.z)
 		)
+	is_grounded = data.get("is_grounded", false)
+	ground_contact_timer = data.get("ground_contact_timer", 0.0)
 
-func apply_gravity(_delta: float) -> void:
+func apply_gravity(delta: float) -> void:
 	# Adjust ground check to account for sphere radius
 	var collision_radius = 0.4  # This should match your collision shape radius
+	# Update ground contact timer
+	if position.y <= PhysicsConstants.GROUND_LEVEL + collision_radius:
+		ground_contact_timer = GROUND_CONTACT_TIME
+		is_grounded = true
+	else:
+		ground_contact_timer = max(0.0, ground_contact_timer - delta)
+		is_grounded = ground_contact_timer > 0.0
+	
+	# Calculate gravity force with ground resistance
+	var gravity_multiplier = GROUND_LIFT_RESISTANCE if is_grounded else 1.0
+	
 	if position.y > PhysicsConstants.GROUND_LEVEL + collision_radius:
-		apply_force(Vector3.DOWN * mass * PhysicsConstants.GRAVITY)
+		apply_force(Vector3.DOWN * mass * PhysicsConstants.GRAVITY * gravity_multiplier)
 	elif position.y < PhysicsConstants.GROUND_LEVEL + collision_radius:
 		position.y = PhysicsConstants.GROUND_LEVEL + collision_radius
 		if velocity.y < 0:
