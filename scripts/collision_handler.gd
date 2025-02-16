@@ -28,60 +28,44 @@ const SEGMENT_MASS_SCALE = 0.4        # Reduced from 1.5 to make segments more r
 const ROCK_COLLISION_SCALE = 1.2      # Changed from 0.6 to increase rock impact
 const ROCK_SEGMENT_IMPULSE_BOOST = 2.0 # Additional scaling for rock->segment impacts
 
+const PROXIMITY_RADIUS = 1.0
+const MAX_OBJECTS_PER_CHECK = 8  # Limit number of objects checked per frame
+const OPTIMIZATION_DISTANCE = 3.0  # Distance at which to start optimizing checks
+
+@onready var spatial_grid = preload("res://scripts/spatial_grid.gd").new()
+
 # Spatial partitioning for broad phase
-var proximity_grid = {}
-var frame_index: int = 0
+# Remove old proximity grid and associated variables
+
+func _ready():
+	process_priority = 1  # Ensure this runs before physics objects
 
 func _physics_process(_delta):
 	# Clear grid each physics frame
-	proximity_grid.clear()
-	frame_index += 1
-
-func get_grid_cell(pos: Vector3) -> Vector2i:
-	return Vector2i(
-		floor(pos.x / PROXIMITY_GRID_SIZE),
-		floor(pos.z / PROXIMITY_GRID_SIZE)
-	)
-
-func add_to_grid(body: Node3D, cell: Vector2i):
-	var key = str(cell)
-	if !proximity_grid.has(key):
-		proximity_grid[key] = []
-	if proximity_grid[key].size() < MAX_BODIES_PER_CELL:
-		proximity_grid[key].append(body)
-
-func get_nearby_bodies(pos: Vector3) -> Array:
-	var cell = get_grid_cell(pos)
-	var nearby = []
+	spatial_grid.clear()
 	
-	# Check 3x3 grid of cells
-	for x in range(-1, 2):
-		for z in range(-1, 2):
-			var check_cell = cell + Vector2i(x, z)
-			var key = str(check_cell)
-			if proximity_grid.has(key):
-				nearby.append_array(proximity_grid[key])
-	
-	return nearby
+	# Register all physics objects
+	for obj in get_tree().get_nodes_in_group("physics_object"):
+		if obj.is_inside_tree() and not obj.is_queued_for_deletion():
+			spatial_grid.insert(obj, get_object_layer(obj))
+
+# Remove unused functions
+
+func get_nearby_bodies(pos: Vector3, radius: float = PROXIMITY_RADIUS) -> Array:
+	var nearby = spatial_grid.get_nearby(pos, radius)
+	# Filter out invalid objects early
+	return nearby.filter(func(obj): return is_instance_valid(obj) and obj.is_inside_tree())
 
 func is_valid_vector(v: Vector3) -> bool:
 	return v.is_finite() and v.length_squared() < 1000000.0
 
-func handle_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: Vector3, delta: float) -> void:
+func handle_detailed_collision(body_a: CharacterBody3D, body_b: Node, collision_normal: Vector3, delta: float) -> void:
 	if not is_valid_vector(collision_normal):
 		push_warning("Invalid collision normal detected")
 		return
 
-	# Add bodies to spatial grid
-	var cell_a = get_grid_cell(body_a.global_position)
-	add_to_grid(body_a, cell_a)
-	
-	if body_b is CharacterBody3D:
-		var cell_b = get_grid_cell(body_b.global_position)
-		add_to_grid(body_b, cell_b)
-	
-	# Check for clustered collisions
-	var nearby_count = get_nearby_bodies(body_a.global_position).size()
+	# Check for clustered collisions using spatial grid directly
+	var nearby_count = spatial_grid.get_nearby(body_a.global_position, CLUSTER_CHECK_RADIUS).size()
 	var cluster_factor = clamp(float(nearby_count) / MAX_BODIES_PER_CELL, 0.0, 1.0)
 	
 	# Handle barrier collisions first
@@ -269,20 +253,32 @@ func handle_barrier_collision(body: CharacterBody3D, collision_normal: Vector3, 
 		body.velocity = body.velocity.normalized() * MIN_BARRIER_BOUNCE_SPEED
 
 # Check for nearby segments and apply separation forces
-func handle_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float) -> void:
-	# Skip proximity checks for dangerous segments
-	if body.is_in_group("dangerous"):
+func handle_physics_proximity(body: CharacterBody3D, nearby_bodies: Array, delta: float) -> void:
+	# Skip proximity checks for dangerous or queued for deletion objects
+	if body.is_in_group("dangerous") or body.is_queued_for_deletion():
 		return
-		
-	for other in nearby_bodies:
-		if other == body or not is_instance_valid(other) or not other is CharacterBody3D:
+	
+	# Get nearby objects directly from spatial grid
+	var nearby = spatial_grid.get_nearby(body.global_position, PROXIMITY_RADIUS)
+	
+	# Early out if not enough nearby objects
+	if nearby.size() < 2:
+		return
+	
+	# Limit checks per frame and filter out invalid objects
+	var check_count = min(nearby.size(), MAX_OBJECTS_PER_CHECK)
+	for i in range(check_count):
+		var other = nearby[i]
+		if not is_instance_valid(other) or other.is_queued_for_deletion():
 			continue
 			
+		if other == body or not other is CharacterBody3D:
+			continue
+		
 		# Skip checks between connected segments
 		if body.is_in_group("segment") and other.is_in_group("segment"):
-			if body.target and other.target:
-				if body.target == other or other.target == body:
-					continue
+			if body.get("target") == other or other.get("target") == body:
+				continue
 		
 		var direction = body.global_position - other.global_position
 		var distance_squared = direction.length_squared()
@@ -326,3 +322,10 @@ func get_body_mass(body: Node) -> float:
 		return body.mass
 	else:
 		return DEFAULT_MASS
+
+func get_object_layer(obj: Node) -> int:
+	if obj.is_in_group("segment"):
+		return 1
+	elif obj.is_in_group("rock"):
+		return 2
+	return 0

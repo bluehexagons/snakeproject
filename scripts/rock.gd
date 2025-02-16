@@ -85,7 +85,7 @@ func _physics_process(delta):
 		if force > BREAK_FORCE_THRESHOLD:
 			break_rock()
 		else:
-			collision_handler.handle_collision(self, collision.get_collider(), collision.get_normal(), delta)
+			collision_handler.handle_detailed_collision(self, collision.get_collider(), collision.get_normal(), delta)
 	
 	super._physics_process(delta)
 

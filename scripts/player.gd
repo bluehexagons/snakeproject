@@ -255,11 +255,11 @@ func _physics_process(delta):
 		elif collider.has_method("eat"):
 			score_change += collider.eat()
 				
-		collision_handler.handle_collision(self, collider, collision.get_normal(), delta)
+		collision_handler.handle_detailed_collision(self, collider, collision.get_normal(), delta)
 	
 	# Handle proximity with segments
 	var nearby_segments = get_tree().get_nodes_in_group("segment")
-	collision_handler.handle_proximity(self, nearby_segments, delta)
+	collision_handler.handle_physics_proximity(self, nearby_segments, delta)
 
 	var current_speed = min(max(velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
 
