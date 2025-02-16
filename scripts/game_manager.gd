@@ -17,8 +17,10 @@ const SAFE_FORWARD_ANGLE = 60.0  # Angle in degrees to check in front of player
 const MIN_FOOD_COUNT = 1  # Minimum number of food items in the world
 const MAX_FOOD_COUNT = 5  # Maximum number of food items in the world
 const MIN_FOOD_DISTANCE = 3.0  # Minimum distance between food items
-const PREFERRED_PLAYER_DISTANCE = 4.0  # Quarter of typical 16-unit playfield
+const PREFERRED_PLAYER_DISTANCE = 8.0  # Quarter of typical 16-unit playfield
 const MIN_PLAYER_DISTANCE = 2.0  # Absolute minimum distance from player
+const MIN_FOOD_DANGER_DISTANCE = 1.5
+const MIN_FOOD_ROCK_DISTANCE = 0.25
 
 var is_isometric: bool = false
 
@@ -150,7 +152,7 @@ func spawn_food(force_spawn: bool = false) -> bool:
 				min_distance_to_food = min(min_distance_to_food, other_food.global_position.distance_to(pos))
 		
 		# Position is valid if it meets all minimum distance requirements
-		if min_distance_to_danger > 2.0 and min_distance_to_rock > 1.5 and min_distance_to_food > MIN_FOOD_DISTANCE:
+		if min_distance_to_danger > MIN_FOOD_DANGER_DISTANCE and min_distance_to_rock > MIN_FOOD_ROCK_DISTANCE and min_distance_to_food > MIN_FOOD_DISTANCE:
 				# Calculate score for this position
 			var base_spacing = min(min_distance_to_danger, min(min_distance_to_rock, min_distance_to_food))
 			
