@@ -17,6 +17,8 @@ const SAFE_FORWARD_ANGLE = 60.0  # Angle in degrees to check in front of player
 const MIN_FOOD_COUNT = 1  # Minimum number of food items in the world
 const MAX_FOOD_COUNT = 5  # Maximum number of food items in the world
 const MIN_FOOD_DISTANCE = 3.0  # Minimum distance between food items
+const PREFERRED_PLAYER_DISTANCE = 4.0  # Quarter of typical 16-unit playfield
+const MIN_PLAYER_DISTANCE = 2.0  # Absolute minimum distance from player
 
 var is_isometric: bool = false
 
@@ -98,52 +100,111 @@ func spawn_player():
 	player.position = Vector3(random_x, 0, random_z)
 
 func spawn_food(force_spawn: bool = false) -> bool:
+	# Get only actually available food
 	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f.is_available())
 	var current_count = available_food.size()
+	
+	# Debug info
+	print("Current food count: ", current_count, ", Max: ", MAX_FOOD_COUNT, ", Min: ", MIN_FOOD_COUNT)
 	
 	# Don't spawn if we're at or above max food count
 	if current_count >= MAX_FOOD_COUNT:
 		return false
-		
+	
 	# Only spawn if forcing or below minimum
 	if !force_spawn and current_count >= MIN_FOOD_COUNT:
 		return false
 	
 	var food = FOOD_SCENE.instantiate()
-	get_parent().add_child(food)
+	gameplay_container.add_child(food)
 	
-	# Try multiple positions
-	for _attempt in range(10):
-		var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
-		var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
+	var valid_position = false
+	var best_distance = 0.0
+	var best_position = Vector3.ZERO
+	var player = gameplay_container.get_node_or_null("Player")
+	
+	# Try standard spawning first with preferred distance
+	for attempt in range(30):  # Increased attempts
+		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.9, SPAWN_AREA_SIZE.x * 0.9)
+		var random_z = randf_range(-SPAWN_AREA_SIZE.y * 0.9, SPAWN_AREA_SIZE.y * 0.9)
 		var pos = Vector3(random_x, 0, random_z)
 		
-		# Check if position is valid
-		var valid_position = true
+		var min_distance_to_danger = INF
+		var min_distance_to_rock = INF
+		var min_distance_to_food = INF
+		var distance_to_player = INF if not player else player.global_position.distance_to(pos)
 		
-		# Check distance from dangerous objects
+		# Skip positions too close to player
+		if player and distance_to_player < MIN_PLAYER_DISTANCE:
+			continue
+		
+		# Check distances to all relevant objects
 		for node in get_tree().get_nodes_in_group("dangerous"):
-			if node.global_position.distance_to(pos) < 2.0:
-				valid_position = false
-				break
+			min_distance_to_danger = min(min_distance_to_danger, node.global_position.distance_to(pos))
 		
-		# Check distance from rocks
 		for rock in get_tree().get_nodes_in_group("rock"):
-			if rock.global_position.distance_to(pos) < 1.5:
-				valid_position = false
-				break
+			min_distance_to_rock = min(min_distance_to_rock, rock.global_position.distance_to(pos))
 		
-		# Check distance from other food
 		for other_food in available_food:
-			if other_food != food and other_food.global_position.distance_to(pos) < MIN_FOOD_DISTANCE:
-				valid_position = false
+			if other_food != food:
+				min_distance_to_food = min(min_distance_to_food, other_food.global_position.distance_to(pos))
+		
+		# Position is valid if it meets all minimum distance requirements
+		if min_distance_to_danger > 2.0 and min_distance_to_rock > 1.5 and min_distance_to_food > MIN_FOOD_DISTANCE:
+				# Calculate score for this position
+			var base_spacing = min(min_distance_to_danger, min(min_distance_to_rock, min_distance_to_food))
+			
+			# Prefer positions farther from player (if player exists)
+			var position_score = base_spacing
+			if player:
+				# Add bonus for being close to preferred distance
+				var distance_factor = 1.0 - abs(distance_to_player - PREFERRED_PLAYER_DISTANCE) / PREFERRED_PLAYER_DISTANCE
+				position_score *= (1.0 + distance_factor)
+			
+			if position_score > best_distance:
+				best_distance = position_score
+				best_position = pos
+				valid_position = true
+	
+	if valid_position:
+		food.position = best_position
+		print("Food spawned at: ", best_position, " with score: ", best_distance)
+		return true
+	
+	# If we couldn't find a valid position
+	print("Failed to spawn food after 30 attempts")
+	food.queue_free()
+	
+	# Retry with relaxed constraints if force spawning
+	if force_spawn:
+		print("Retrying force spawn with relaxed constraints")
+		return spawn_food_relaxed()
+	
+	return false
+
+func spawn_food_relaxed() -> bool:
+	var food = FOOD_SCENE.instantiate()
+	gameplay_container.add_child(food)
+	
+	# Use very relaxed constraints
+	for _attempt in range(10):
+		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.8, SPAWN_AREA_SIZE.x * 0.8)
+		var random_z = randf_range(-SPAWN_AREA_SIZE.y * 0.8, SPAWN_AREA_SIZE.y * 0.8)
+		var pos = Vector3(random_x, 0, random_z)
+		
+		# Only check for immediate overlaps
+		var valid = true
+		for node in get_tree().get_nodes_in_group("dangerous"):
+			if node.global_position.distance_to(pos) < 1.0:
+				valid = false
 				break
 		
-		if valid_position:
+		if valid:
 			food.position = pos
+			print("Food force spawned at: ", pos)
 			return true
 	
-	# If we couldn't find a valid position after all attempts
+	print("Failed to force spawn food even with relaxed constraints")
 	food.queue_free()
 	return false
 
@@ -376,9 +437,22 @@ func spawn_initial_food():
 	for food in get_tree().get_nodes_in_group("food"):
 		food.queue_free()
 	
-	# Spawn minimum required food
+	# Add error handling for initial spawn
+	var success_count = 0
 	for i in range(MIN_FOOD_COUNT):
-		spawn_food(true)
+		if spawn_food(true):
+			success_count += 1
+	
+	if success_count < MIN_FOOD_COUNT:
+		push_warning("Only spawned " + str(success_count) + " out of " + str(MIN_FOOD_COUNT) + " initial food items")
+	
+	# Ensure at least one food item exists
+	if success_count == 0:
+		# Last resort: spawn food at a fixed position
+		var food = FOOD_SCENE.instantiate()
+		gameplay_container.add_child(food)
+		food.position = Vector3(SPAWN_AREA_SIZE.x * 0.5, 0, SPAWN_AREA_SIZE.y * 0.5)
+		print("Emergency food spawn at fixed position")
 
 func _notification(what):
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
