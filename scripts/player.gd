@@ -65,9 +65,15 @@ const MAX_PUSH_MULTIPLIER = 3.0  # Maximum force multiplier when pushing
 const RESISTANCE_THRESHOLD = 0.3  # Speed ratio that indicates resistance
 const MIN_RESISTANCE_TIME = 0.1  # Minimum time before force starts ramping
 
+const DIRECT_ACCELERATION = 350.0  # Much higher initial acceleration
+const MOMENTUM_RETENTION = 0.7    # How much existing velocity to keep
+const TURN_RESPONSIVENESS = 0.85  # How quickly to change direction
+const MOVEMENT_RAMP_TIME = 0.15   # How long to reach full speed
+const MOVEMENT_DECAY = 0.92       # How quickly to slow down when not moving
+const COLLISION_FORCE_LIMIT = 200.0  # Maximum force applied in collisions
+
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[Segment] = []
-var target_velocity: Vector3 = Vector3.ZERO
 var smoothed_velocity: Vector3 = Vector3.ZERO
 var has_started_moving: bool = false
 var food_eaten: int = 0
@@ -89,6 +95,9 @@ var input_dir: Vector3 = Vector3.ZERO  # Add this with other class variables
 var push_force_multiplier: float = 1.0
 var resistance_timer: float = 0.0
 var last_push_dir: Vector3 = Vector3.ZERO
+var current_acceleration: float = 0.0  # Track current acceleration level
+var input_smoothed: Vector3 = Vector3.ZERO  # Smooth input changes
+var movement_ramp: float = 0.0
 
 func _ready():
 	super()
@@ -254,45 +263,33 @@ func _physics_process(delta):
 	
 	if not has_lost and input_dir != Vector3.ZERO:
 		has_started_moving = true
-		var drag = DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
 		
-		# Calculate speed ratio to detect resistance
-		var speed_ratio = velocity.length() / max_speed
-		var is_resisted = speed_ratio < RESISTANCE_THRESHOLD
+			# Ramp up movement intensity
+		movement_ramp = min(movement_ramp + delta / MOVEMENT_RAMP_TIME, 1.0)
 		
-		# Update resistance tracking
-		if is_resisted and input_dir.dot(last_push_dir) > 0.7:
-			resistance_timer += delta
-			if resistance_timer > MIN_RESISTANCE_TIME:
-				push_force_multiplier = min(
-					push_force_multiplier + FORCE_RAMP_RATE * delta,
-					MAX_PUSH_MULTIPLIER
-				)
-		else:
-			resistance_timer = 0.0
-			push_force_multiplier = max(push_force_multiplier - FORCE_RAMP_RATE * delta, 1.0)
+		# Calculate base movement force
+		var base_force = input_dir * DIRECT_ACCELERATION * movement_ramp
 		
-		last_push_dir = input_dir
+		# Add speed boost scaling
+		var boost_force = base_force * (current_speed_boost / SPEED_BOOST_BASE)
 		
-		# Calculate base movement force with ramping
-		var move_force = input_dir * (
-			current_speed_boost / max(pow(dead_time * 0.5, 1.5), 1.0) if is_dead 
-			else ACCELERATION + (current_speed_boost * 20.0)
-		)
+		if is_dead:
+			boost_force *= 1.0 / max(pow(dead_time * 0.5, 1.5), 1.0)
 		
-		# Apply accumulated force multiplier
-		move_force *= push_force_multiplier
+		# Retain some existing velocity but align with input direction
+		var aligned_velocity = velocity.project(input_dir)
+		var perpendicular_velocity = velocity - aligned_velocity
 		
-		# Ensure minimum push force
-		if move_force.length() > 0:
-			move_force = move_force.normalized() * max(move_force.length(), MIN_PUSH_FORCE)
+		# Keep aligned velocity but reduce perpendicular for better turning
+		velocity = (aligned_velocity * MOMENTUM_RETENTION + 
+				   perpendicular_velocity * (MOMENTUM_RETENTION * TURN_RESPONSIVENESS))
 		
-		velocity += move_force * delta
-		velocity *= drag
+		# Apply new force
+		velocity += boost_force * delta
 	else:
-		# Reset force multiplier when not moving
-		push_force_multiplier = 1.0
-		resistance_timer = 0.0
+		# Quick decay when no input
+		movement_ramp = 0.0
+		velocity *= MOVEMENT_DECAY
 	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
@@ -456,11 +453,6 @@ func get_segment_positions() -> Array:
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
 	# Add player-specific data
-	base_data["target_velocity"] = {
-		"x": target_velocity.x,
-		"y": target_velocity.y,
-		"z": target_velocity.z
-	}
 	base_data["smoothed_velocity"] = {
 		"x": smoothed_velocity.x,
 		"y": smoothed_velocity.y,
@@ -498,11 +490,6 @@ func restore_from_save(data: Dictionary):
 			float(state.velocity.x),
 			float(state.velocity.y),
 			float(state.velocity.z)
-		)
-		target_velocity = Vector3(
-			float(state.target_velocity.x),
-			float(state.target_velocity.y),
-			float(state.target_velocity.z)
 		)
 		smoothed_velocity = Vector3(
 			float(state.smoothed_velocity.x),
@@ -584,7 +571,6 @@ func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: 
 	var impact_force = -(1.0 + restitution) * normal_velocity
 	
 	# Scale impact force based on movement direction
-	# Now we can use input_dir since it's a class variable
 	var pushing_force = input_dir.dot(-normal) * ROCK_FORCE_MULTIPLIER
 	impact_force *= 1.0 + max(pushing_force, 0.0)  # Only amplify when actively pushing
 	
@@ -594,9 +580,21 @@ func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: 
 	var other_ratio = other.mass / mass_sum
 	var scaled_force = impact_force * (mass * other.mass) / mass_sum
 	
+	# Calculate collision impulse
+	var collision_impulse = normal * scaled_force
+	
 	# Apply impulses
-	apply_impulse(normal * scaled_force * other_ratio)
-	other.apply_impulse(-normal * scaled_force * my_ratio)
+	apply_impulse(collision_impulse * other_ratio)
+	other.apply_impulse(-collision_impulse * my_ratio)
 	
 	# Handle impact effects
 	handle_impact(scaled_force * collision_force_multiplier)
+	
+	# Limit chain pull force when colliding
+	if other is Segment:
+		var pull_force = collision_impulse.length()
+		if pull_force > COLLISION_FORCE_LIMIT:
+			collision_impulse = collision_impulse.normalized() * COLLISION_FORCE_LIMIT
+			# Reapply limited force
+			apply_impulse(collision_impulse * other_ratio)
+			other.apply_impulse(-collision_impulse * my_ratio)

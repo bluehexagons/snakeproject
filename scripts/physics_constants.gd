@@ -7,13 +7,13 @@ const BOUNCE_DAMPENING = 0.3  # Reduced from 0.5 for less bouncy impacts
 # Mass constants (in kg)
 const PLAYER_MASS = 1.0          # Keep player mass
 const ROCK_MASS = 3.0           # Further reduced for better pushing
-const SEGMENT_MASS = 3.0        # Increased to match rock mass
+const SEGMENT_MASS = 2.5        # Slightly lighter for more responsive following
 
 # Drag coefficients (adjusted for mass-based system)
 const BASE_DRAG_COEFFICIENT = 0.3
 const PLAYER_DRAG = 0.4
 const ROCK_DRAG = 0.1
-const SEGMENT_DRAG = 0.35  # Reduced for more natural movement
+const SEGMENT_DRAG = 0.3        # Less drag for smoother movement
 
 # Speed limits (now in m/s)
 const PLAYER_MAX_SPEED = 30.0
@@ -49,9 +49,9 @@ const BASE_MIN_SPEED_THRESHOLD = 0.1
 
 # Further adjusted segment friction coefficients
 const FRICTION_COEFFICIENTS = {
-	"segment_segment": [0.000001, 0.000001],  # Keep segments nearly frictionless
+	"segment_segment": [0.001, 0.0005],  # Very low friction between segments
 	"segment_player": [0.005, 0.002],         # Keep player-segment smooth
-	"segment_rock": [0.02, 0.01],    # Increased grip when pushing rocks
+	"segment_rock": [0.03, 0.02],    # More grip for pushing rocks
 	"player_rock": [0.2, 0.1],         # Increased player-rock friction for better control
 	"rock_rock": [0.3, 0.15],                # Keep rock-rock friction
 	"default": [0.02, 0.01]                  # Keep default friction
@@ -59,9 +59,9 @@ const FRICTION_COEFFICIENTS = {
 
 # Ground friction coefficients adjusted for connection-based system
 const GROUND_FRICTION_COEFFICIENTS = {
-	"segment": [0.006, 0.003],  # Even lower ground friction for segments
+	"segment": [0.002, 0.001],  # Even lower ground friction
 	"player": [0.02, 0.01],   # Player values unchanged
-	"rock": [0.25, 0.12],       # Slightly reduced rock ground friction
+	"rock": [0.2, 0.1],        # Reduced to make rocks easier to move
 	"default": [0.1, 0.05]    # Default values unchanged
 }
 
