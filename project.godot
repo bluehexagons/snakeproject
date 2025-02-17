@@ -66,9 +66,12 @@ toggle_unkillable={
 
 [physics]
 
+3d/run_on_separate_thread=true
 common/physics_ticks_per_second=120
-common/physics_jitter_fix=1.0
-common/enable_physics_interpolation=true
+common/physics_jitter_fix=0.0
+3d/physics_engine="GodotPhysics3D"
+3d/default_gravity=25.0
+3d/solver/solver_iterations=8
 
 [rendering]
 

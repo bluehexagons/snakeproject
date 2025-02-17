@@ -19,8 +19,14 @@ height = 0.8
 [sub_resource type="SphereShape3D" id="SphereShape3D_1"]
 radius = 0.4
 
-[node name="Player" type="CharacterBody3D" groups=["player"]]
-collision_mask = 3
+[node name="Player" type="RigidBody3D" groups=["physics_object", "player"]]
+collision_layer = 4
+collision_mask = 7
+can_sleep = false
+freeze_mode = 1
+continuous_cd = true
+contact_monitor = true
+max_contacts_reported = 4
 script = ExtResource("1_script")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]

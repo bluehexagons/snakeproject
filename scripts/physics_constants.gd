@@ -4,10 +4,10 @@ const GRAVITY = 25.0  # Increased from 20.0 to make objects feel more grounded
 const GROUND_LEVEL = 0.0
 const BOUNCE_DAMPENING = 0.3  # Reduced from 0.5 for less bouncy impacts
 
-# Mass constants (in kg)
-const PLAYER_MASS = 1.0          # Keep player mass
-const ROCK_MASS = 3.0           # Further reduced for better pushing
-const SEGMENT_MASS = 2.5        # Slightly lighter for more responsive following
+# Mass constants adjusted for better pushing
+const PLAYER_MASS = 1.0
+const ROCK_MASS = 1.3           # Slightly lighter for better control
+const SEGMENT_MASS = 1.5        # Still heavy but not overwhelming
 
 # Drag coefficients (adjusted for mass-based system)
 const BASE_DRAG_COEFFICIENT = 0.3
@@ -28,7 +28,7 @@ const BASE_ROLLING_FRICTION = 0.005
 
 const ROCK_STATIC_FRICTION = 0.4
 const ROCK_DYNAMIC_FRICTION = 0.15
-const ROCK_ROLLING_FRICTION = 0.1
+const ROCK_ROLLING_FRICTION = 0.05  # Lower rolling friction
 
 const SEGMENT_STATIC_FRICTION = 0.05   # Base static friction reduced
 const SEGMENT_DYNAMIC_FRICTION = 0.04  # Keep dynamic friction the same
@@ -49,19 +49,19 @@ const BASE_MIN_SPEED_THRESHOLD = 0.1
 
 # Further adjusted segment friction coefficients
 const FRICTION_COEFFICIENTS = {
-	"segment_segment": [0.001, 0.0005],  # Very low friction between segments
-	"segment_player": [0.005, 0.002],         # Keep player-segment smooth
-	"segment_rock": [0.03, 0.02],    # More grip for pushing rocks
-	"player_rock": [0.2, 0.1],         # Increased player-rock friction for better control
-	"rock_rock": [0.3, 0.15],                # Keep rock-rock friction
-	"default": [0.02, 0.01]                  # Keep default friction
+	"segment_segment": [0.001, 0.0005],
+	"segment_player": [0.005, 0.002],
+	"segment_rock": [0.15, 0.08],   # Lower friction for smoother interaction
+	"player_rock": [0.2, 0.1],
+	"rock_rock": [0.1, 0.05],       # Even lower friction between rocks
+	"default": [0.02, 0.01]
 }
 
 # Ground friction coefficients adjusted for connection-based system
 const GROUND_FRICTION_COEFFICIENTS = {
-	"segment": [0.002, 0.001],  # Even lower ground friction
+	"segment": [0.1, 0.05],     # More ground grip for pushing
 	"player": [0.02, 0.01],   # Player values unchanged
-	"rock": [0.2, 0.1],        # Reduced to make rocks easier to move
+	"rock": [0.08, 0.04],        # Lower ground friction for smoother movement
 	"default": [0.1, 0.05]    # Default values unchanged
 }
 
@@ -69,6 +69,70 @@ const GROUND_FRICTION_COEFFICIENTS = {
 const MATERIAL_SEGMENT = "segment"
 const MATERIAL_PLAYER = "player"
 const MATERIAL_ROCK = "rock"
+
+# Physics layers (updated for clarity)
+const LAYER_DEFAULT = 0b001  # Ground and static objects
+const LAYER_PHYSICAL = 0b010  # Movable objects (rocks, segments)
+const LAYER_PLAYER = 0b100   # Player and anything that should collide with everything
+
+# Combined masks for common use
+const MASK_DEFAULT = 0b111  # Collide with everything
+const MASK_PHYSICAL = 0b111  # Physical objects collide with everything
+const MASK_PLAYER = 0b111   # Player collides with everything
+
+# Ground physics properties
+const GROUND_COLLISION_LAYER = LAYER_DEFAULT
+const GROUND_COLLISION_MASK = MASK_DEFAULT
+const GROUND_FRICTION = 1.0
+const GROUND_BOUNCE = 0.0
+
+# Contact reporting thresholds
+const CONTACT_FORCE_THRESHOLD = 0.5
+const CONTACT_MAX_POINTS = 4
+const CONTACT_PROCESS_MODE = 1  # Process during physics
+
+# Rock-specific physics constants
+const ROCK_COLLISION_IMPULSE_SCALE = 1.2  # Stronger collision response for rocks
+const ROCK_CONTACT_PROCESSING = true      # Enable contact monitoring
+const ROCK_MAX_CONTACTS = 4               # Maximum contact points to process
+const ROCK_FREEZE_VELOCITY = 0.1          # Velocity threshold for sleeping
+const ROCK_FREEZE_ANGULAR = 0.1           # Angular velocity threshold for sleeping
+
+# Add RigidBody-specific constants
+const RIGID_BODY_DEFAULTS = {
+	"continuous_cd": true,
+	"contact_monitor": true,
+	"can_sleep": true,
+	"custom_integrator": false,
+	"freeze_mode": RigidBody3D.FREEZE_MODE_KINEMATIC
+}
+
+# Update settings to include more RigidBody properties
+const RIGID_BODY_SETTINGS = {
+	"rock": {
+		"linear_damp": 0.2,
+		"angular_damp": 3.0,
+		"mass": ROCK_MASS,
+		"friction": ROCK_DYNAMIC_FRICTION,
+		"bounce": 0.01,
+		"max_contacts": 4,
+		"continuous_cd": true
+	},
+	"segment": {
+		"linear_damp": 0.1,
+		"angular_damp": 2.0,
+		"mass": SEGMENT_MASS,
+		"friction": SEGMENT_DYNAMIC_FRICTION,
+		"bounce": 0.01
+	},
+	"player": {
+		"linear_damp": 0.05,
+		"angular_damp": 1.0,
+		"mass": PLAYER_MASS,
+		"friction": PLAYER_DYNAMIC_FRICTION,
+		"bounce": 0.01
+	}
+}
 
 # Helper functions
 func get_friction_coefficients(material1: String, material2: String) -> Array:

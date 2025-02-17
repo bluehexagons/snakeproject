@@ -15,7 +15,7 @@ const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
 const PULL_START_DISTANCE = 1.0  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 2.2    # Distance at which pull force peaks
-const PULL_FORCE = 400.0        # Reduced from 800.0 to allow more external influence
+const PULL_FORCE = 350.0          # Stronger base pull force
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
 const CLUSTER_FORCE_REDUCTION = 0.85  # Increased force reduction in clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
@@ -44,7 +44,6 @@ const VELOCITY_INHERITANCE = 0.7  # How much of target's velocity direction to i
 const VELOCITY_INHERITANCE_SPEED = 5.0  # How fast to inherit velocity direction
 const MIN_VELOCITY_MATCH = 0.2  # Minimum velocity matching even at rest
 const COLLISION_FORCE_SCALE = 0.9   # Less reduction in collision response
-const MIN_COLLISION_SPEED = 4.0  # Increased threshold for extra dampening
 const BROKEN_VELOCITY_INHERIT = 0.7  # How much velocity to keep when breaking
 const BROKEN_ANGULAR_IMPULSE = 5.0  # Add some spin when breaking
 const CONNECTED_FRICTION_MULTIPLIER = 2.5  # Higher friction when connected
@@ -82,8 +81,7 @@ const MIN_FOLLOW_SPEED = 2.0     # Minimum speed when following
 
 const MOVEMENT_THRESHOLD = 1.0    # Increased threshold before following
 const VELOCITY_DECAY = 0.97        # Decay velocity when target is stationary
-const ROCK_PUSH_THRESHOLD = 2.0    # Speed below which to increase push force
-const ROCK_PUSH_BOOST = 2.5        # Extra force when pushing rocks at low speed
+const ROCK_PUSH_BOOST = 2.5        # More reasonable push force
 const MIN_FORCE_THRESHOLD = 0.1    # Don't apply tiny forces
 const PASSIVE_DAMPING = 0.98     # Lighter damping when not moving
 
@@ -93,10 +91,23 @@ const MIN_SEPARATION_SPEED = 1.0     # Minimum speed to maintain when separating
 const SEGMENT_PUSH_MULTIPLIER = 1.5  # Extra force when pushing other segments
 const PUSH_DIRECTION_BLEND = 0.3     # How much to blend push direction with movement
 
-const PULL_FORCE_PLAYER_REDUCTION = 0.4  # Significantly reduce pull force on player
+const PULL_FORCE_PLAYER_REDUCTION = 0.6  # Less reduction on player (was 0.4)
 const PULL_ACCELERATION_RATE = 2.0       # How quickly pull force builds up
 const MAX_PULL_VELOCITY = 15.0           # Maximum velocity when being pulled
 const PULL_VELOCITY_REDUCTION = 0.7      # Reduce velocity when pulling against resistance
+
+# Simplified rock interaction constants
+const ROCK_PUSH_FORCE = 800.0     # Much stronger push force
+const ROCK_SLIDE_SPEED = 0.8      # How much sliding motion to maintain
+const ROCK_REBOUND = 0.4          # How much to bounce off
+const ROCK_SEPARATION = 100.0     # Force to prevent sticking
+
+const CHAIN_FORCE_TRANSFER = 2.5   # Stronger chain force transfer
+const VELOCITY_TRANSFER = 0.4      # Direct velocity transfer during push
+
+const ROCK_PUSH_SCALE = 1.5       # More conservative push force
+const CHAIN_FORCE_SCALE = 0.8     # Gentler chain force
+const PUSH_FORCE_BUILDUP = 0.15   # Gradual force buildup
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -125,31 +136,26 @@ var current_pull_multiplier: float = 0.0
 func _ready():
 	super()
 	material_type = PhysicsConstants.MATERIAL_SEGMENT
-	base_mass = PhysicsConstants.SEGMENT_MASS
-	mass = base_mass
-	pull_reduction = 1.2  # Slightly easier to pull
-	target_distance = TARGET_DISTANCE  # Use existing constant
-	collision_force_multiplier = 1.2  # Take more impact from collisions
-	spring_stiffness_multiplier = 0.8  # Reduced spring forces
 	
-	drag_coefficient = PhysicsConstants.SEGMENT_DRAG
-	max_speed = PhysicsConstants.SEGMENT_MAX_SPEED
-	static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION
-	dynamic_friction = PhysicsConstants.SEGMENT_DYNAMIC_FRICTION
-	rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION
-	# Set initial scale and positions
-	base_scale = 1.0
+	# Configure RigidBody3D properties
+	var settings = PhysicsConstants.RIGID_BODY_SETTINGS.segment
+	linear_damp = settings.linear_damp
+	angular_damp = settings.angular_damp
+	collision_layer = PhysicsConstants.LAYER_PHYSICAL
+	collision_mask = PhysicsConstants.LAYER_DEFAULT | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_PLAYER
+	contact_monitor = true
+	max_contacts_reported = 4
+	continuous_cd = true
 	
-	# Set initial colors
-	current_color = SAFE_COLOR
-	target_color = SAFE_COLOR
-	base_emission = Color(0.2, 0.6, 0.3, 1.0)
-	apply_color(current_color, Color(0.2, 0.6, 0.3, 1.0))
+	# Set up physics material
+	physics_material_override = PhysicsMaterial.new()
+	physics_material_override.friction = settings.friction
+	physics_material_override.bounce = settings.bounce
+	physics_material_override.rough = true
+	
+	# Initialize scale and colors
 	apply_physics_scale(INITIAL_SCALE, true)
-	
-	# Initially set up collisions - we'll just ignore them in the collision handler
-	collision_mask = SPAWN_COLLISION_MASK
-	collision_layer = 2  # Always be on physics layer
+	apply_color(SAFE_COLOR, Color(0.2, 0.6, 0.3, 1.0))
 
 func init_with_growth(initial_growth: float):
 	growth_timer = GROWTH_DURATION * initial_growth
@@ -183,7 +189,7 @@ func get_save_data() -> Dictionary:
 
 func init_from_save_data(data: Dictionary):
 	if data.has("velocity"):
-		velocity = Vector3(data.velocity.x, data.velocity.y, data.velocity.z)
+		cached_velocity = Vector3(data.velocity.x, data.velocity.y, data.velocity.z)
 	if data.has("smoothed_velocity"):
 		smoothed_velocity = Vector3(data.smoothed_velocity.x, data.smoothed_velocity.y, data.smoothed_velocity.z)
 	
@@ -247,9 +253,9 @@ func _physics_process(delta):
 		static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION
 		rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION
 	
-	# Add early exit for extreme velocities
-	if velocity.length() > PhysicsConstants.SEGMENT_MAX_SPEED * 2.0:
-		velocity = velocity.normalized() * PhysicsConstants.SEGMENT_MAX_SPEED
+	# Add early exit for extreme velocities now uses cached_velocity
+	if cached_velocity.length() > PhysicsConstants.SEGMENT_MAX_SPEED * 2.0:
+		cached_velocity = cached_velocity.normalized() * PhysicsConstants.SEGMENT_MAX_SPEED
 	
 	# Early out if recovering
 	if is_recovering:
@@ -315,19 +321,19 @@ func _physics_process(delta):
 				# Modify follow force when target is player
 				if target is Player:
 					follow_force *= PLAYER_FOLLOW_MULTIPLIER
-					if velocity.length() < target.velocity.length():
+					if cached_velocity.length() < target.cached_velocity.length():
 						# Boost acceleration when falling behind player
 						follow_force *= 1.5
 				
 				# Apply very gentle movement
 				if follow_force.length_squared() > MIN_FORCE_THRESHOLD:
-					velocity += follow_force * delta
+					add_physics_force(follow_force * get_effective_mass())
 			else:
 				# If in good position, just dampen velocity
-				velocity *= PASSIVE_DAMPING
+				add_physics_force(-cached_velocity * (PASSIVE_DAMPING - 1.0) * get_effective_mass())
 			
 			# Always apply drag
-			velocity *= FOLLOW_DRAG
+			add_physics_force(-cached_velocity * (1.0 - FOLLOW_DRAG) * get_effective_mass())
 		
 		# Now handle spring forces and constraints
 		var adjusted_distance = target_distance * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
@@ -359,14 +365,19 @@ func _physics_process(delta):
 					target.apply_impulse(direction * POP_FORCE_OPPOSITE * target.mass)
 					target.apply_impulse(Vector3.UP * POP_FORCE * target.mass)
 					target.apply_impulse(-random_dir * BROKEN_ANGULAR_IMPULSE * target.mass)
-					velocity = velocity.lerp(target.velocity, 0.3)
+					cached_velocity = cached_velocity.lerp(target.cached_velocity, 0.3)
 				
 				target = null
 			
 			is_recovering = true
 		
 		if not is_recovering and target:
-			var target_velocity = target.velocity if target is PhysicsObject else Vector3.ZERO
+			# Update how we get target velocity
+			var target_velocity = Vector3.ZERO
+			if target is RigidBody3D:
+				target_velocity = target.linear_velocity
+			elif target.has_method("get_velocity"):  # Fallback for non-RigidBody3D
+				target_velocity = target.get_velocity()
 			
 			# Get chain scaling factors from SpringPhysics
 			var factors = SpringPhysics.calculate_chain_factors(chain_index, chain_length)
@@ -399,7 +410,7 @@ func _physics_process(delta):
 			# Calculate damping using SpringPhysics
 			var damping = SPRING_DAMPING_BASE + (SPRING_DAMPING_GROWTH * pow(factors.chain_factor, 0.8))
 			var damping_force = SpringPhysics.calculate_damping_force(
-				velocity,
+				cached_velocity,
 				target_velocity,
 				damping,
 				force_scale
@@ -409,7 +420,7 @@ func _physics_process(delta):
 			var matching_force = SpringPhysics.calculate_velocity_matching(
 				global_position,
 				target.global_position,
-				velocity,
+				cached_velocity,
 				target_velocity,
 				adjusted_distance,
 				mass,
@@ -418,7 +429,7 @@ func _physics_process(delta):
 			
 			# Calculate velocity inheritance using SpringPhysics
 			var inherit_force = SpringPhysics.apply_velocity_inheritance(
-				velocity,
+				cached_velocity,
 				target_velocity,
 				delta,
 				VELOCITY_INHERITANCE_SPEED,
@@ -437,14 +448,14 @@ func _physics_process(delta):
 			
 			last_force = spring_force.length()
 
-	var collision = move_and_collide(velocity * delta)
+	var collision = move_and_collide(cached_velocity * delta)
 	if collision:
 		var collider = collision.get_collider()
 		if not collider is PhysicsObject:
 			return
 			
 		var normal = collision.get_normal()
-		var relative_velocity = velocity - collider.velocity
+		var relative_velocity = cached_velocity - collider.cached_velocity
 		var normal_vel = normal * relative_velocity.dot(normal)
 		var tangent_vel = relative_velocity - normal_vel
 		
@@ -463,12 +474,12 @@ func _physics_process(delta):
 			collider.apply_impulse(-separation)
 			
 			# Match velocities to prevent ping-ponging
-			velocity = velocity.lerp(collider.velocity, COLLISION_VELOCITY_MATCH)
+			cached_velocity = cached_velocity.lerp(collider.cached_velocity, COLLISION_VELOCITY_MATCH)
 		elif collider.material_type == PhysicsConstants.MATERIAL_ROCK:
 			restitution *= ROCK_COLLISION_EXTRA_DAMPING
 		
 		# Apply collision response
-		velocity = (tangent_vel * tangent_retain - normal_vel * restitution) * COLLISION_FORCE_SCALE
+		cached_velocity = (tangent_vel * tangent_retain - normal_vel * restitution) * COLLISION_FORCE_SCALE
 		
 		# Apply gentle separation impulse
 		apply_impulse(normal * COLLISION_SEPARATION_FORCE * mass)
@@ -530,9 +541,9 @@ func _apply_distance_constraint(target_body: Node3D, max_distance: float, delta:
 			
 			 # Smoother velocity-based correction
 			var correction_vel = correction_dir * correction / delta
-			velocity = velocity.lerp(velocity + correction_vel * mass_ratio_b, 0.5)
-			target_body.velocity = target_body.velocity.lerp(
-				target_body.velocity - correction_vel * mass_ratio_a, 0.5)
+			cached_velocity = cached_velocity.lerp(cached_velocity + correction_vel * mass_ratio_b, 0.5)
+			target_body.cached_velocity = target_body.cached_velocity.lerp(
+				target_body.cached_velocity - correction_vel * mass_ratio_a, 0.5)
 
 # Rename parameter to avoid shadowing
 func _apply_pull_forces(target_body: Node3D, current_distance: float, direction: Vector3) -> void:
@@ -551,7 +562,7 @@ func _apply_pull_forces(target_body: Node3D, current_distance: float, direction:
 		
 		# Calculate chain-based pull force
 		var chain_pull = PULL_FORCE * pow(CHAIN_PULL_DECAY, chain_index * 0.7)
-		chain_pull = max(chain_pull * (1.0 + velocity.length() * 0.1), MIN_PULL_FORCE)
+		chain_pull = max(chain_pull * (1.0 + cached_velocity.length() * 0.1), MIN_PULL_FORCE)
 		
 		# Only pull if beyond ideal distance
 		if current_distance > IDEAL_FOLLOW_DISTANCE:
@@ -562,16 +573,16 @@ func _apply_pull_forces(target_body: Node3D, current_distance: float, direction:
 				pull_force *= PULL_FORCE_PLAYER_REDUCTION
 			
 			# Limit pull velocity
-			var current_speed = velocity.length()
+			var current_speed = cached_velocity.length()
 			if current_speed > MAX_PULL_VELOCITY:
-				velocity = velocity.normalized() * MAX_PULL_VELOCITY
+				cached_velocity = cached_velocity.normalized() * MAX_PULL_VELOCITY
 				pull_force *= PULL_VELOCITY_REDUCTION
 			
 			apply_force(pull_force)
 			
 			if target_body is PhysicsObject:
 				# Apply reduced force to target and store for collision handling
-				var resistance_scale = clamp(velocity.length() / 5.0, 0.3, 1.0)  # Reduced maximum resistance
+				var resistance_scale = clamp(cached_velocity.length() / 5.0, 0.3, 1.0)  # Reduced maximum resistance
 				target_body.apply_force(-pull_force * resistance_scale)
 				last_pull_direction = direction
 				current_pull_force = chain_pull * pull_factor
@@ -585,8 +596,8 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 	var force_scale = (1.0 - distance / SEGMENT_PROXIMITY_RADIUS)
 	var repulsion = -direction * PROXIMITY_FORCE * pow(force_scale, PROXIMITY_FALLOFF)
 	
-	# Add velocity matching to prevent oscillation
-	var relative_velocity = other.velocity - velocity
+	# Fix velocity reference
+	var relative_velocity = other.linear_velocity - cached_velocity
 	var velocity_correction = relative_velocity * PROXIMITY_VELOCITY_MATCH
 	
 	apply_force(repulsion - velocity_correction)
@@ -594,50 +605,27 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 		other.apply_force(-repulsion + velocity_correction)
 
 func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: Vector3) -> void:
-	# Only handle if moving towards each other
-	var normal_velocity = relative_velocity.dot(normal)
-	if normal_velocity >= 0:
-		return
-	
-	var time_since_collision = Time.get_ticks_msec() / 1000.0 - last_collision_time
-	last_collision_time = Time.get_ticks_msec() / 1000.0
-	
-	# Calculate base push force
-	var push_force = COLLISION_PUSH_FORCE
-	
-	# Increase force for segment-segment collisions
-	if other is Segment:
-		push_force *= SEGMENT_PUSH_MULTIPLIER
+	if other.material_type == PhysicsConstants.MATERIAL_ROCK:
+		var chain_factor = 1.0 - (float(chain_index) / max(chain_length, 1))
 		
-		# Blend push direction with movement direction for more natural separation
-		var movement_dir = velocity.normalized()
-		normal = normal.lerp(movement_dir, PUSH_DIRECTION_BLEND).normalized()
+		# Calculate push force with better scaling
+		var push_force = ROCK_PUSH_SCALE
+		if current_pull_force > 0:
+			push_force += chain_factor * CHAIN_FORCE_SCALE
+			
+			# Build up force over time
+			collision_force_multiplier = lerp(
+				collision_force_multiplier,
+				push_force,
+				PUSH_FORCE_BUILDUP
+			)
+			
+			# Transfer momentum more gradually
+			var transfer_velocity = -normal * current_pull_force * 0.3
+			other.cached_velocity = other.cached_velocity.lerp(transfer_velocity, chain_factor * 0.2)
 	
-	# Calculate separation velocity
-	var separation_speed = max(-normal_velocity, MIN_SEPARATION_SPEED)
-	var separation_force = normal * separation_speed * push_force
-	
-	# Apply ramping force multiplier with decay
-	push_force_multiplier = min(
-		push_force_multiplier + PUSH_FORCE_RAMP_RATE * time_since_collision,
-		MAX_PUSH_MULTIPLIER
-	) * COLLISION_PUSH_DECAY
-	
-	# Scale force based on relative mass
-	var mass_sum = mass + other.mass
-	var my_ratio = other.mass / mass_sum  # Reversed to push more against heavier objects
-	var other_ratio = mass / mass_sum
-	
-	# Apply immediate separation impulse
-	apply_impulse(separation_force * my_ratio)
-	other.apply_impulse(-separation_force * other_ratio)
-	
-	# Keep some sliding motion
-	var tangent_vel = relative_velocity - normal * normal_velocity
-	velocity = tangent_vel * COLLISION_TANGENT_RETAIN
-	
-	# Handle impact effects
-	handle_impact(separation_force.length() * collision_force_multiplier)
+	super.handle_collision(other, normal, relative_velocity)
+	collision_force_multiplier = move_toward(collision_force_multiplier, 1.0, 0.1)
 
 func _process(_delta):
 	# Interpolate visual position between physics updates
@@ -678,3 +666,66 @@ func become_dangerous():
 func dead_eat() -> float:
 	queue_free()
 	return 5.0
+
+func _integrate_forces(state: PhysicsDirectBodyState3D):
+	if is_recovering or not target:
+		return
+		
+	if is_growing:
+		growth_timer += get_physics_process_delta_time()
+		var t = growth_timer / GROWTH_DURATION
+		if t <= 1.0:
+			var growth = ease(t, GROWTH_CURVE)
+			apply_physics_scale(lerp(INITIAL_SCALE, 1.0, growth))
+			spring_stiffness_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, growth)
+		else:
+			is_growing = false
+			apply_physics_scale(1.0)
+			spring_stiffness_multiplier = 1.0
+	
+	# Calculate spring forces
+	var to_target = target.global_position - global_position
+	var distance = to_target.length()
+	
+	if distance > 0:
+		var direction = to_target / distance
+		var target_velocity = target.linear_velocity if target is RigidBody3D else Vector3.ZERO
+		
+		# Get chain scaling factors
+		var factors = SpringPhysics.calculate_chain_factors(chain_index, chain_length)
+		
+		# Calculate and apply spring forces
+		var spring_force = SpringPhysics.calculate_spring_force(
+			global_position,
+			target.global_position,
+			target_distance,
+			SPRING_STIFFNESS,
+			factors.position_scale * factors.length_factor
+		)
+		
+		var damping = SPRING_DAMPING_BASE + (SPRING_DAMPING_GROWTH * pow(factors.chain_factor, 0.8))
+		var damping_force = SpringPhysics.calculate_damping_force(
+			state.linear_velocity,
+			target_velocity,
+			damping,
+			factors.position_scale
+		)
+		
+		# Apply forces
+		state.apply_central_force(spring_force)
+		state.apply_central_force(damping_force)
+		
+		# Handle distance constraint
+		var max_allowed_distance = target_distance * MAX_STRETCH
+		if distance > max_allowed_distance:
+			var correction = (distance - max_allowed_distance) * 0.3
+			var correction_impulse = direction * correction * get_effective_mass()
+			state.apply_central_impulse(correction_impulse)
+	
+	# Update cached velocity at the end
+	cached_velocity = state.linear_velocity
+
+# Update any remaining references to velocity to use cached_velocity instead
+func init_with_scale_and_velocity(initial_scale: float, initial_velocity: Vector3) -> void:
+	apply_physics_scale(initial_scale, true)
+	cached_velocity = initial_velocity

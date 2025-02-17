@@ -223,8 +223,8 @@ func spawn_rock(force_safe: bool = false):
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
 	var spawn_pos = Vector3(random_x, 0, random_z)
 	
-	# Initialize the rock
-	rock.initialize(spawn_pos)
+	# Call setup instead of initialize
+	rock.setup_rock(spawn_pos)
 	
 	# Get player reference
 	var player = gameplay_container.get_node_or_null("Player")
@@ -324,7 +324,7 @@ func save_game_state():
 		return
 
 	var player = gameplay_container.get_node_or_null("Player")
-	if player.is_dead:
+	if not player or not player is Player or player.get("is_dead"):  # Add type check and safer property access
 		return
 		
 	var foods = get_tree().get_nodes_in_group("food")
@@ -414,12 +414,12 @@ func load_game_state():
 				float(rock_data.position.z)
 			)
 			
-			# Initialize the rock properly first
-			rock.initialize(pos)
+			 # Call setup instead of initialize
+			rock.setup_rock(pos)
 			
 			# Then set any saved properties
 			if rock_data.has("velocity"):
-				rock.velocity = Vector3(
+				rock.cached_velocity = Vector3(
 					float(rock_data.velocity.x),
 					float(rock_data.velocity.y),
 					float(rock_data.velocity.z)

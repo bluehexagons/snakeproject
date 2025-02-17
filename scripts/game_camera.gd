@@ -47,6 +47,7 @@ func _process(delta: float) -> void:
 	var aspect_ratio = float(window_size.x) / float(window_size.y)
 	size = current_size if aspect_ratio > 1.0 else current_size / aspect_ratio
 	
+	# Get player using group instead of type check
 	var player = get_tree().get_first_node_in_group("player")
 	if not player:
 		return
@@ -55,9 +56,9 @@ func _process(delta: float) -> void:
 	var target_transition = float(is_third_person)
 	camera_transition = lerp(camera_transition, target_transition, delta * TRANSITION_SPEED)
 	
-	# Update predicted direction
-	if player.velocity.length() > 0.1:
-		predicted_direction = predicted_direction.slerp(player.velocity.normalized(), delta * LAG_SPEED)
+	# Update predicted direction using linear_velocity directly since we verified player type
+	if player.linear_velocity.length() > 0.1:
+		predicted_direction = predicted_direction.slerp(player.linear_velocity.normalized(), delta * LAG_SPEED)
 	
 	var target_pos = player.position
 	

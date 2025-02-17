@@ -10,33 +10,41 @@ const SPAWN_HEIGHT = 1.5  # How high to rise from ground
 const INITIAL_SCALE = 0.2  # Start very small
 const BREAK_FORCE_THRESHOLD = 100.0  # Force required to break the rock
 
+# Simplified segment interaction constants
+const SEGMENT_FORCE_SCALE = 1.0    # Direct force transfer
+const SEGMENT_SLIDE = 0.9          # High sliding retention
+const MIN_RESPONSE = 10.0          # Minimum response threshold
+
+# Simplify to just use parent collision handling with even lighter mass
+const MASS_SCALING = 0.6  # Even lighter for better pushing
+
 var is_dangerous: bool = false
 var is_initialized: bool = false
 var spawn_timer: float = 0.0
 var is_spawning: bool = true
 var spawn_start_pos: Vector3
 
-# @onready var material = mesh_instance.mesh.surface_get_material(0)
+@onready var mesh: MeshInstance3D = $MeshInstance3D
 
 func _ready():
 	super()
 	material_type = PhysicsConstants.MATERIAL_ROCK
-	base_mass = PhysicsConstants.ROCK_MASS
-	mass = base_mass
-	pull_reduction = 2.0  # Rocks are harder to pull
-	target_distance = 1.5  # Rocks maintain more distance
-	collision_force_multiplier = 1.5  # Rocks deal more collision damage
-	spring_stiffness_multiplier = 0.7  # Rocks have weaker spring forces
 	
-	drag_coefficient = PhysicsConstants.ROCK_DRAG
-	max_speed = PhysicsConstants.ROCK_MAX_SPEED
-	static_friction = PhysicsConstants.ROCK_STATIC_FRICTION
-	dynamic_friction = PhysicsConstants.ROCK_DYNAMIC_FRICTION
-	rolling_friction = PhysicsConstants.ROCK_ROLLING_FRICTION
-	target_color = SAFE_COLOR
-	current_color = SAFE_COLOR
-	base_emission = Color(0.2, 0.2, 0.2, 1.0) 
-	base_emission_energy = 0.2  # Low base emission energy
+	# Configure RigidBody3D properties
+	var settings = PhysicsConstants.RIGID_BODY_SETTINGS.rock
+	linear_damp = settings.linear_damp
+	angular_damp = settings.angular_damp
+	collision_layer = PhysicsConstants.LAYER_PHYSICAL
+	collision_mask = PhysicsConstants.LAYER_DEFAULT | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_PLAYER
+	contact_monitor = true
+	max_contacts_reported = PhysicsConstants.ROCK_MAX_CONTACTS
+	continuous_cd = true
+	
+	# Set up physics material
+	physics_material_override = PhysicsMaterial.new()
+	physics_material_override.friction = settings.friction
+	physics_material_override.bounce = settings.bounce
+	physics_material_override.rough = true
 
 func finish_spawn():
 	is_spawning = false
@@ -44,9 +52,10 @@ func finish_spawn():
 	position.y = spawn_start_pos.y
 	physics_pos = position
 	visual_pos = position
-	mesh_instance.scale = Vector3.ONE
+	mesh.scale = Vector3.ONE
 
-func initialize(spawn_position: Vector3):
+# Replace initialize with setup_rock
+func setup_rock(spawn_position: Vector3) -> void:
 	is_initialized = true
 	spawn_start_pos = spawn_position
 	position = spawn_position
@@ -54,53 +63,64 @@ func initialize(spawn_position: Vector3):
 	
 	physics_pos = position
 	visual_pos = position
-	mesh_instance.global_position = position
-	mesh_instance.scale = Vector3.ONE * INITIAL_SCALE
+	mesh.global_position = position
+	mesh.scale = Vector3.ONE * INITIAL_SCALE
+	
+	# Set initial physics state
+	apply_physics_scale(INITIAL_SCALE, true)
+	cached_velocity = Vector3.ZERO
 
-func _physics_process(delta):
-	if !is_initialized:
+func _physics_process(delta: float) -> void:
+	if not is_initialized:
 		return
 		
 	if is_spawning:
-		spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)
-		var t = spawn_timer / SPAWN_DURATION
-		var smooth_t = ease(t, 0.7) 
-		
-		# Rise and scale effect
-		var height_offset = lerp(-0.5, 0.0, smooth_t)
-		position.y = spawn_start_pos.y - height_offset
-		physics_pos = position  # Update physics position during spawn
-		visual_pos = position  # Update visual position during spawn
-		mesh_instance.scale = Vector3.ONE * lerp(INITIAL_SCALE, 1.0, smooth_t)
-		mesh_instance.global_position = position  # Direct position during spawn
-		
-		if spawn_timer >= SPAWN_DURATION:
-			finish_spawn()
+		spawn_animation(delta)
+	else:
+		physics_pos = global_position
+		visual_pos = physics_pos
+
+func _integrate_forces(state: PhysicsDirectBodyState3D):
+	if is_spawning:
 		return
 	
-	var collision = move_and_collide(velocity * delta)
-	if collision and collision.get_collider():
-		var collider = collision.get_collider()
-		var force = collision.get_remainder().length() * mass
+	# Use PhysicsDirectBodyState3D for contact handling
+	for i in state.get_contact_count():
+		var contact_normal = state.get_contact_local_normal(i)
+		var contact_position = state.get_contact_local_position(i)
+		var contact_collider = state.get_contact_collider_object(i)
 		
-		# Handle breaking check but don't return early
-		if force > BREAK_FORCE_THRESHOLD:
-			break_rock()
+		# Apply ground friction
+		if contact_normal.dot(Vector3.UP) > 0.7:
+			state.apply_central_force(-state.linear_velocity * PhysicsConstants.ROCK_STATIC_FRICTION * mass)
 		
-		# Always process collision physics even if breaking
-		if collider is PhysicsObject:
-			var relative_velocity = velocity - collider.velocity
-			handle_collision(collider, collision.get_normal(), relative_velocity)
+		# Apply anti-sticking force using proper impulse
+		if contact_normal.dot(Vector3.UP) > 0.1:  # Only push up if somewhat facing up
+			state.apply_central_impulse(contact_normal * 0.1)
 	
-	super._physics_process(delta)
+	# Use built-in velocity limiting
+	var current_speed = state.linear_velocity.length()
+	if current_speed > PhysicsConstants.ROCK_MAX_SPEED:
+		state.linear_velocity = state.linear_velocity * (PhysicsConstants.ROCK_MAX_SPEED / current_speed)
+
+	# Update cached velocity
+	cached_velocity = state.linear_velocity
+
+func spawn_animation(delta: float) -> void:
+	spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)
+	var t = spawn_timer / SPAWN_DURATION
+	var smooth_t = ease(t, 0.7)
 	
-	# Update visual position even if spawning
-	if mesh_instance:
-		mesh_instance.global_position = position
+	var height_offset = lerp(-0.5, 0.0, smooth_t)
+	position.y = spawn_start_pos.y - height_offset
+	mesh.scale = Vector3.ONE * lerp(INITIAL_SCALE, 1.0, smooth_t)
+	
+	if spawn_timer >= SPAWN_DURATION:
+		finish_spawn()
 
 func _process(delta):
 	if !is_initialized or is_spawning:
-		mesh_instance.global_position = position
+		mesh.global_position = position
 		return
 	
 	super._process(delta)

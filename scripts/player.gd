@@ -5,19 +5,13 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
 const EXPECTED_MAX_SPEED = 400.0
-const ACCELERATION = 200.0  # Doubled from 100.0 for more forceful movement
-const CONTROL_DRAG = 0.9
-const DEAD_CONTROL_DRAG = 1.0
-const ROTATION_SPEED = 15.0
 const LUNGE_FORCE = 20.0  # Doubled from 10.0 for stronger food collection burst
 const SEGMENT_PUSHBACK = 3.0
-const VELOCITY_SMOOTHING = 0.15
 const SPEED_BOOST_BASE = 1.0  # Rename IDLE_SPEED to SPEED_BOOST_BASE
-const IDLE_TIMEOUT = 3.0  # Time in seconds before game over when idle
 const COLOR_CHANGE_SPEED = 5.0  # Speed of color transition
 const SPEED_SCORE_MULTIPLIER = 1.5  # Points per multiple of speed
 const MAX_BONUS_SPEED_MULTIPLIER = 3.0 # Max score multiplier for speed
-const BONUS_SPEED_PER_FEED = 0.2  # Speed increase per food eaten
+const BONUS_SPEED_PER_FEED = 0.05  # Speed increase per food eaten
 const MAX_SPEED_BOOST = 15.0  # Cap on how fast the minimum speed can get
 const SEGMENT_SPAWN_OFFSET = 0.2  # Reduced from 1.2 to spawn closer
 const SEGMENT_SPAWN_VELOCITY = 0.95  # Increased from 0.8 for better matching
@@ -65,12 +59,17 @@ const MAX_PUSH_MULTIPLIER = 3.0  # Maximum force multiplier when pushing
 const RESISTANCE_THRESHOLD = 0.3  # Speed ratio that indicates resistance
 const MIN_RESISTANCE_TIME = 0.1  # Minimum time before force starts ramping
 
-const DIRECT_ACCELERATION = 350.0  # Much higher initial acceleration
-const MOMENTUM_RETENTION = 0.7    # How much existing velocity to keep
-const TURN_RESPONSIVENESS = 0.85  # How quickly to change direction
-const MOVEMENT_RAMP_TIME = 0.15   # How long to reach full speed
-const MOVEMENT_DECAY = 0.92       # How quickly to slow down when not moving
-const COLLISION_FORCE_LIMIT = 200.0  # Maximum force applied in collisions
+# Refined movement constants
+const DIRECT_ACCELERATION = 90.0  # Reduced from 350 for smoother acceleration
+const MOMENTUM_RETENTION = 0.85   # Increased from 0.7 to maintain more momentum
+const TURN_RESPONSIVENESS = 0.65  # Reduced from 0.85 for less jerky turning
+const MOVEMENT_RAMP_TIME = 0.2    # Increased from 0.15 for smoother acceleration
+const MOVEMENT_DECAY = 0.95       # Increased from 0.92 for less abrupt stopping
+const INPUT_SMOOTHING = 0.25      # New: how much to smooth input changes
+
+# Force limits
+const COLLISION_FORCE_LIMIT = 150.0  # Maximum collision force (reduced from 200)
+const COLLISION_PUSHBACK = 0.8    # How much to scale collision forces
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[Segment] = []
@@ -101,8 +100,32 @@ var movement_ramp: float = 0.0
 
 func _ready():
 	super()
-	add_to_group("player")
 	material_type = PhysicsConstants.MATERIAL_PLAYER
+	
+	# Configure RigidBody3D properties
+	var settings = PhysicsConstants.RIGID_BODY_SETTINGS.player
+	linear_damp = settings.linear_damp
+	angular_damp = settings.angular_damp
+	collision_layer = PhysicsConstants.LAYER_PLAYER
+	collision_mask = PhysicsConstants.LAYER_DEFAULT | PhysicsConstants.LAYER_PHYSICAL
+	contact_monitor = true
+	max_contacts_reported = 4
+	continuous_cd = true
+	
+	# Initialize base values
+	base_mass = PhysicsConstants.PLAYER_MASS
+	mass = base_mass
+	
+	# Set up physics material
+	physics_material_override = PhysicsMaterial.new()
+	physics_material_override.friction = settings.friction
+	physics_material_override.bounce = settings.bounce
+	physics_material_override.rough = true
+	
+	# Add to necessary groups
+	add_to_group("player")
+	add_to_group("physics_object")
+	
 	base_mass = PhysicsConstants.PLAYER_MASS
 	mass = base_mass
 	pull_reduction = 0.85
@@ -143,7 +166,17 @@ func _ready():
 	current_scale = 1.0
 	target_scale = 1.0
 
+	# Set process modes
+	set_process_input(true)  # Enable input processing
+	set_physics_process(true)  # Enable physics processing
+	process_mode = Node.PROCESS_MODE_INHERIT  # Respect parent pause state
+
 func _physics_process(delta):
+	# Add this at the start of _physics_process
+	if Input.is_action_just_pressed("toggle_unkillable"):
+		unkillable = !unkillable
+		print("Unkillable toggled: ", unkillable)
+
 	collected_food = false  # Reset at start of frame
 	
 	# Handle color updates before any potential impacts
@@ -264,37 +297,33 @@ func _physics_process(delta):
 	if not has_lost and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		
-			# Ramp up movement intensity
+		# Smooth input changes
+		input_smoothed = input_smoothed.lerp(input_dir, INPUT_SMOOTHING)
+		
+		# Ramp up movement intensity more smoothly
 		movement_ramp = min(movement_ramp + delta / MOVEMENT_RAMP_TIME, 1.0)
 		
-		# Calculate base movement force
-		var base_force = input_dir * DIRECT_ACCELERATION * movement_ramp
+		# Calculate base movement force with smoothed input
+		var base_force = input_smoothed * DIRECT_ACCELERATION * movement_ramp
 		
-		# Add speed boost scaling
-		var boost_force = base_force * (current_speed_boost / SPEED_BOOST_BASE)
+		# Add speed boost scaling with better ramping
+		var boost_force = base_force * lerp(1.0, current_speed_boost / SPEED_BOOST_BASE, movement_ramp)
 		
 		if is_dead:
 			boost_force *= 1.0 / max(pow(dead_time * 0.5, 1.5), 1.0)
 		
-		# Retain some existing velocity but align with input direction
-		var aligned_velocity = velocity.project(input_dir)
-		var perpendicular_velocity = velocity - aligned_velocity
-		
-		# Keep aligned velocity but reduce perpendicular for better turning
-		velocity = (aligned_velocity * MOMENTUM_RETENTION + 
-				   perpendicular_velocity * (MOMENTUM_RETENTION * TURN_RESPONSIVENESS))
-		
-		# Apply new force
-		velocity += boost_force * delta
+			# Apply the force in _integrate_forces instead
+		add_physics_force(boost_force)
 	else:
-		# Quick decay when no input
+		# Gradual slowdown when no input
 		movement_ramp = 0.0
-		velocity *= MOVEMENT_DECAY
+		input_smoothed = Vector3.ZERO
 	
-	if velocity != Vector3.ZERO:
-		facing_direction = velocity.normalized()
+	# Update facing based on cached velocity
+	if cached_velocity.length_squared() > 0.1:
+		facing_direction = cached_velocity.normalized()
 	
-	var collision = move_and_collide(velocity * delta)
+	var collision = move_and_collide(cached_velocity * delta)
 	if collision:
 		var collider = collision.get_collider()
 		if collider.is_in_group("dangerous"):
@@ -308,7 +337,7 @@ func _physics_process(delta):
 		
 		# Handle collision directly instead of through collision handler
 		if collider is PhysicsObject:
-			var relative_velocity = velocity - collider.velocity
+			var relative_velocity = cached_velocity - collider.cached_velocity
 			handle_collision(collider, collision.get_normal(), relative_velocity)
 	
 	# Handle proximity with segments - Updated to handle proximity directly
@@ -322,7 +351,7 @@ func _physics_process(delta):
 		if distance > 0 and distance < SEGMENT_PROXIMITY_RADIUS:
 			handle_proximity(segment, distance, to_segment / distance)
 
-	var current_speed = min(max(velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
+	var current_speed = min(max(cached_velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
 
 	# Food collection
 	# Get list of food items and sort by distance
@@ -390,13 +419,9 @@ func _process(_delta):
 	mesh_instance.global_position = visual_pos
 	mesh_instance.basis = visual_basis
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("toggle_unkillable"):
-		unkillable = !unkillable
-
-func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> CharacterBody3D:
+func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> PhysicsBody3D:
 	if is_dead:
-		return
+		return null
 	
 	var segment = SEGMENT_SCENE.instantiate()
 	segment.set_script(load("res://scripts/segment.gd"))
@@ -423,8 +448,8 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 		)
 		var spawn_offset = -facing_direction * (SEGMENT_SPAWN_OFFSET + segment.INITIAL_SCALE)
 		spawn_pos = global_position + spawn_offset + random_offset
-		# Give segment better initial velocity
-		segment.velocity = velocity * SEGMENT_SPAWN_VELOCITY
+			# Initialize segment with current velocity
+		segment.init_with_scale_and_velocity(segment.INITIAL_SCALE, cached_velocity * SEGMENT_SPAWN_VELOCITY)
 	
 	# Initialize segment with proper scale first
 	segment.init_with_growth(growth_state)
@@ -486,7 +511,8 @@ func restore_from_save(data: Dictionary):
 			float(state.visual_pos.y),
 			float(state.visual_pos.z)
 		)
-		velocity = Vector3(
+		# Update to use cached_velocity instead of velocity
+		cached_velocity = Vector3(
 			float(state.velocity.x),
 			float(state.velocity.y),
 			float(state.velocity.z)
@@ -552,8 +578,8 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 	var force_scale = (1.0 - distance / SEGMENT_PROXIMITY_RADIUS)
 	var repulsion = -direction * PROXIMITY_FORCE * pow(force_scale, PROXIMITY_FALLOFF)
 	
-	# Add velocity matching to prevent oscillation
-	var relative_velocity = other.velocity - velocity
+	# Fix velocity reference in relative velocity calculation
+	var relative_velocity = other.cached_velocity - cached_velocity
 	var velocity_correction = relative_velocity * PROXIMITY_VELOCITY_MATCH
 	
 	apply_force(repulsion - velocity_correction)
@@ -561,40 +587,62 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 		other.apply_force(-repulsion + velocity_correction)
 
 func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: Vector3) -> void:
-	# Only handle if moving towards each other
-	var normal_velocity = relative_velocity.dot(normal)
-	if normal_velocity >= 0:
+	if other.is_in_group("dangerous") and not unkillable:
+		die()
 		return
 	
-	# Calculate collision response with increased force transfer
-	var restitution = 0.3
-	var impact_force = -(1.0 + restitution) * normal_velocity
+	if is_dead:
+		if other.has_method("dead_eat"):
+			other.dead_eat()
+	elif other.has_method("eat"):
+		other.eat()
 	
-	# Scale impact force based on movement direction
-	var pushing_force = input_dir.dot(-normal) * ROCK_FORCE_MULTIPLIER
-	impact_force *= 1.0 + max(pushing_force, 0.0)  # Only amplify when actively pushing
+	# Let parent handle basic collision response
+	super.handle_collision(other, normal, relative_velocity)
+
+func _integrate_forces(state: PhysicsDirectBodyState3D):
+	if is_dead:
+		state.linear_velocity *= 0.98
+		return
 	
-	# Apply forces with improved mass ratios
-	var mass_sum = mass + other.mass
-	var my_ratio = mass / mass_sum
-	var other_ratio = other.mass / mass_sum
-	var scaled_force = impact_force * (mass * other.mass) / mass_sum
+	# Handle input movement
+	if not has_lost and input_smoothed != Vector3.ZERO:
+		has_started_moving = true
+		
+		# Calculate movement force with momentum
+		var current_vel = state.linear_velocity
+		var movement = input_smoothed * DIRECT_ACCELERATION * movement_ramp
+		
+		# Apply speed boost
+		movement *= lerp(1.0, current_speed_boost / SPEED_BOOST_BASE, movement_ramp)
+		
+		# Handle death slowdown
+		if is_dead:
+			movement *= 1.0 / max(pow(dead_time * 0.5, 1.5), 1.0)
+		
+		# Apply momentum retention
+		var current_dir = current_vel.normalized() if current_vel.length_squared() > 0.1 else input_smoothed
+		var aligned_velocity = current_vel.project(current_dir)
+		var perpendicular_velocity = current_vel - aligned_velocity
+		
+		# Calculate new velocity
+		state.linear_velocity = (
+			aligned_velocity * MOMENTUM_RETENTION + 
+			perpendicular_velocity * (MOMENTUM_RETENTION * TURN_RESPONSIVENESS)
+		)
+		
+		# Apply movement force
+		state.apply_central_force(movement * get_effective_mass())
+		print("Input: ", input_smoothed)  # Add debug print
+	else:
+		# Gradual slowdown
+		state.linear_velocity *= MOVEMENT_DECAY
+		movement_ramp = 0.0
+		input_smoothed = Vector3.ZERO
 	
-	# Calculate collision impulse
-	var collision_impulse = normal * scaled_force
+	# Update facing direction
+	if state.linear_velocity.length_squared() > 0.1:
+		facing_direction = state.linear_velocity.normalized()
 	
-	# Apply impulses
-	apply_impulse(collision_impulse * other_ratio)
-	other.apply_impulse(-collision_impulse * my_ratio)
-	
-	# Handle impact effects
-	handle_impact(scaled_force * collision_force_multiplier)
-	
-	# Limit chain pull force when colliding
-	if other is Segment:
-		var pull_force = collision_impulse.length()
-		if pull_force > COLLISION_FORCE_LIMIT:
-			collision_impulse = collision_impulse.normalized() * COLLISION_FORCE_LIMIT
-			# Reapply limited force
-			apply_impulse(collision_impulse * other_ratio)
-			other.apply_impulse(-collision_impulse * my_ratio)
+	# Update cached velocity for other systems
+	cached_velocity = state.linear_velocity

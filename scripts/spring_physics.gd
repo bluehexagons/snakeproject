@@ -53,8 +53,9 @@ static func calculate_damping_force(
 		damping: float,
 		force_scale: float
 	) -> Vector3:
-	# Simplified damping calculation
-	return (target_velocity - velocity) * damping * force_scale
+	# Use relative velocity for damping calculation
+	var relative_velocity = target_velocity - velocity
+	return relative_velocity * damping * force_scale
 
 static func calculate_velocity_matching(
 		current_pos: Vector3,
