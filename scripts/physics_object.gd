@@ -248,14 +248,16 @@ func apply_drag(_delta: float) -> void:
 	var drag_force = -velocity.normalized() * speed_squared * drag_coefficient
 	apply_force(drag_force)
 	
-	# Apply friction as a force proportional to normal force
-	var friction_coefficient = dynamic_friction
-	if speed_squared < PhysicsConstants.ROLLING_THRESHOLD:
-		friction_coefficient = rolling_friction
-	
-	var normal_force = mass * PhysicsConstants.GRAVITY
-	var friction_force = -velocity.normalized() * friction_coefficient * normal_force
-	apply_force(friction_force)
+	# Apply ground friction using coefficients
+	if is_grounded:
+		var friction_coeffs = PhysicsConstants.get_ground_friction_coefficients(material_type)
+		var friction_coeff = friction_coeffs[1]  # Use dynamic friction
+		if speed_squared < PhysicsConstants.ROLLING_THRESHOLD:
+			friction_coeff = friction_coeffs[0]  # Use static friction
+		
+		var normal_force = mass * PhysicsConstants.GRAVITY
+		var friction_force = -velocity.normalized() * friction_coeff * normal_force
+		apply_force(friction_force)
 	
 	is_static = false
 
@@ -279,7 +281,7 @@ func handle_impact(force: float) -> void:
 	flash_material.albedo_color = current_color
 	flash_material.emission = flash_emission + Color(0.5, 0.5, 0.5, 1.0) * flash_intensity
 	flash_material.emission_energy_multiplier = state_emission_energy + flash_intensity * 2.0
-	
+	 
 	mesh_instance.material_override = flash_material
 	
 	var tween = create_tween()
@@ -291,9 +293,48 @@ func handle_impact(force: float) -> void:
 			mesh_instance.material_override = null
 	)
 
-func handle_collision(force: float) -> void:
-	is_static = false  # Break static friction on impact
-	handle_impact(force)
+func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: Vector3) -> void:
+	# Only handle if moving towards each other
+	var normal_velocity = relative_velocity.dot(normal)
+	if normal_velocity >= 0:
+		return
+		
+	# Calculate collision response with better force transfer
+	var restitution = 0.3  # Base bounciness
+	var impact_force = -(1.0 + restitution) * normal_velocity
+	
+	# Improved mass ratio calculation for better force transfer
+	var mass_ratio = mass / (mass + other.mass)
+	var other_mass_ratio = other.mass / (mass + other.mass)
+	
+	# Scale impact force based on mass ratios
+	impact_force *= (mass * other.mass) / (mass + other.mass)
+	
+	# Calculate impulses with mass ratios
+	var impulse = normal * impact_force
+	var my_impulse = impulse * other_mass_ratio
+	var other_impulse = -impulse * mass_ratio
+	
+	# Get friction coefficients
+	var friction_coeffs = PhysicsConstants.get_friction_coefficients(material_type, other.material_type)
+	var friction = friction_coeffs[1]  # Use dynamic friction
+	
+	# Calculate tangential components
+	var tangent_vel = relative_velocity - normal * normal_velocity
+	if tangent_vel.length_squared() > 0.001:
+		var friction_dir = tangent_vel.normalized()
+		var friction_force = friction_dir * abs(impact_force) * friction
+		
+		# Apply friction forces with mass ratios
+		apply_force(friction_force * other_mass_ratio)
+		other.apply_force(-friction_force * mass_ratio)
+	
+	# Apply impulses
+	apply_impulse(my_impulse)
+	other.apply_impulse(other_impulse)
+	
+	# Handle impact effects
+	handle_impact(impact_force * collision_force_multiplier)
 
 func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: float = -1.0) -> void:
 	if current_material:
@@ -318,15 +359,15 @@ func apply_impulse(impulse: Vector3) -> void:
 		return
 	accumulated_impulse += impulse
 
-# Add method to calculate friction with another object
+# Rename friction coefficients to be more explicit
 func calculate_friction_force(other: PhysicsObject, normal_force: float, relative_velocity: Vector3, collision_normal: Vector3) -> Vector3:
 	if not is_valid_vector(relative_velocity) or not is_finite(normal_force) or not is_valid_vector(collision_normal):
 		return Vector3.ZERO
 
 	# Get friction coefficients between the two materials
-	var coefficients = PhysicsConstants.get_friction_coefficients(material_type, other.material_type)
-	var static_friction = coefficients[0]
-	var dynamic_friction = coefficients[1]
+	var friction_coeffs = PhysicsConstants.get_friction_coefficients(material_type, other.material_type)
+	var object_static_coeff = friction_coeffs[0]
+	var object_dynamic_coeff = friction_coeffs[1]
 	
 	# Calculate tangential velocity using the collision normal
 	var tangential_velocity = relative_velocity - collision_normal * relative_velocity.dot(collision_normal)
@@ -342,11 +383,11 @@ func calculate_friction_force(other: PhysicsObject, normal_force: float, relativ
 	# If speed is very low, use static friction
 	if tangential_speed < minimum_speed:
 		# Limit static friction to prevent sticking
-		var max_static_force = static_friction * normal_force
+		var max_static_force = object_static_coeff * normal_force
 		var stopping_force = mass * tangential_speed / get_physics_process_delta_time()
 		return friction_direction * min(max_static_force, stopping_force)
 	
 	# Otherwise use dynamic friction
 	# Scale friction with velocity to prevent abrupt changes
 	var friction_scale = clamp(tangential_speed / (minimum_speed * 2.0), 0.0, 1.0)
-	return friction_direction * dynamic_friction * normal_force * friction_scale
+	return friction_direction * object_dynamic_coeff * normal_force * friction_scale

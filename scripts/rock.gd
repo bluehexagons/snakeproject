@@ -76,18 +76,27 @@ func _physics_process(delta):
 		
 		if spawn_timer >= SPAWN_DURATION:
 			finish_spawn()
+		return
 	
 	var collision = move_and_collide(velocity * delta)
-	var collision_handler = get_node("/root/CollisionHandler")
-	
 	if collision and collision.get_collider():
+		var collider = collision.get_collider()
 		var force = collision.get_remainder().length() * mass
+		
+		# Handle breaking check but don't return early
 		if force > BREAK_FORCE_THRESHOLD:
 			break_rock()
-		else:
-			collision_handler.handle_detailed_collision(self, collision.get_collider(), collision.get_normal(), delta)
+		
+		# Always process collision physics even if breaking
+		if collider is PhysicsObject:
+			var relative_velocity = velocity - collider.velocity
+			handle_collision(collider, collision.get_normal(), relative_velocity)
 	
 	super._physics_process(delta)
+	
+	# Update visual position even if spawning
+	if mesh_instance:
+		mesh_instance.global_position = position
 
 func _process(delta):
 	if !is_initialized or is_spawning:

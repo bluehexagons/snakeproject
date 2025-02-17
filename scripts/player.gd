@@ -5,11 +5,11 @@ const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
 const EXPECTED_MAX_SPEED = 400.0
-const ACCELERATION = 100.0  # Increased since we're using forces now
+const ACCELERATION = 200.0  # Doubled from 100.0 for more forceful movement
 const CONTROL_DRAG = 0.9
 const DEAD_CONTROL_DRAG = 1.0
 const ROTATION_SPEED = 15.0
-const LUNGE_FORCE = 10.0
+const LUNGE_FORCE = 20.0  # Doubled from 10.0 for stronger food collection burst
 const SEGMENT_PUSHBACK = 3.0
 const VELOCITY_SMOOTHING = 0.15
 const SPEED_BOOST_BASE = 1.0  # Rename IDLE_SPEED to SPEED_BOOST_BASE
@@ -51,6 +51,20 @@ const UNKILLABLE_COLOR = Color(0.7, 0.9, 1.0)  # Light blue tint
 const UNKILLABLE_EMISSION = Color(0.4, 0.6, 1.0)  # Brighter blue emission
 const UNKILLABLE_EMISSION_ENERGY = 1.2
 
+const SEGMENT_PROXIMITY_RADIUS = 1.2  # Radius for proximity checks
+const PROXIMITY_FORCE = 150.0  # Force to apply for separation
+const PROXIMITY_FALLOFF = 1.5  # How quickly force reduces with distance
+const PROXIMITY_VELOCITY_MATCH = 0.2  # How much to match velocities when close
+
+const ROCK_FORCE_MULTIPLIER = 2.0  # Extra force when pushing rocks
+const PULL_STRENGTH = 1.5  # Multiplier for when pulling against resistance
+const MIN_PUSH_FORCE = 50.0  # Minimum force applied when pushing objects
+
+const FORCE_RAMP_RATE = 2.0  # How quickly to build up pushing force
+const MAX_PUSH_MULTIPLIER = 3.0  # Maximum force multiplier when pushing
+const RESISTANCE_THRESHOLD = 0.3  # Speed ratio that indicates resistance
+const MIN_RESISTANCE_TIME = 0.1  # Minimum time before force starts ramping
+
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[Segment] = []
 var target_velocity: Vector3 = Vector3.ZERO
@@ -71,6 +85,10 @@ var unkillable: bool = false
 var physics_basis: Basis
 var visual_basis: Basis
 var collected_food: bool = false  # Add this variable
+var input_dir: Vector3 = Vector3.ZERO  # Add this with other class variables
+var push_force_multiplier: float = 1.0
+var resistance_timer: float = 0.0
+var last_push_dir: Vector3 = Vector3.ZERO
 
 func _ready():
 	super()
@@ -196,7 +214,7 @@ func _physics_process(delta):
 	current_color = current_color.lerp(state_color, delta * COLOR_CHANGE_SPEED)
 	apply_color(current_color, state_emission, state_emission_energy)
 	
-	var input_dir = Vector3.ZERO
+	input_dir = Vector3.ZERO  # Reset at start of frame
 	var raw_input = Vector2(
 		Input.get_axis("move_left", "move_right"),
 		Input.get_axis("move_up", "move_down")
@@ -237,13 +255,49 @@ func _physics_process(delta):
 	if not has_lost and input_dir != Vector3.ZERO:
 		has_started_moving = true
 		var drag = DEAD_CONTROL_DRAG if is_dead else CONTROL_DRAG
-		velocity += (input_dir * (current_speed_boost / max(pow(dead_time * 0.5, 1.5), 1.0) if is_dead else ACCELERATION + (current_speed_boost * 10.0)) * delta)
+		
+		# Calculate speed ratio to detect resistance
+		var speed_ratio = velocity.length() / max_speed
+		var is_resisted = speed_ratio < RESISTANCE_THRESHOLD
+		
+		# Update resistance tracking
+		if is_resisted and input_dir.dot(last_push_dir) > 0.7:
+			resistance_timer += delta
+			if resistance_timer > MIN_RESISTANCE_TIME:
+				push_force_multiplier = min(
+					push_force_multiplier + FORCE_RAMP_RATE * delta,
+					MAX_PUSH_MULTIPLIER
+				)
+		else:
+			resistance_timer = 0.0
+			push_force_multiplier = max(push_force_multiplier - FORCE_RAMP_RATE * delta, 1.0)
+		
+		last_push_dir = input_dir
+		
+		# Calculate base movement force with ramping
+		var move_force = input_dir * (
+			current_speed_boost / max(pow(dead_time * 0.5, 1.5), 1.0) if is_dead 
+			else ACCELERATION + (current_speed_boost * 20.0)
+		)
+		
+		# Apply accumulated force multiplier
+		move_force *= push_force_multiplier
+		
+		# Ensure minimum push force
+		if move_force.length() > 0:
+			move_force = move_force.normalized() * max(move_force.length(), MIN_PUSH_FORCE)
+		
+		velocity += move_force * delta
 		velocity *= drag
+	else:
+		# Reset force multiplier when not moving
+		push_force_multiplier = 1.0
+		resistance_timer = 0.0
+	
 	if velocity != Vector3.ZERO:
 		facing_direction = velocity.normalized()
 	
 	var collision = move_and_collide(velocity * delta)
-	var collision_handler = get_node("/root/CollisionHandler")
 	if collision:
 		var collider = collision.get_collider()
 		if collider.is_in_group("dangerous"):
@@ -254,12 +308,22 @@ func _physics_process(delta):
 				score_change += collider.dead_eat()
 		elif collider.has_method("eat"):
 			score_change += collider.eat()
-				
-		collision_handler.handle_detailed_collision(self, collider, collision.get_normal(), delta)
+		
+		# Handle collision directly instead of through collision handler
+		if collider is PhysicsObject:
+			var relative_velocity = velocity - collider.velocity
+			handle_collision(collider, collision.get_normal(), relative_velocity)
 	
-	# Handle proximity with segments
-	var nearby_segments = get_tree().get_nodes_in_group("segment")
-	collision_handler.handle_physics_proximity(self, nearby_segments, delta)
+	# Handle proximity with segments - Updated to handle proximity directly
+	var nearby_segments = get_node("/root/CollisionHandler").get_nearby_bodies(global_position)
+	for segment in nearby_segments:
+		if segment == self or not segment is PhysicsObject:
+			continue
+		
+		var to_segment = segment.global_position - global_position
+		var distance = to_segment.length()
+		if distance > 0 and distance < SEGMENT_PROXIMITY_RADIUS:
+			handle_proximity(segment, distance, to_segment / distance)
 
 	var current_speed = min(max(velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
 
@@ -493,3 +557,46 @@ func finish_digestion():
 	
 	# Spawn new segment
 	add_segment()
+
+func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3) -> void:
+	if distance <= 0:
+		return
+		
+	var force_scale = (1.0 - distance / SEGMENT_PROXIMITY_RADIUS)
+	var repulsion = -direction * PROXIMITY_FORCE * pow(force_scale, PROXIMITY_FALLOFF)
+	
+	# Add velocity matching to prevent oscillation
+	var relative_velocity = other.velocity - velocity
+	var velocity_correction = relative_velocity * PROXIMITY_VELOCITY_MATCH
+	
+	apply_force(repulsion - velocity_correction)
+	if other is PhysicsObject:
+		other.apply_force(-repulsion + velocity_correction)
+
+func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: Vector3) -> void:
+	# Only handle if moving towards each other
+	var normal_velocity = relative_velocity.dot(normal)
+	if normal_velocity >= 0:
+		return
+	
+	# Calculate collision response with increased force transfer
+	var restitution = 0.3
+	var impact_force = -(1.0 + restitution) * normal_velocity
+	
+	# Scale impact force based on movement direction
+	# Now we can use input_dir since it's a class variable
+	var pushing_force = input_dir.dot(-normal) * ROCK_FORCE_MULTIPLIER
+	impact_force *= 1.0 + max(pushing_force, 0.0)  # Only amplify when actively pushing
+	
+	# Apply forces with improved mass ratios
+	var mass_sum = mass + other.mass
+	var my_ratio = mass / mass_sum
+	var other_ratio = other.mass / mass_sum
+	var scaled_force = impact_force * (mass * other.mass) / mass_sum
+	
+	# Apply impulses
+	apply_impulse(normal * scaled_force * other_ratio)
+	other.apply_impulse(-normal * scaled_force * my_ratio)
+	
+	# Handle impact effects
+	handle_impact(scaled_force * collision_force_multiplier)

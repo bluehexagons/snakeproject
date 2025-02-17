@@ -2,9 +2,9 @@ extends PhysicsObject
 
 class_name Segment
 
-const SPRING_STIFFNESS = 200.0  # Significantly reduced from 400.0
-const SPRING_DAMPING_BASE = 20.0     # Slightly reduced from 45.0
-const SPRING_DAMPING_GROWTH = 2.0     # Slightly reduced from 45.0
+const SPRING_STIFFNESS = 140.0      # Reduced for less aggressive spring force
+const SPRING_DAMPING_BASE = 15.0    # Reduced damping
+const SPRING_DAMPING_GROWTH = 2.5   # Less aggressive damping growth
 const TARGET_DISTANCE = 1.0
 const GROWTH_DURATION = 0.33  # Faster growth
 const INITIAL_SCALE = 0.4  # Slightly larger initial scale
@@ -13,8 +13,8 @@ const SAFE_COLOR = Color(0.3, 0.8, 1.0, 0.9)
 const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)
 const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
-const PULL_START_DISTANCE = 1.3  # Distance at which pull force starts
-const PULL_MAX_DISTANCE = 1.8    # Distance at which pull force peaks
+const PULL_START_DISTANCE = 1.0  # Distance at which pull force starts
+const PULL_MAX_DISTANCE = 2.2    # Distance at which pull force peaks
 const PULL_FORCE = 400.0        # Reduced from 800.0 to allow more external influence
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
 const CLUSTER_FORCE_REDUCTION = 0.85  # Increased force reduction in clusters
@@ -23,21 +23,53 @@ const POP_FORCE = 1.0
 const POP_FORCE_OPPOSITE = 10.0
 const MAX_STRETCH = 1.4  # Maximum stretch multiplier before constraint kicks in
 const HARD_MAX_STRETCH = 2.2  # Absolute maximum stretch before breaking
-const STRETCH_STIFFNESS_SCALE = 10.0  # How much to increase stiffness when stretching
+const STRETCH_STIFFNESS_SCALE = 10.4  # How much to increase stiffness when stretching
 const SNAP_THRESHOLD = 0.1  # How close to max stretch before increasing stiffness
-const BREAK_THRESHOLD = 0.999  # How close to HARD_MAX_STRETCH before breaking
+const BREAK_THRESHOLD = 0.99  # How close to HARD_MAX_STRETCH before breaking
 const GROWTH_CURVE = 0.5  # Less aggressive easing
 const SPAWN_DURATION = 0.5  # Duration of spawn state
 const SPAWN_COLLISION_MASK = 0b111  # Actually collide with everything, but...
 const NORMAL_COLLISION_MASK = 0b111  # Normal collision mask (all layers)
-const CHAIN_POSITION_FACTOR = 0.08  # Reduced for more gradual change
-const CHAIN_LENGTH_SCALING = 0.92   # Less aggressive length scaling
-const MIN_STIFFNESS = 0.3          # Minimum spring stiffness multiplier
+const CHAIN_POSITION_FACTOR = 0.12  # Increased from 0.08 for stronger position effect
+const CHAIN_LENGTH_SCALING = 0.85   # More aggressive length scaling
+const MIN_STIFFNESS = 0.4          # Increased minimum stiffness
 const MAX_CHAIN_LENGTH = 20        # Length after which to apply extra scaling
-const CHAIN_PULL_DECAY = 0.7    # How much pull force carries through chain
+const CHAIN_PULL_DECAY = 0.8       # Slower pull force decay through chain
 const MIN_PULL_FORCE = 100.0    # Minimum pull force at chain end
 const RECOVERY_COOLDOWN = 0.5   # Time before segment can break again
 const SPRING_FORCE_DELAY = 0.1  # Time to wait after collision before full spring force
+const COLLISION_RECOVERY_RATE = 2.0  # How fast spring forces recover after collision
+const VELOCITY_MATCHING_FACTOR = 0.2 # Reduced to prevent over-matching
+const VELOCITY_INHERITANCE = 0.7  # How much of target's velocity direction to inherit
+const VELOCITY_INHERITANCE_SPEED = 5.0  # How fast to inherit velocity direction
+const MIN_VELOCITY_MATCH = 0.2  # Minimum velocity matching even at rest
+const COLLISION_FORCE_SCALE = 0.9   # Less reduction in collision response
+const MIN_COLLISION_SPEED = 4.0  # Increased threshold for extra dampening
+const BROKEN_VELOCITY_INHERIT = 0.7  # How much velocity to keep when breaking
+const BROKEN_ANGULAR_IMPULSE = 5.0  # Add some spin when breaking
+const CONNECTED_FRICTION_MULTIPLIER = 2.5  # Higher friction when connected
+const CONNECTED_ROLLING_MULTIPLIER = 3.0   # Much harder to roll when connected
+const COLLISION_BOUNCE_DAMPING = 0.1        # Drastically reduced bounce
+const COLLISION_TANGENT_RETAIN = 0.95       # Keep almost all sliding motion
+const COLLISION_SEPARATION_FORCE = 0.15     # Very gentle separation
+const ROCK_COLLISION_EXTRA_DAMPING = 0.4    # Allow more sliding on rocks
+const SEGMENT_COLLISION_RESTITUTION = 0.1   # Minimal bounce between segments
+const SEGMENT_REPULSION_FORCE = 120.0       # Gentler separation force
+const SEGMENT_PROXIMITY_RADIUS = 1.2      # Distance to check for segment interaction
+const COLLISION_VELOCITY_MATCH = 0.25       # Increased to prevent bouncing
+
+# Add proximity handling constants
+const PROXIMITY_FORCE = 80.0                # Reduced repulsion for smoother grouping
+const PROXIMITY_FALLOFF = 0.8               # Gentler force falloff
+const PROXIMITY_VELOCITY_MATCH = 0.2  # How much to match velocities when close
+
+const PULL_FORCE_TRANSFER = 1.5  # How much of pull force transfers to pushing obstacles
+const PUSH_BOOST_THRESHOLD = 0.5  # Speed threshold to identify when being pulled strongly
+const PUSH_FORCE_MULTIPLIER = 2.0  # Extra force when pushing due to chain pull
+
+const PUSH_FORCE_RAMP_RATE = 1.5  # How quickly to build up pushing force
+const MAX_PUSH_MULTIPLIER = 2.5  # Maximum force multiplier when pushing
+const RESISTANCE_DECAY = 0.8  # How quickly push force decays
 
 var target: Node3D
 var smoothed_velocity: Vector3
@@ -53,6 +85,10 @@ var has_collision: bool = false
 var chain_index: int = 0  # Position in the chain, set during add_segment
 var chain_length: int = 1 # Total chain length, updated by player
 var collision_recovery_timer: float = 0.0  # Track time since last collision
+var last_pull_direction: Vector3 = Vector3.ZERO
+var current_pull_force: float = 0.0
+var push_force_multiplier: float = 1.0
+var last_collision_time: float = 0.0
 
 func _ready():
 	super()
@@ -151,6 +187,34 @@ func init_from_save_data(data: Dictionary):
 	growth_timer = GROWTH_DURATION  # Mark growth as complete
 
 func _physics_process(delta):
+	# Near the start, update friction based on connection state
+	if is_instance_valid(target):
+		# Check if we're ultimately connected to the player through the chain
+		var is_player_connected = false
+		var current_target = target
+		var depth = 0  # Prevent infinite loops
+		while current_target and depth < 100:
+			if current_target is Player:
+				is_player_connected = true
+				break
+			if current_target is Segment:
+				current_target = current_target.target
+			else:
+				break
+			depth += 1
+		
+		# Adjust friction based on connection
+		if is_player_connected:
+			static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION * CONNECTED_FRICTION_MULTIPLIER
+			rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION * CONNECTED_ROLLING_MULTIPLIER
+		else:
+			static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION
+			rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION
+	else:
+		# Reset to default friction when disconnected
+		static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION
+		rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION
+	
 	# Add early exit for extreme velocities
 	if velocity.length() > PhysicsConstants.SEGMENT_MAX_SPEED * 2.0:
 		velocity = velocity.normalized() * PhysicsConstants.SEGMENT_MAX_SPEED
@@ -160,20 +224,15 @@ func _physics_process(delta):
 		recovery_timer = min(recovery_timer + delta, RECOVERY_DURATION)
 		if recovery_timer >= RECOVERY_DURATION:
 			is_recovering = false
-		return
-
-	# Early out if no valid target
-	if !is_instance_valid(target):
-		return
 
 	if is_growing:
 		growth_timer += delta
 		var t = growth_timer / GROWTH_DURATION
 		if t <= 1.0:
 			var growth = ease(t, GROWTH_CURVE)
-			# Smoother scale transition
-			var target_scale = lerp(INITIAL_SCALE, 1.0, growth)
-			apply_physics_scale(target_scale)
+			 # Rename to avoid shadowing
+			var growth_scale = lerp(INITIAL_SCALE, 1.0, growth)
+			apply_physics_scale(growth_scale)
 			# Scale spring forces with size
 			spring_stiffness_multiplier = lerp(INITIAL_SPRING_REDUCTION, 1.0, growth)
 		else:
@@ -189,14 +248,9 @@ func _physics_process(delta):
 			collision_mask = NORMAL_COLLISION_MASK
 			collision_layer = 2  # Physical objects layer
 	
-	# Update spawn timer
-	spawn_timer = max(0.0, spawn_timer - delta)
-	
 	# Calculate base spring force with spawn reduction
-	var base_stiffness = SPRING_STIFFNESS * lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / 0.5))
+	var base_stiffness = SPRING_STIFFNESS * lerp(INITIAL_SPRING_REDUCTION, 1.0, 1.0 - (spawn_timer / SPAWN_DURATION))
 	
-	var collision_handler = get_node("/root/CollisionHandler")
-
 	if is_instance_valid(target):
 		# Calculate target distance based on current scales
 		var adjusted_distance = target_distance * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
@@ -213,107 +267,161 @@ func _physics_process(delta):
 			if current_distance > hard_max_distance * BREAK_THRESHOLD:
 				if not is_recovering:
 					recovery_timer = 0.0
-					# Apply break impulse away from excessive stretch
-					apply_impulse(-target_direction * POP_FORCE_OPPOSITE * mass * randf_range(0, 1))
-					apply_impulse(Vector3.UP * POP_FORCE * mass * randf_range(0, 1))
+					
+					# Make both segments dangerous
+					become_dangerous()
+					if target is Segment:
+						target.become_dangerous()
+					
+					# Apply break forces with more physical behavior
+					# Remove unused break_velocity variable
+					# We can't apply torque to CharacterBody3D, so we'll use linear forces instead
+					var random_dir = Vector3(
+						randf_range(-1, 1),
+						randf_range(-1, 1),
+						randf_range(-1, 1)
+					).normalized()
+					
+					apply_impulse(-target_direction * POP_FORCE_OPPOSITE * mass)
+					apply_impulse(Vector3.UP * POP_FORCE * mass)
+					apply_impulse(random_dir * BROKEN_ANGULAR_IMPULSE * mass)
+					
+					if target is PhysicsObject:
+						target.apply_impulse(target_direction * POP_FORCE_OPPOSITE * target.mass)
+						target.apply_impulse(Vector3.UP * POP_FORCE * target.mass)
+						target.apply_impulse(-random_dir * BROKEN_ANGULAR_IMPULSE * target.mass)
+						velocity = velocity.lerp(target.velocity, 0.3)  # Inherit some velocity
+					
+					target = null  # Clear target reference first
+				
 				is_recovering = true
 			
-			if not is_recovering:
-				# Calculate stretch factor
+			if not is_recovering and target:
+				var target_velocity = target.velocity if target is PhysicsObject else Vector3.ZERO
+				
+				# Get chain scaling factors from SpringPhysics
+				var factors = SpringPhysics.calculate_chain_factors(chain_index, chain_length)
+				
+				# Calculate spring scale
+				var spring_scale = lerp(0.3, 1.0, min(collision_recovery_timer / SPRING_FORCE_DELAY, 1.0))
+				collision_recovery_timer += delta * COLLISION_RECOVERY_RATE
+				
+				# Apply stretch-based stiffness increase
 				var stretch_factor = current_distance / adjusted_distance
-				
-				# Apply hard distance constraint
-				if current_distance > max_distance:
-					# Calculate positions for constraint
-					var constraint_center = (global_position + target.global_position) * 0.5
-					var to_center = global_position - constraint_center
-					var constraint_distance = max_distance * 0.5
-					
-					# Apply constraint through velocity adjustment
-					if target is PhysicsObject:
-						var total_mass = mass + target.mass
-						var mass_ratio_a = mass / total_mass
-						var mass_ratio_b = target.mass / total_mass
-						
-						var new_pos_a = constraint_center + to_center.normalized() * constraint_distance
-						var new_pos_b = constraint_center - to_center.normalized() * constraint_distance
-						
-						var correction_a = (new_pos_a - global_position) / delta
-						var correction_b = (new_pos_b - target.global_position) / delta
-						
-						velocity += correction_a * mass_ratio_b
-						target.velocity += correction_b * mass_ratio_a
-				
-				# Calculate spring force with progressive stiffness
-				var desired_pos = target.global_position - target_direction * adjusted_distance
-				var to_desired = desired_pos - global_position
-				
-				# Increase stiffness as we approach max stretch, but with less intensity
 				var stretch_progress = clamp((stretch_factor - 1.0) / (MAX_STRETCH - 1.0), 0.0, 1.0)
 				var current_stiffness = base_stiffness * (1.0 + stretch_progress * (STRETCH_STIFFNESS_SCALE * 0.7))
 				
-				# Store the magnitude of force for debugging
-				last_force = (to_desired * current_stiffness).length()
+				# Calculate final force scale
+				var force_scale = factors.position_scale * factors.length_factor * spring_stiffness_multiplier * spring_scale
 				
-				# Apply chain-based scaling factors with smoother progression
-				var position_scale = pow(1.0 - (chain_index * CHAIN_POSITION_FACTOR), 0.7)
-				position_scale = clamp(position_scale, MIN_STIFFNESS, 1.0)
+				# Apply distance constraint if needed
+				if current_distance > max_distance:
+					_apply_distance_constraint(target, max_distance, delta)
 				
-				var length_factor = 1.0
-				if chain_length > MAX_CHAIN_LENGTH:
-					length_factor = pow(CHAIN_LENGTH_SCALING, chain_length - MAX_CHAIN_LENGTH)
+				# Calculate spring force using SpringPhysics
+				var spring_force = SpringPhysics.calculate_spring_force(
+					global_position,
+					target.global_position,
+					adjusted_distance,
+					current_stiffness,
+					force_scale
+				) * 0.8  # Reduce spring force importance
 				
-				# Progressive damping that increases more toward the tail
-				var damping_scale = pow(float(chain_index), 0.6)
+				# Calculate damping using SpringPhysics
+				var damping = SPRING_DAMPING_BASE + (SPRING_DAMPING_GROWTH * pow(factors.chain_factor, 0.8))
+				var damping_force = SpringPhysics.calculate_damping_force(
+					velocity,
+					target_velocity,
+					damping,
+					force_scale
+				)
 				
-				# Calculate base forces with new scaling
-				var force_scale = position_scale * length_factor * spring_stiffness_multiplier
-				var spring_force = to_desired * current_stiffness * force_scale
-				var damping_force = -velocity * (SPRING_DAMPING_BASE + SPRING_DAMPING_GROWTH * damping_scale) * force_scale
+				# Calculate velocity matching using SpringPhysics
+				var matching_force = SpringPhysics.calculate_velocity_matching(
+					global_position,
+					target.global_position,
+					velocity,
+					target_velocity,
+					adjusted_distance,
+					mass,
+					VELOCITY_MATCHING_FACTOR
+				)
 				
-				# Calculate pull force that propagates through the chain
-				if current_distance > PULL_START_DISTANCE:
-					var pull_factor = clamp(
-						(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
-						0.0, 1.0
-					)
-					
-					# Calculate chain-aware pull force
-					var chain_pull = PULL_FORCE * pow(CHAIN_PULL_DECAY, chain_index)
-					chain_pull = max(chain_pull, MIN_PULL_FORCE)
-					var pull_force = target_direction * chain_pull * pull_factor
-					
-					# Apply pull force both to self and target
-					apply_force(pull_force)
-					if target is PhysicsObject:
-						var target_mass_ratio = target.mass / (mass + target.mass)
-						var opposite_force = -pull_force * target_mass_ratio * target.pull_reduction
-						target.apply_force(opposite_force)
+				# Calculate velocity inheritance using SpringPhysics
+				var inherit_force = SpringPhysics.apply_velocity_inheritance(
+					velocity,
+					target_velocity,
+					delta,
+					VELOCITY_INHERITANCE_SPEED,
+					VELOCITY_INHERITANCE,
+					mass
+				)
 				
-				# Get nearby bodies for cluster detection
-				var nearby = collision_handler.get_nearby_bodies(global_position)
-				var cluster_factor = clamp(float(nearby.size()) / MAX_NEARBY_SEGMENTS, 0.0, 1.0)
-				
-				# Apply cluster-based force reduction
-				spring_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
-				damping_force *= (1.0 - cluster_factor * CLUSTER_FORCE_REDUCTION)
-				
+				# Apply all forces
 				apply_force(spring_force)
 				apply_force(damping_force)
+				apply_force(matching_force)
+				apply_force(inherit_force)
+				
+				# Handle pull forces
+				_apply_pull_forces(target, current_distance, target_direction)
+				
+				last_force = spring_force.length()
 
 	var collision = move_and_collide(velocity * delta)
 	if collision:
-		has_collision = true
-		last_collision_normal = collision.get_normal()
-		collision_recovery_timer = SPRING_FORCE_DELAY  # Reset recovery timer on collision
 		var collider = collision.get_collider()
-		collision_handler.handle_detailed_collision(self, collider, last_collision_normal, delta)
+		if not collider is PhysicsObject:
+			return
+			
+		var normal = collision.get_normal()
+		var relative_velocity = velocity - collider.velocity
+		var normal_vel = normal * relative_velocity.dot(normal)
+		var tangent_vel = relative_velocity - normal_vel
+		
+		 # Remove unused mass ratio variables since we're not using them in the collision response
+		var restitution = COLLISION_BOUNCE_DAMPING
+		var tangent_retain = COLLISION_TANGENT_RETAIN
+		
+		# Adjust response based on collider type
+		if collider is Segment:
+			restitution = SEGMENT_COLLISION_RESTITUTION
+			tangent_retain = 0.9
+			
+			# Apply separation impulse
+			var separation = normal * SEGMENT_REPULSION_FORCE * delta
+			apply_impulse(separation)
+			collider.apply_impulse(-separation)
+			
+			# Match velocities to prevent ping-ponging
+			velocity = velocity.lerp(collider.velocity, COLLISION_VELOCITY_MATCH)
+		elif collider.material_type == PhysicsConstants.MATERIAL_ROCK:
+			restitution *= ROCK_COLLISION_EXTRA_DAMPING
+		
+		# Apply collision response
+		velocity = (tangent_vel * tangent_retain - normal_vel * restitution) * COLLISION_FORCE_SCALE
+		
+		# Apply gentle separation impulse
+		apply_impulse(normal * COLLISION_SEPARATION_FORCE * mass)
+		
+		# Handle impact effects
+		handle_impact(relative_velocity.length() * collision_force_multiplier)
+		
+		has_collision = true
+		last_collision_normal = normal
+		collision_recovery_timer = 0.0
 	
-	# Optimize proximity checks - Fixed function name here
-	if has_collision:
-		# Only check proximity after collisions
-		var nearby_segments = collision_handler.get_nearby_bodies(global_position)
-		collision_handler.handle_physics_proximity(self, nearby_segments, delta)
+	# Handle proximity
+	if has_collision:  # We still check only after collisions for performance
+		var nearby_bodies = get_node("/root/CollisionHandler").get_nearby_bodies(global_position, SEGMENT_PROXIMITY_RADIUS)
+		for other in nearby_bodies:
+			if other == self or not other is PhysicsObject:
+				continue
+			
+			var to_other = other.global_position - global_position
+			var distance = to_other.length()
+			if distance > 0 and distance < SEGMENT_PROXIMITY_RADIUS:
+				handle_proximity(other, distance, to_other / distance)
 	
 	# Store physics state
 	physics_pos = global_position
@@ -337,6 +445,110 @@ func _physics_process(delta):
 		base_emission = Color(0.2, 0.6, 0.3, 1.0)
 
 	super._physics_process(delta)
+
+func _apply_distance_constraint(target_body: Node3D, max_distance: float, delta: float) -> void:
+	var to_target = target_body.global_position - global_position
+	var current_distance = to_target.length()
+	
+	if current_distance > 0:
+		var correction = (current_distance - max_distance) * 0.3  # Even softer correction
+		var correction_dir = to_target / current_distance
+		
+		if target_body is PhysicsObject:
+			var total_mass = mass + target_body.mass
+			var mass_ratio_a = mass / total_mass
+			var mass_ratio_b = target_body.mass / total_mass
+			
+			 # Smoother velocity-based correction
+			var correction_vel = correction_dir * correction / delta
+			velocity = velocity.lerp(velocity + correction_vel * mass_ratio_b, 0.5)
+			target_body.velocity = target_body.velocity.lerp(
+				target_body.velocity - correction_vel * mass_ratio_a, 0.5)
+
+# Rename parameter to avoid shadowing
+func _apply_pull_forces(target_body: Node3D, current_distance: float, direction: Vector3) -> void:
+	if current_distance > PULL_START_DISTANCE:
+		var pull_factor = clamp(
+			(current_distance - PULL_START_DISTANCE) / (PULL_MAX_DISTANCE - PULL_START_DISTANCE),
+			0.0, 1.0
+		)
+		
+		# Calculate chain-based pull force that increases with resistance
+		var chain_pull = PULL_FORCE * pow(CHAIN_PULL_DECAY, chain_index * 0.7)
+		chain_pull = max(chain_pull * (1.0 + velocity.length() * 0.1), MIN_PULL_FORCE)
+		var pull_force = direction * chain_pull * pull_factor
+		
+		# Apply forces with better distribution
+		apply_force(pull_force)
+		if target_body is PhysicsObject:
+			var resistance_scale = clamp(velocity.length() / 5.0, 0.5, 2.0)
+			target_body.apply_force(-pull_force * resistance_scale)
+			
+			# Store pull direction for collision handling
+			last_pull_direction = direction
+			current_pull_force = chain_pull * pull_factor
+
+func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3) -> void:
+	if distance <= 0:
+		return
+		
+	var force_scale = (1.0 - distance / SEGMENT_PROXIMITY_RADIUS)
+	var repulsion = -direction * PROXIMITY_FORCE * pow(force_scale, PROXIMITY_FALLOFF)
+	
+	# Add velocity matching to prevent oscillation
+	var relative_velocity = other.velocity - velocity
+	var velocity_correction = relative_velocity * PROXIMITY_VELOCITY_MATCH
+	
+	apply_force(repulsion - velocity_correction)
+	if other is PhysicsObject:
+		other.apply_force(-repulsion + velocity_correction)
+
+func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: Vector3) -> void:
+	# Only handle if moving towards each other
+	var normal_velocity = relative_velocity.dot(normal)
+	if normal_velocity >= 0:
+		return
+	
+	var time_since_collision = Time.get_ticks_msec() / 1000.0 - last_collision_time
+	last_collision_time = Time.get_ticks_msec() / 1000.0
+	
+	# Build up push force if colliding repeatedly
+	if time_since_collision < 0.2:  # Recent collision
+		push_force_multiplier = min(
+			push_force_multiplier + PUSH_FORCE_RAMP_RATE * time_since_collision,
+			MAX_PUSH_MULTIPLIER
+		)
+	else:
+		push_force_multiplier = max(push_force_multiplier * RESISTANCE_DECAY, 1.0)
+	
+	# Calculate collision response with ramping force
+	var restitution = 0.3
+	var impact_force = -(1.0 + restitution) * normal_velocity
+	
+	# Add extra force when being pulled against obstacle
+	var extra_force = 0.0
+	if is_instance_valid(target) and target is PhysicsObject:
+		var to_target = (target.global_position - global_position).normalized()
+		var push_alignment = -normal.dot(to_target)
+		
+		if push_alignment > 0.3 and velocity.length() > PUSH_BOOST_THRESHOLD:
+			extra_force = push_alignment * PUSH_FORCE_MULTIPLIER * current_pull_force
+	
+	# Apply ramping force multiplier
+	impact_force *= (1.0 + extra_force) * push_force_multiplier
+	
+	# Apply forces with improved mass ratios
+	var mass_sum = mass + other.mass
+	var my_ratio = mass / mass_sum
+	var other_ratio = other.mass / mass_sum
+	var scaled_force = impact_force * (mass * other.mass) / mass_sum
+	
+	# Apply impulses
+	apply_impulse(normal * scaled_force * other_ratio)
+	other.apply_impulse(-normal * scaled_force * my_ratio)
+	
+	# Handle impact effects
+	handle_impact(scaled_force * collision_force_multiplier)
 
 func _process(_delta):
 	# Interpolate visual position between physics updates
