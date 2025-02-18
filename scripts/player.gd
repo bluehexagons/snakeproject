@@ -112,10 +112,6 @@ func _ready():
 	max_contacts_reported = 4
 	continuous_cd = true
 	
-	# Initialize base values
-	base_mass = PhysicsConstants.PLAYER_MASS
-	mass = base_mass
-	
 	# Set up physics material
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.friction = settings.friction
@@ -126,8 +122,6 @@ func _ready():
 	add_to_group("player")
 	add_to_group("physics_object")
 	
-	base_mass = PhysicsConstants.PLAYER_MASS
-	mass = base_mass
 	pull_reduction = 0.85
 	target_distance = 1.1
 	collision_force_multiplier = 0.8  # Player takes less collision damage
@@ -135,7 +129,6 @@ func _ready():
 	
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
-	mass = 0.5
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	static_friction = 0.01
 	dynamic_friction = 0.005
@@ -147,7 +140,6 @@ func _ready():
 	physics_basis = mesh_instance.basis
 	visual_basis = mesh_instance.basis
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
-	mass = 0.5
 	
 	# Store initial emission color
 	if current_material is StandardMaterial3D:

@@ -10,40 +10,35 @@ var target: Node3D
 var last_target_pos: Vector3
 var collision_recovery_timer: float = 0.0
 
-# Remove force-based breaking state
-var breaking_timer: float = 0.0  # Keep for animation timing
+# Remove unused animation timer since we're using stretch-based breaking
+var breaking_timer: float = 0.0
 
 func _physics_process(delta: float) -> void:
 	if not _handle_chain_physics(delta):
 		return
-	
-	# Let derived classes handle their specific physics
-	_custom_physics_process(delta)
 
 func _handle_chain_physics(delta: float) -> bool:
 	if not is_instance_valid(target):
 		return false
 	
 	# Update chain tension
-	chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta)
+	chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta) * chain_physics.TENSION_DAMPING
 	collision_recovery_timer = min(collision_recovery_timer + delta, chain_physics.COLLISION_RECOVERY_DELAY)
 	
 	return true
 
-# Virtual method for derived classes
+# Remove unused function
 func _custom_physics_process(_delta: float) -> void:
 	pass
 
 func get_chain_data() -> Dictionary:
 	var target_offset = target.global_position - global_position
-	var follow_distance = target_offset.length()
+	var distance = target_offset.length()
 	
 	return {
-		"target_offset": target_offset,
-		"follow_distance": follow_distance,
-		"follow_direction": target_offset / follow_distance if follow_distance > 0 else Vector3.ZERO,
-		"tension": chain_tension,
-		"recovery": min(collision_recovery_timer / chain_physics.COLLISION_RECOVERY_DELAY, 1.0)
+		"follow_distance": distance,
+		"follow_direction": target_offset / distance if distance > 0 else Vector3.ZERO,
+		"tension": chain_tension
 	}
 
 func _handle_chain_break() -> void:

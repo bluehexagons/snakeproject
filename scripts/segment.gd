@@ -1,6 +1,10 @@
 extends ChainObject
 class_name Segment
 
+# Moved from SegmentConstants for initialization
+const DEFAULT_FRICTION_MULTIPLIER = 2.5
+const DEFAULT_ROLLING_MULTIPLIER = 3.0
+
 # Remove @onready var and use direct singleton reference
 @onready var segment_config = SegmentConstants   # Segment config singleton
 
@@ -133,14 +137,14 @@ func _calculate_chain_data(delta: float) -> Dictionary:
 	
 	chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta)
 	
-	var chain_forces = chain_physics.calculate_chain_forces(
+	var chain_forces = ChainPhysicsManager.calculate_chain_forces(
 		global_position,
 		target.global_position,
 		chain_index,
 		chain_length,
-		segment_config.TARGET_DISTANCE,
+		segment_config.TARGET_DISTANCE,  # Use segment_config constant
 		chain_tension,
-		min(collision_recovery_timer / segment_config.SPRING_FORCE_DELAY, 1.0)
+		min(collision_recovery_timer / ChainPhysicsManager.SPRING_FORCE_DELAY, 1.0)  # Updated reference
 	)
 	
 	# Check for break condition from chain forces
@@ -262,8 +266,11 @@ func break_chain() -> void:
 # Split out helper functions
 func _update_friction():
 	var is_player_connected = _check_player_connection()
-	static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION * (segment_config.CONNECTED_FRICTION_MULTIPLIER if is_player_connected else 1.0)
-	rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION * (segment_config.CONNECTED_ROLLING_MULTIPLIER if is_player_connected else 1.0)
+	var friction_mult = segment_config.CONNECTED_FRICTION_MULTIPLIER if is_instance_valid(segment_config) else DEFAULT_FRICTION_MULTIPLIER
+	var rolling_mult = segment_config.CONNECTED_ROLLING_MULTIPLIER if is_instance_valid(segment_config) else DEFAULT_ROLLING_MULTIPLIER
+	
+	static_friction = PhysicsConstants.SEGMENT_STATIC_FRICTION * (friction_mult if is_player_connected else 1.0)
+	rolling_friction = PhysicsConstants.SEGMENT_ROLLING_FRICTION * (rolling_mult if is_player_connected else 1.0)
 
 func _check_velocity_limits():
 	if cached_velocity.length() > PhysicsConstants.SEGMENT_MAX_SPEED * 2.0:
@@ -298,8 +305,8 @@ func _calculate_adjusted_distance() -> float:
 	return target_distance * (current_scale + (target.get("current_scale") if target.has_method("get_scale") else 1.0)) * 0.5
 
 func _should_break_chain(current_distance: float, adjusted_distance: float) -> bool:
-	var hard_max_distance = adjusted_distance * segment_config.HARD_MAX_STRETCH
-	return current_distance > hard_max_distance * segment_config.BREAK_THRESHOLD
+	var hard_max_distance = adjusted_distance * chain_physics.MAX_STRETCH
+	return current_distance > hard_max_distance * chain_physics.STRETCH_THRESHOLD
 
 func _get_target_velocity() -> Vector3:
 	if target is RigidBody3D:
@@ -484,7 +491,7 @@ func _update_spawn_timer(delta: float) -> void:
 	if spawn_timer > 0:
 		spawn_timer = max(0.0, spawn_timer - delta)
 		if spawn_timer <= 0:
-			collision_mask = segment_config.NORMAL_COLLISION_MASK
+			collision_mask = PhysicsConstants.MASK_PHYSICAL
 			collision_layer = PhysicsConstants.LAYER_PHYSICAL
 
 func _apply_drag() -> void:

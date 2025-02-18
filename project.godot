@@ -17,8 +17,8 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-PhysicsConstants="*res://scripts/physics_constants.gd"
 ChainPhysicsManager="*res://scripts/chain_physics.gd"
+PhysicsConstants="*res://scripts/physics_constants.gd"
 SegmentConstants="*res://scripts/segment_constants.gd"
 GameState="*res://scripts/game_state.gd"
 CollisionHandler="*res://scripts/collision_handler.gd"

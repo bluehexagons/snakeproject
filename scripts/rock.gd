@@ -154,10 +154,7 @@ func make_dangerous():
 	base_emission_energy = 1.0
 	state_emission_energy = 1.0   # Add this line
 	apply_color(DANGER_COLOR, DANGER_EMISSION, 1.0)  # Force immediate update
-	
 	add_to_group("dangerous")
-	collision_layer = 4 | 2  # Both dangerous AND physical
-	collision_mask = 7  # Collide with everything
 
 func dead_eat() -> float:
 	queue_free()

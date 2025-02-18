@@ -4,11 +4,6 @@ const GRAVITY = 25.0  # Increased from 20.0 to make objects feel more grounded
 const GROUND_LEVEL = 0.0
 const BOUNCE_DAMPENING = 0.3  # Reduced from 0.5 for less bouncy impacts
 
-# Mass constants adjusted for better pushing
-const PLAYER_MASS = 1.0
-const ROCK_MASS = 1.3           # Slightly lighter for better control
-const SEGMENT_MASS = 1.5        # Still heavy but not overwhelming
-
 # Drag coefficients (adjusted for mass-based system)
 const BASE_DRAG_COEFFICIENT = 0.3
 const PLAYER_DRAG = 0.4
@@ -112,7 +107,7 @@ const RIGID_BODY_SETTINGS = {
 	"rock": {
 		"linear_damp": 0.2,
 		"angular_damp": 3.0,
-		"mass": ROCK_MASS,
+		"mass": 1.3,
 		"friction": ROCK_DYNAMIC_FRICTION,
 		"bounce": 0.01,
 		"max_contacts": 4,
@@ -121,23 +116,29 @@ const RIGID_BODY_SETTINGS = {
 	"segment": {
 		"linear_damp": 0.08,        # Less damping for smoother chain
 		"angular_damp": 2.5,
-		"mass": SEGMENT_MASS,
+		"mass": 1.5,
 		"friction": SEGMENT_DYNAMIC_FRICTION,
 		"bounce": 0.02              # Slight bounce for better physics
 	},
 	"player": {
 		"linear_damp": 0.05,
 		"angular_damp": 1.0,
-		"mass": PLAYER_MASS,
+		"mass": 1.0,
 		"friction": PLAYER_DYNAMIC_FRICTION,
 		"bounce": 0.01
 	}
 }
 
-# Remove duplicate chain constants and reference ChainPhysics instead
-const CHAIN_DRAG = BASE_DRAG_COEFFICIENT * ChainPhysics.CHAIN_DRAG_REDUCTION
-const CHAIN_MIN_SPEED = ChainPhysics.CHAIN_MIN_SPEED
-const CHAIN_TENSION_DAMPING = ChainPhysics.CHAIN_TENSION_DAMPING
+# Remove constant references to ChainPhysics and use runtime vars instead
+var chain_drag: float
+var chain_min_speed: float
+var chain_tension_damping: float
+
+func _ready():
+	# Initialize after autoloads
+	chain_drag = BASE_DRAG_COEFFICIENT * ChainPhysicsManager.CHAIN_DRAG_REDUCTION
+	chain_min_speed = ChainPhysicsManager.CHAIN_MIN_SPEED
+	chain_tension_damping = ChainPhysicsManager.TENSION_DAMPING  # Use the correct constant
 
 # Helper functions
 func get_friction_coefficients(material1: String, material2: String) -> Array:
