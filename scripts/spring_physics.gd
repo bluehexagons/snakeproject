@@ -1,20 +1,15 @@
 extends Node
 class_name SpringPhysics
 
-const MIN_STIFFNESS = 0.6          # Increased for better chain stability
-const MAX_CHAIN_LENGTH = 20
-const CHAIN_LENGTH_SCALING = 0.95   # Less aggressive scaling
-const CHAIN_POSITION_FACTOR = 0.12
-const MIN_VELOCITY_MATCH = 0.25     # Reduced for smoother following
+const MIN_STIFFNESS = 0.2  # Much softer connection
+const CHAIN_LENGTH_SCALING = 0.9  # Less aggressive scaling
+const CHAIN_POSITION_FACTOR = 0.05  # Much less positional correction
+const MIN_VELOCITY_MATCH = 0.05  # Almost no velocity matching
 
 static func calculate_chain_factors(chain_index: int, chain_length: int) -> Dictionary:
 	var chain_factor = chain_index / float(max(chain_length, 1))
-	var position_scale = lerp(1.0, MIN_STIFFNESS, pow(chain_factor, 0.6))
-	
-	var length_factor = 1.0
-	if chain_length > MAX_CHAIN_LENGTH:
-		var excess = chain_length - MAX_CHAIN_LENGTH
-		length_factor = pow(CHAIN_LENGTH_SCALING, excess)
+	var position_scale = lerp(1.0, MIN_STIFFNESS, chain_factor * chain_factor)  # Quadratic falloff
+	var length_factor = pow(CHAIN_LENGTH_SCALING, chain_index)
 	
 	return {
 		"chain_factor": chain_factor,
@@ -35,17 +30,11 @@ static func calculate_spring_force(
 	if current_distance <= 0:
 		return Vector3.ZERO
 	
-	# Smoother spring force calculation
-	var target_direction = to_target / current_distance
-	var displacement = current_distance - target_distance
-	var spring_force = displacement * target_direction * stiffness
+	var direction = to_target / current_distance
+	var stretch = current_distance - target_distance
 	
-	# Add soft limit to prevent excessive force
-	var max_force = stiffness * target_distance * 2.0
-	if spring_force.length_squared() > max_force * max_force:
-		spring_force = spring_force.normalized() * max_force
-	
-	return spring_force * force_scale
+	# Simple spring force with reduced stiffness
+	return direction * stretch * stiffness * force_scale * 0.5  # Halved base force
 
 static func calculate_damping_force(
 		velocity: Vector3,
@@ -53,22 +42,19 @@ static func calculate_damping_force(
 		damping: float,
 		force_scale: float
 	) -> Vector3:
-	# Use relative velocity for damping calculation
-	var relative_velocity = target_velocity - velocity
-	return relative_velocity * damping * force_scale
+	return (target_velocity - velocity) * damping * force_scale
 
 static func calculate_velocity_matching(
-		current_pos: Vector3,
-		target_pos: Vector3,
+		_current_pos: Vector3,
+		_target_pos: Vector3,
 		velocity: Vector3,
 		target_velocity: Vector3,
-		target_distance: float,
+		_target_distance: float,
 		mass: float,
 		matching_factor: float
 	) -> Vector3:
-	var current_distance = (target_pos - current_pos).length()
-	var distance_factor = clamp(1.0 - (current_distance / (target_distance * 2.0)), MIN_VELOCITY_MATCH, 1.0)
-	return (target_velocity - velocity) * matching_factor * mass * distance_factor
+	# Minimal velocity matching to maintain chain stability
+	return (target_velocity - velocity) * matching_factor * mass * MIN_VELOCITY_MATCH
 
 static func apply_velocity_inheritance(
 		velocity: Vector3,

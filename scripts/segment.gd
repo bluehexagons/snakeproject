@@ -2,10 +2,10 @@ extends PhysicsObject
 
 class_name Segment
 
-const SPRING_STIFFNESS = 140.0      # Reduced for less aggressive spring force
-const SPRING_DAMPING_BASE = 15.0    # Reduced damping
-const SPRING_DAMPING_GROWTH = 2.5   # Less aggressive damping growth
-const TARGET_DISTANCE = 1.0
+const SPRING_STIFFNESS = 60.0      # Much less stiff
+const SPRING_DAMPING_BASE = 4.0    # Much less damping
+const SPRING_DAMPING_GROWTH = 1.2  # Less aggressive damping growth
+const TARGET_DISTANCE = 1.3        # Longer distance between segments
 const GROWTH_DURATION = 0.33  # Faster growth
 const INITIAL_SCALE = 0.4  # Slightly larger initial scale
 const INITIAL_SPRING_REDUCTION = 0.5  # More force reduction when small
@@ -15,7 +15,7 @@ const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 const COLOR_CHANGE_SPEED = 5.0
 const PULL_START_DISTANCE = 1.0  # Distance at which pull force starts
 const PULL_MAX_DISTANCE = 2.2    # Distance at which pull force peaks
-const PULL_FORCE = 350.0          # Stronger base pull force
+const PULL_FORCE = 80.0           # Much weaker pull force
 const RECOVERY_DURATION = 1.0         # Slightly faster recovery
 const CLUSTER_FORCE_REDUCTION = 0.85  # Increased force reduction in clusters
 const MAX_NEARBY_SEGMENTS = 5  # Threshold for considering an area "crowded"
@@ -35,11 +35,11 @@ const CHAIN_LENGTH_SCALING = 0.85   # More aggressive length scaling
 const MIN_STIFFNESS = 0.4          # Increased minimum stiffness
 const MAX_CHAIN_LENGTH = 20        # Length after which to apply extra scaling
 const CHAIN_PULL_DECAY = 0.8       # Slower pull force decay through chain
-const MIN_PULL_FORCE = 100.0    # Minimum pull force at chain end
+const MIN_PULL_FORCE = 30.0       # Lower minimum pull force
 const RECOVERY_COOLDOWN = 0.5   # Time before segment can break again
 const SPRING_FORCE_DELAY = 0.1  # Time to wait after collision before full spring force
 const COLLISION_RECOVERY_RATE = 2.0  # How fast spring forces recover after collision
-const VELOCITY_MATCHING_FACTOR = 0.2 # Reduced to prevent over-matching
+const VELOCITY_MATCHING_FACTOR = 0.05  # Almost no velocity matching
 const VELOCITY_INHERITANCE = 0.7  # How much of target's velocity direction to inherit
 const VELOCITY_INHERITANCE_SPEED = 5.0  # How fast to inherit velocity direction
 const MIN_VELOCITY_MATCH = 0.2  # Minimum velocity matching even at rest
@@ -446,6 +446,10 @@ func _physics_process(delta):
 			# Handle pull forces
 			_apply_pull_forces(target, follow_distance, target_offset.normalized())
 			
+			# Apply very light drag to prevent segments from overtaking leader
+			var drag = -cached_velocity * 0.1 * mass
+			apply_force(drag)
+
 			last_force = spring_force.length()
 
 	var collision = move_and_collide(cached_velocity * delta)
