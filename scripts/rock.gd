@@ -5,24 +5,24 @@ const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
 const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
 const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
 
-const SPAWN_DURATION = 0.5
-const SPAWN_HEIGHT = 1.5  # How high to rise from ground
-const INITIAL_SCALE = 0.2  # Start very small
-const BREAK_FORCE_THRESHOLD = 100.0  # Force required to break the rock
-
-# Simplified segment interaction constants
-const SEGMENT_FORCE_SCALE = 1.0    # Direct force transfer
-const SEGMENT_SLIDE = 0.9          # High sliding retention
-const MIN_RESPONSE = 10.0          # Minimum response threshold
-
-# Simplify to just use parent collision handling with even lighter mass
-const MASS_SCALING = 0.6  # Even lighter for better pushing
+const SPAWN_HEIGHT = 15.0  # Higher drop
+const SPAWN_DURATION = 0.7  # Slightly faster
+const INITIAL_SCALE = 0.1
+const GROWTH_START = 0.1  # Slight delay before growth
+const GROWTH_PEAK = 0.6
+const GROWTH_CURVE = 0.4  # Smoother curve
+const SCALE_OVERSHOOT = 1.3  # Less overshoot
+const INITIAL_SPIN = 12.0
+const DROP_HEIGHT = 0.3
+const BOUNCE_AMPLITUDE = 0.4
+const BOUNCE_FREQUENCY = 6.0
 
 var is_dangerous: bool = false
 var is_initialized: bool = false
 var spawn_timer: float = 0.0
 var is_spawning: bool = true
 var spawn_start_pos: Vector3
+var spawn_progress: float = 0.0
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 
@@ -46,39 +46,65 @@ func _ready():
 	physics_material_override.bounce = settings.bounce
 	physics_material_override.rough = true
 
-func finish_spawn():
+func finish_spawn() -> void:
 	is_spawning = false
-	spawn_timer = SPAWN_DURATION
-	position.y = spawn_start_pos.y
-	physics_pos = position
-	visual_pos = position
-	mesh.scale = Vector3.ONE
+	gravity_scale = 1.0
+	apply_physics_scale(1.0, true)
+	axis_lock_angular_x = false
+	axis_lock_angular_z = false
 
-# Replace initialize with setup_rock
 func setup_rock(spawn_position: Vector3) -> void:
 	is_initialized = true
 	spawn_start_pos = spawn_position
-	position = spawn_position
-	position.y -= 0.5  # Start slightly below ground
-	
+	position = spawn_position + Vector3.UP * SPAWN_HEIGHT
 	physics_pos = position
 	visual_pos = position
-	mesh.global_position = position
-	mesh.scale = Vector3.ONE * INITIAL_SCALE
 	
-	# Set initial physics state
+	# Random spin
+	rotation = Vector3(randf_range(-PI, PI), randf_range(-PI, PI), randf_range(-PI, PI))
+	angular_velocity = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * INITIAL_SPIN
+	
+	# Initial state
 	apply_physics_scale(INITIAL_SCALE, true)
+	mesh.scale = Vector3.ONE * INITIAL_SCALE
 	cached_velocity = Vector3.ZERO
+	gravity_scale = 0.0
+	spawn_timer = 0.0
+	
+	# Lock rotation during spawn
+	axis_lock_angular_x = true
+	axis_lock_angular_z = true
 
 func _physics_process(delta: float) -> void:
 	if not is_initialized:
 		return
 		
 	if is_spawning:
-		spawn_animation(delta)
-	else:
-		physics_pos = global_position
-		visual_pos = physics_pos
+		spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)
+		spawn_progress = spawn_timer / SPAWN_DURATION
+		
+		# Calculate scale
+		var scale_progress = clampf((spawn_progress - GROWTH_START) / (GROWTH_PEAK - GROWTH_START), 0.0, 1.0)
+		var target_scale = INITIAL_SCALE
+		
+		if scale_progress > 0.0:
+			var growth = ease(scale_progress, GROWTH_CURVE)
+			target_scale = lerp(INITIAL_SCALE, SCALE_OVERSHOOT, growth)
+			
+			if spawn_progress > GROWTH_PEAK:
+				var settle = ease((spawn_progress - GROWTH_PEAK) / (1.0 - GROWTH_PEAK), 0.6)
+				target_scale = lerp(SCALE_OVERSHOOT, 1.0, settle)
+		
+		# Update scale and physics
+		mesh.scale = Vector3.ONE * target_scale
+		apply_physics_scale(target_scale)
+		gravity_scale = spawn_progress * spawn_progress
+		
+		if spawn_timer >= SPAWN_DURATION:
+			finish_spawn()
+	
+	physics_pos = global_position
+	visual_pos = physics_pos
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if is_spawning:
@@ -105,18 +131,6 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 
 	# Update cached velocity
 	cached_velocity = state.linear_velocity
-
-func spawn_animation(delta: float) -> void:
-	spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)
-	var t = spawn_timer / SPAWN_DURATION
-	var smooth_t = ease(t, 0.7)
-	
-	var height_offset = lerp(-0.5, 0.0, smooth_t)
-	position.y = spawn_start_pos.y - height_offset
-	mesh.scale = Vector3.ONE * lerp(INITIAL_SCALE, 1.0, smooth_t)
-	
-	if spawn_timer >= SPAWN_DURATION:
-		finish_spawn()
 
 func _process(delta):
 	if !is_initialized or is_spawning:

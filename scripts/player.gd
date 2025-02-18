@@ -183,14 +183,13 @@ func _physics_process(delta):
 	var target_base_color = BASE_COLOR
 	var target_emission = BASE_EMISSION
 	var target_emission_energy = BASE_EMISSION_ENERGY
+	var stuck_time = 0.0
 
 	# Update visuals based on unkillable state
 	if unkillable:
 		target_base_color = UNKILLABLE_COLOR
 		target_emission = UNKILLABLE_EMISSION
 		target_emission_energy = UNKILLABLE_EMISSION_ENERGY
-
-	var stuck_time = 0.0
 
 	var score_change = 0.0
 
@@ -220,6 +219,7 @@ func _physics_process(delta):
 				die()
 				lose()
 	
+	# Use existing stuck_time variable from above instead of declaring new one
 	if has_lost:
 		target_base_color = DEATH_COLOR
 		target_emission = DEAD_EMISSION
@@ -232,18 +232,18 @@ func _physics_process(delta):
 		elif stuck_time >= IDLE_EMISSION_START:
 			target_base_color = DANGER_COLOR
 			target_emission = DANGER_EMISSION
-			var progress = (stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START)
-			target_emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, progress)
+			var progress = clampf((stuck_time - IDLE_EMISSION_START) / (STUCK_TIMEOUT - IDLE_EMISSION_START), 0.0, 1.0)
+			target_emission_energy = lerpf(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, progress)
 		elif stuck_time >= IDLE_DANGER_START:
-			var warning_ratio = (stuck_time - IDLE_DANGER_START) / (IDLE_EMISSION_START - IDLE_DANGER_START)
+			var warning_ratio = clampf((stuck_time - IDLE_DANGER_START) / (IDLE_EMISSION_START - IDLE_DANGER_START), 0.0, 1.0)
 			target_base_color = IDLE_COLOR.lerp(DANGER_COLOR, warning_ratio)
 			target_emission = BASE_EMISSION.lerp(DANGER_EMISSION, warning_ratio)
-			target_emission_energy = lerp(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, warning_ratio)
+			target_emission_energy = lerpf(WARNING_EMISSION_ENERGY, DANGER_EMISSION_ENERGY, warning_ratio)
 		elif stuck_time >= IDLE_WARNING_START:
-			var gray_ratio = (stuck_time - IDLE_WARNING_START) / (IDLE_DANGER_START - IDLE_WARNING_START)
+			var gray_ratio = clampf((stuck_time - IDLE_WARNING_START) / (IDLE_DANGER_START - IDLE_WARNING_START), 0.0, 1.0)
 			target_base_color = BASE_COLOR.lerp(IDLE_COLOR, gray_ratio)
 			target_emission = BASE_EMISSION
-			target_emission_energy = lerp(BASE_EMISSION_ENERGY, WARNING_EMISSION_ENERGY, gray_ratio)
+			target_emission_energy = lerpf(BASE_EMISSION_ENERGY, WARNING_EMISSION_ENERGY, gray_ratio)
 	
 	if is_dead:
 		target_base_color = DEATH_COLOR
