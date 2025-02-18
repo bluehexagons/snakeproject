@@ -423,7 +423,7 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	if is_dead:
 		return null
 	
-	var segment = SEGMENT_SCENE.instantiate()
+	var segment: Segment = SEGMENT_SCENE.instantiate()
 	segment.set_script(load("res://scripts/segment.gd"))
 	get_parent().add_child(segment)
 	
@@ -446,10 +446,10 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 			0,
 			randf_range(-0.1, 0.1)
 		)
-		var spawn_offset = -facing_direction * (SEGMENT_SPAWN_OFFSET + segment.INITIAL_SCALE)
+		var spawn_offset = -facing_direction * (SEGMENT_SPAWN_OFFSET + SegmentConstants.INITIAL_SCALE)
 		spawn_pos = global_position + spawn_offset + random_offset
 			# Initialize segment with current velocity
-		segment.init_with_scale_and_velocity(segment.INITIAL_SCALE, cached_velocity * SEGMENT_SPAWN_VELOCITY)
+		segment.init_with_scale_and_velocity(SegmentConstants.INITIAL_SCALE, cached_velocity * SEGMENT_SPAWN_VELOCITY)
 	
 	# Initialize segment with proper scale first
 	segment.init_with_growth(growth_state)

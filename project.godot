@@ -17,10 +17,12 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+PhysicsConstants="*res://scripts/physics_constants.gd"
+ChainPhysicsManager="*res://scripts/chain_physics.gd"
+SegmentConstants="*res://scripts/segment_constants.gd"
 GameState="*res://scripts/game_state.gd"
 CollisionHandler="*res://scripts/collision_handler.gd"
 MaterialPool="*res://scripts/material_pool.gd"
-PhysicsConstants="*res://scripts/physics_constants.gd"
 
 [input]
 

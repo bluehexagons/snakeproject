@@ -119,11 +119,11 @@ const RIGID_BODY_SETTINGS = {
 		"continuous_cd": true
 	},
 	"segment": {
-		"linear_damp": 0.1,
-		"angular_damp": 2.0,
+		"linear_damp": 0.08,        # Less damping for smoother chain
+		"angular_damp": 2.5,
 		"mass": SEGMENT_MASS,
 		"friction": SEGMENT_DYNAMIC_FRICTION,
-		"bounce": 0.01
+		"bounce": 0.02              # Slight bounce for better physics
 	},
 	"player": {
 		"linear_damp": 0.05,
@@ -133,6 +133,11 @@ const RIGID_BODY_SETTINGS = {
 		"bounce": 0.01
 	}
 }
+
+# Remove duplicate chain constants and reference ChainPhysics instead
+const CHAIN_DRAG = BASE_DRAG_COEFFICIENT * ChainPhysics.CHAIN_DRAG_REDUCTION
+const CHAIN_MIN_SPEED = ChainPhysics.CHAIN_MIN_SPEED
+const CHAIN_TENSION_DAMPING = ChainPhysics.CHAIN_TENSION_DAMPING
 
 # Helper functions
 func get_friction_coefficients(material1: String, material2: String) -> Array:
