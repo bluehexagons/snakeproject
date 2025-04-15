@@ -9,8 +9,6 @@ var target: Node3D
 var last_target_pos: Vector3
 var collision_recovery_timer: float = 0.0
 
-var breaking_timer: float = 0.0
-
 func _physics_process(delta: float) -> void:
 	if not _handle_chain_physics(delta):
 		return
@@ -18,10 +16,17 @@ func _physics_process(delta: float) -> void:
 func _handle_chain_physics(delta: float) -> bool:
 	if not is_instance_valid(target):
 		return false
-	
-	chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta) * chain_physics.TENSION_DAMPING
+
+	var target_offset = target.global_position - global_position
+	var distance = target_offset.length()
+	var desired_distance = 1.4
+
+	if distance > desired_distance:
+		chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta)
+	else:
+		chain_tension *= chain_physics.TENSION_DAMPING
+
 	collision_recovery_timer = min(collision_recovery_timer + delta, chain_physics.COLLISION_RECOVERY_DELAY)
-	
 	return true
 
 func _custom_physics_process(_delta: float) -> void:
@@ -36,10 +41,6 @@ func get_chain_data() -> Dictionary:
 		"follow_direction": target_offset / distance if distance > 0 else Vector3.ZERO,
 		"tension": chain_tension
 	}
-
-func _handle_chain_break() -> void:
-	# Virtual method for derived classes
-	pass
 
 func get_save_data() -> Dictionary:
 	var data = super.get_save_data()

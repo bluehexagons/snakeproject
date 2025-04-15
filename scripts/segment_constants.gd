@@ -50,12 +50,3 @@ const PUSH_FORCE_BUILDUP = 0.2
 # Friction
 const CONNECTED_FRICTION_MULTIPLIER = 2.5
 const CONNECTED_ROLLING_MULTIPLIER = 3.0
-
-# Add singleton indicator
-static var singleton: Node
-
-func _init():
-	singleton = self
-
-func _ready():
-	process_mode = Node.PROCESS_MODE_DISABLED

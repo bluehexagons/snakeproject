@@ -104,7 +104,7 @@ func _ready():
 	continuous_cd = true
 	contact_monitor = CONTACT_MONITOR_ENABLED
 	max_contacts_reported = MAX_CONTACTS
-	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 	
 	linear_damp = 0.1
 	angular_damp = 2.0
@@ -141,22 +141,22 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 			if state.linear_velocity.length() < PhysicsConstants.ROLLING_THRESHOLD:
 				friction = friction_coeffs[0]
 			state.apply_central_force(-state.linear_velocity * friction * get_effective_mass() * PhysicsConstants.GRAVITY)
-	
+
 	is_grounded = is_on_ground
 	if is_grounded:
 		ground_contact_timer = GROUND_CONTACT_TIME
-	
+
 	if accumulated_force != Vector3.ZERO:
-		apply_force(accumulated_force, Vector3.ZERO)
+		state.apply_central_force(accumulated_force)
 		accumulated_force = Vector3.ZERO
-	
+
 	if accumulated_impulse != Vector3.ZERO:
-		apply_impulse(accumulated_impulse, Vector3.ZERO)
+		state.apply_central_impulse(accumulated_impulse)
 		accumulated_impulse = Vector3.ZERO
-	
+
 	if state.linear_velocity.length_squared() > max_speed * max_speed:
 		state.linear_velocity = state.linear_velocity.normalized() * max_speed
-	
+
 	physics_pos = global_position
 
 func _physics_process(delta: float):
