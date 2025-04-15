@@ -1,9 +1,9 @@
 [gd_scene load_steps=17 format=3 uid="uid://b6s0if4c7k0x"]
 
-[ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://yumb31ci6jtu" path="res://scripts/game_manager.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://dbkt4gaf6xf28" path="res://scenes/ui.tscn" id="2_ui"]
-[ext_resource type="PackedScene" path="res://scenes/barrier.tscn" id="3_barrier"]
-[ext_resource type="Script" path="res://scripts/game_camera.gd" id="camera_script"]
+[ext_resource type="PackedScene" uid="uid://7fw1r87o02d1" path="res://scenes/barrier.tscn" id="3_barrier"]
+[ext_resource type="Script" uid="uid://c26bb7iob8nhs" path="res://scripts/game_camera.gd" id="camera_script"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.12, 0.2, 0.3, 1)
@@ -52,6 +52,9 @@ metallic_specular = 0.2
 roughness = 0.7
 ao_enabled = true
 ao_light_affect = 0.5
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(22, 0.1, 22)
 
 [sub_resource type="PlaneMesh" id="PlaneMesh_2"]
 size = Vector2(100, 100)
@@ -116,9 +119,6 @@ height = 0.2
 radial_segments = 8
 rings = 4
 
-[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
-size = Vector3(22, 0.1, 22)
-
 [node name="Main" type="Node3D" groups=["game_manager"]]
 script = ExtResource("1_script")
 
@@ -138,7 +138,7 @@ collision_layer = 1
 collision_mask = 7
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="GameplayContainer/Ground/StaticBody3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)  
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.05, 0)
 shape = SubResource("BoxShape3D_ground")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="GameplayContainer"]

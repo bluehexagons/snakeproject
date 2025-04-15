@@ -1,6 +1,6 @@
 [gd_scene load_steps=8 format=3 uid="uid://bd6bhycl6y7m3"]
 
-[ext_resource type="Script" path="res://scripts/food.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://g1y6imqw1c56" path="res://scripts/food.gd" id="1_script"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
 transparency = 1

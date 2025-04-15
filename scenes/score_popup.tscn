@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://f0qb8kb2tai7"]
 
-[ext_resource type="Script" path="res://scripts/score_popup.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://degwihjb1ieo7" path="res://scripts/score_popup.gd" id="1_script"]
 
 [node name="ScorePopup" type="Label3D"]
 process_mode = 3
