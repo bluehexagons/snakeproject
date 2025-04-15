@@ -1,7 +1,6 @@
 extends PhysicsObject
-class_name ChainObject  # Keep class_name for base class
+class_name ChainObject
 
-# Chain properties
 @onready var chain_physics = ChainPhysicsManager
 var chain_index: int = 0
 var chain_length: int = 1
@@ -10,7 +9,6 @@ var target: Node3D
 var last_target_pos: Vector3
 var collision_recovery_timer: float = 0.0
 
-# Remove unused animation timer since we're using stretch-based breaking
 var breaking_timer: float = 0.0
 
 func _physics_process(delta: float) -> void:
@@ -21,13 +19,11 @@ func _handle_chain_physics(delta: float) -> bool:
 	if not is_instance_valid(target):
 		return false
 	
-	# Update chain tension
 	chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta) * chain_physics.TENSION_DAMPING
 	collision_recovery_timer = min(collision_recovery_timer + delta, chain_physics.COLLISION_RECOVERY_DELAY)
 	
 	return true
 
-# Remove unused function
 func _custom_physics_process(_delta: float) -> void:
 	pass
 

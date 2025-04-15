@@ -10,7 +10,7 @@ func _ready():
 	process_mode = Node.PROCESS_MODE_DISABLED  # This is a data-only node
 
 # Timing constants
-const SPRING_FORCE_DELAY = 0.1  # Moved from segment_constants
+const SPRING_FORCE_DELAY = 0.1
 const COLLISION_RECOVERY_DELAY = 0.1
 const FORCE_RESPONSE_RATE = 0.8
 
@@ -47,7 +47,7 @@ static func calculate_chain_forces(
 		target_pos: Vector3,
 		chain_index: int,
 		chain_length: int,
-		target_distance: float,  # Use passed parameter instead of constant
+		target_distance: float,
 		current_tension: float,
 		collision_recovery: float = 1.0
 	) -> Dictionary:
@@ -56,10 +56,8 @@ static func calculate_chain_forces(
 	var position_scale = lerp(1.0, MIN_STIFFNESS, chain_factor * chain_factor)
 	var length_factor = pow(CHAIN_LENGTH_SCALING, chain_index)
 	
-	# Calculate force scale based on chain position
 	var force_scale = max(MIN_TENSION, 1.0 - (chain_factor * FORCE_FALLOFF_RATE))
 	
-	# Calculate base spring force
 	var to_target = target_pos - current_pos
 	var current_distance = to_target.length()
 	
@@ -70,18 +68,15 @@ static func calculate_chain_forces(
 			"should_break": false
 		}
 	
-	# Simplified break check based only on stretch
 	var stretch_ratio = current_distance / target_distance
 	var should_break = stretch_ratio > MAX_STRETCH * STRETCH_THRESHOLD
 	
-	# Calculate stiffness based on stretch
 	var stiffness = SPRING_STIFFNESS
 	if current_distance > target_distance:
 		var stretch = (current_distance - target_distance) / target_distance
 		if stretch > SNAP_THRESHOLD:
 			stiffness *= 1.0 + (stretch * STIFFNESS_SCALE)
 	
-	# Calculate final spring force
 	var direction = to_target / current_distance
 	var spring_force = direction * (current_distance - target_distance) * stiffness
 	spring_force *= force_scale * position_scale * length_factor * current_tension * collision_recovery
@@ -92,7 +87,6 @@ static func calculate_chain_forces(
 		"should_break": should_break
 	}
 
-# Walking force calculation for chain movement
 static func calculate_walk_force(
 		current_pos: Vector3,
 		target_pos: Vector3,
@@ -111,7 +105,6 @@ static func calculate_walk_force(
 	var walk_direction = to_target / distance
 	var force = walk_direction * base_acceleration * chain_factor
 	
-	# Reduce force if already moving toward target
 	var relative_velocity = target_vel - current_vel
 	var approaching_speed = relative_velocity.dot(walk_direction)
 	if approaching_speed > 0:

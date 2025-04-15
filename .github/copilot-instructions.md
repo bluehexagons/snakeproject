@@ -1,1 +1,1 @@
-This is a real-time 3D game, in Godot 4.3, programmed using GDScript. Remember to consider performance, but not at any cost. Remember to use tabs and not spaces. Remember that comments start with a `#` and not `//`. Ternary uses the `true_value if condition else false_value` syntax. Do not add comments explaining small changes, but quality comments can be useful for documentation. `.tscn` files use `;` for comments.
+This is a real-time physics-based 3D game loosely inspired by Snake, in Godot 4.4.1, programmed using GDScript.

@@ -1,8 +1,8 @@
 extends RefCounted
 
-const HISTORY_SIZE = 30  # Reduced - we only need to track recent movement
-const MIN_MOVEMENT_THRESHOLD = 1.5  # Increased - this is now measuring actual speed
-const STUCK_CHECK_INTERVAL = 0.5  # Only check every X seconds
+const HISTORY_SIZE = 30
+const MIN_MOVEMENT_THRESHOLD = 1.5
+const STUCK_CHECK_INTERVAL = 0.5
 
 var position_history: Array[Vector3] = []
 var is_stuck: bool = false
@@ -24,7 +24,6 @@ func update(current_pos: Vector3, delta: float) -> bool:
 	if position_history.size() < 2:
 		return false
 	
-	# Calculate speed between oldest and newest position
 	var oldest_pos = position_history[0]
 	var total_movement = oldest_pos.distance_to(current_pos)
 	var time_span = position_history.size() * delta

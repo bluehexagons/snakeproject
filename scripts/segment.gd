@@ -1,17 +1,15 @@
 extends ChainObject
 class_name Segment
 
-# Moved from SegmentConstants for initialization
 const DEFAULT_FRICTION_MULTIPLIER = 2.5
 const DEFAULT_ROLLING_MULTIPLIER = 3.0
 
-# Remove @onready var and use direct singleton reference
-@onready var segment_config = SegmentConstants   # Segment config singleton
+@onready var segment_config = SegmentConstants
 
 var smoothed_velocity: Vector3
 var growth_timer: float = 0.0
 var is_growing: bool = true
-var spawn_timer: float = 0.5  # Use hard-coded initial value first
+var spawn_timer: float = 0.5
 var is_dangerous: bool = false
 var recovery_timer: float = 0.0
 var is_recovering: bool = false
@@ -25,7 +23,6 @@ func _ready():
 	material_type = PhysicsConstants.MATERIAL_SEGMENT
 	spawn_timer = segment_config.SPAWN_DURATION
 	
-	# Configure RigidBody3D properties
 	var settings = PhysicsConstants.RIGID_BODY_SETTINGS.segment
 	linear_damp = settings.linear_damp
 	angular_damp = settings.angular_damp
@@ -35,13 +32,11 @@ func _ready():
 	max_contacts_reported = 4
 	continuous_cd = true
 	
-	# Set up physics material
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.friction = settings.friction
 	physics_material_override.bounce = settings.bounce
 	physics_material_override.rough = true
 	
-	# Initialize scale and colors
 	apply_physics_scale(segment_config.INITIAL_SCALE, true)
 	apply_color(segment_config.SAFE_COLOR, Color(0.2, 0.6, 0.3, 1.0))
 
@@ -50,15 +45,12 @@ func init_with_growth(initial_growth: float):
 	var growth = ease(initial_growth, segment_config.GROWTH_CURVE)
 	apply_physics_scale(lerp(segment_config.INITIAL_SCALE, 1.0, growth), true)
 	is_growing = initial_growth < 1.0
-	# Reset spawn timer to avoid collision issues
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
-	# Initialize chain properties
 	chain_index = 0
 	chain_length = 1
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
-	# Add segment-specific data
 	base_data["smoothed_velocity"] = {
 			"x": smoothed_velocity.x,
 			"y": smoothed_velocity.y,
@@ -81,21 +73,17 @@ func init_from_save_data(data: Dictionary):
 	if data.has("smoothed_velocity"):
 		smoothed_velocity = Vector3(data.smoothed_velocity.x, data.smoothed_velocity.y, data.smoothed_velocity.z)
 	
-	# Initialize scale and growth first
-	current_scale = data.get("current_scale", 1.0)  # Default to full size if not specified
+	current_scale = data.get("current_scale", 1.0)
 	var growth = data.get("growth", 1.0)
 	growth_timer = segment_config.GROWTH_DURATION * growth
 	is_growing = growth < 1.0
 	
-	# Apply scale immediately
 	apply_physics_scale(current_scale, true)
 	
-	# Set spawn timer based on growth
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
 	
-	# Then handle danger state to prevent scale reset
 	if data.has("is_dangerous") and data.is_dangerous:
-		is_dangerous = true  # Set flag first
+		is_dangerous = true
 		add_to_group("dangerous")
 		current_color = segment_config.DANGER_COLOR
 		current_material.albedo_color = segment_config.DANGER_COLOR
@@ -110,9 +98,8 @@ func init_from_save_data(data: Dictionary):
 		)
 		current_material.albedo_color = current_color
 	
-	growth_timer = segment_config.GROWTH_DURATION  # Mark growth as complete
+	growth_timer = segment_config.GROWTH_DURATION
 
-# Clean up physics process to be more focused
 func _physics_process(delta):
 	if not _handle_base_physics(delta) or not is_instance_valid(target):
 		return
@@ -129,7 +116,6 @@ func _physics_process(delta):
 	_handle_collisions(delta)
 	_update_visuals(delta)
 
-# New helper to consolidate chain calculations
 func _calculate_chain_data(delta: float) -> Dictionary:
 	var target_offset = target.global_position - global_position
 	var follow_distance = target_offset.length()
@@ -142,12 +128,11 @@ func _calculate_chain_data(delta: float) -> Dictionary:
 		target.global_position,
 		chain_index,
 		chain_length,
-		segment_config.TARGET_DISTANCE,  # Use segment_config constant
+		segment_config.TARGET_DISTANCE,
 		chain_tension,
-		min(collision_recovery_timer / ChainPhysicsManager.SPRING_FORCE_DELAY, 1.0)  # Updated reference
+		min(collision_recovery_timer / ChainPhysicsManager.SPRING_FORCE_DELAY, 1.0)
 	)
 	
-	# Check for break condition from chain forces
 	if chain_forces.should_break:
 		break_chain()
 	
@@ -158,18 +143,15 @@ func _calculate_chain_data(delta: float) -> Dictionary:
 		"adjusted_distance": _calculate_adjusted_distance()
 	}
 
-# Consolidated spring force calculation
 func _calculate_spring_force(target_pos: Vector3, distance: float, factors: Dictionary) -> Vector3:
 	var spring_scale = lerp(0.3, 1.0, min(collision_recovery_timer / segment_config.SPRING_FORCE_DELAY, 1.0))
 	
-	# Calculate scaled stiffness based on stretch
 	var stiffness = segment_config.SPRING_STIFFNESS
 	if distance > segment_config.TARGET_DISTANCE:
 		var stretch = (distance - segment_config.TARGET_DISTANCE) / segment_config.TARGET_DISTANCE
 		if stretch > segment_config.SNAP_THRESHOLD:
 			stiffness *= 1.0 + (stretch * segment_config.STRETCH_STIFFNESS_SCALE)
 	
-	# Apply chain-based scaling
 	var chain_scale = factors.force_scale * spring_scale * spring_stiffness_multiplier
 	
 	return ChainPhysicsManager.calculate_spring_force(
@@ -181,11 +163,9 @@ func _calculate_spring_force(target_pos: Vector3, distance: float, factors: Dict
 		chain_tension
 	) * 0.8
 
-# Combined implementation of chain forces
 func _apply_chain_forces(chain_data: Dictionary, delta: float) -> void:
 	var target_velocity = _get_target_velocity()
 	
-	# Calculate all forces
 	var walk_force = ChainPhysics.calculate_walk_force(
 		global_position,
 		target.global_position,
@@ -201,7 +181,6 @@ func _apply_chain_forces(chain_data: Dictionary, delta: float) -> void:
 		chain_data.chain_data.chain_factor
 	)
 	
-	# Apply all forces once
 	add_physics_force(chain_data.chain_data.spring_force)
 	if follow_force.length_squared() > segment_config.MIN_FORCE_THRESHOLD:
 		add_physics_force(follow_force)
@@ -210,7 +189,6 @@ func _apply_chain_forces(chain_data: Dictionary, delta: float) -> void:
 	_handle_proximity_and_obstacles(delta)
 	_apply_drag()
 
-# Consolidate following force calculation
 func _calculate_follow_force(follow_distance: float, follow_direction: Vector3, chain_factor: float) -> Vector3:
 	if not target:
 		return Vector3.ZERO
@@ -240,7 +218,6 @@ func break_chain() -> void:
 		if target is Segment:
 			target.become_dangerous()
 		
-		# Calculate break direction and forces
 		var break_dir = (target.global_position - global_position).normalized()
 		var random_spin = Vector3(
 			randf_range(-1, 1),
@@ -248,7 +225,6 @@ func break_chain() -> void:
 			randf_range(-1, 1)
 		).normalized() * segment_config.BROKEN_ANGULAR_IMPULSE
 		
-		# Apply break forces
 		apply_impulse(-break_dir * segment_config.POP_FORCE_OPPOSITE * mass)
 		apply_impulse(random_spin * mass)
 		
@@ -256,14 +232,12 @@ func break_chain() -> void:
 			target.apply_impulse(break_dir * segment_config.POP_FORCE_OPPOSITE * target.mass)
 			target.apply_impulse(-random_spin * target.mass)
 			
-			# Inherit some velocity
 			cached_velocity = cached_velocity.lerp(target.cached_velocity, segment_config.BROKEN_VELOCITY_INHERIT)
 		
 		target = null
 		is_recovering = true
 		recovery_timer = 0.0
 
-# Split out helper functions
 func _update_friction():
 	var is_player_connected = _check_player_connection()
 	var friction_mult = segment_config.CONNECTED_FRICTION_MULTIPLIER if is_instance_valid(segment_config) else DEFAULT_FRICTION_MULTIPLIER
@@ -320,7 +294,7 @@ func _apply_distance_constraint(target_body: Node3D, max_distance: float, delta:
 	var current_distance = to_target.length()
 	
 	if current_distance > 0:
-		var correction = (current_distance - max_distance) * 0.3  # Even softer correction
+		var correction = (current_distance - max_distance) * 0.3
 		var correction_dir = to_target / current_distance
 		
 		if target_body is PhysicsObject:
@@ -328,13 +302,11 @@ func _apply_distance_constraint(target_body: Node3D, max_distance: float, delta:
 			var mass_ratio_a = mass / total_mass
 			var mass_ratio_b = target_body.mass / total_mass
 			
-			 # Smoother velocity-based correction
 			var correction_vel = correction_dir * correction / delta
 			cached_velocity = cached_velocity.lerp(cached_velocity + correction_vel * mass_ratio_b, 0.5)
 			target_body.cached_velocity = target_body.cached_velocity.lerp(
 				target_body.cached_velocity - correction_vel * mass_ratio_a, 0.5)
 
-# Rename parameter to avoid shadowing
 func _apply_pull_forces(target_body: Node3D, current_distance: float, direction: Vector3) -> void:
 	if current_distance > segment_config.PULL_START_DISTANCE:
 		var pull_factor = clamp(
@@ -342,26 +314,21 @@ func _apply_pull_forces(target_body: Node3D, current_distance: float, direction:
 			0.0, 1.0
 		)
 		
-		 # Build up pull force gradually
 		current_pull_multiplier = move_toward(
 			current_pull_multiplier,
 			1.0,
 			segment_config.PULL_ACCELERATION_RATE * get_physics_process_delta_time()
 		)
 		
-		# Calculate chain-based pull force
 		var chain_pull = segment_config.PULL_FORCE * pow(segment_config.CHAIN_PULL_DECAY, chain_index * 0.7)
 		chain_pull = max(chain_pull * (1.0 + cached_velocity.length() * 0.1), segment_config.MIN_PULL_FORCE)
 		
-		# Only pull if beyond ideal distance
 		if current_distance > segment_config.IDEAL_FOLLOW_DISTANCE:
 			var pull_force = direction * chain_pull * pull_factor * current_pull_multiplier
 			
-			# Reduce pull force significantly when target is player
 			if target_body is Player:
 				pull_force *= segment_config.PULL_FORCE_PLAYER_REDUCTION
 			
-			# Limit pull velocity
 			var current_speed = cached_velocity.length()
 			if current_speed > segment_config.MAX_PULL_VELOCITY:
 				cached_velocity = cached_velocity.normalized() * segment_config.MAX_PULL_VELOCITY
@@ -370,12 +337,11 @@ func _apply_pull_forces(target_body: Node3D, current_distance: float, direction:
 			apply_force(pull_force)
 			
 			if target_body is PhysicsObject:
-				# Apply reduced force to target and store for collision handling
-				var resistance_scale = clamp(cached_velocity.length() / 5.0, 0.3, 1.0)  # Reduced maximum resistance
+				var resistance_scale = clamp(cached_velocity.length() / 5.0, 0.3, 1.0)
 				target_body.apply_force(-pull_force * resistance_scale)
 				current_pull_force = chain_pull * pull_factor
 		else:
-			current_pull_multiplier = 0.0  # Reset pull force when in good position
+			current_pull_multiplier = 0.0
 
 func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3) -> void:
 	if distance <= 0:
@@ -384,7 +350,6 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 	var force_scale = (1.0 - distance / segment_config.SEGMENT_PROXIMITY_RADIUS)
 	var repulsion = -direction * segment_config.PROXIMITY_FORCE * pow(force_scale, segment_config.PROXIMITY_FALLOFF)
 	
-	# Fix velocity reference
 	var relative_velocity = other.linear_velocity - cached_velocity
 	var velocity_correction = relative_velocity * segment_config.PROXIMITY_VELOCITY_MATCH
 	
@@ -396,19 +361,16 @@ func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: 
 	if other.material_type == PhysicsConstants.MATERIAL_ROCK:
 		var chain_factor = 1.0 - (float(chain_index) / max(chain_length, 1))
 		
-		# Calculate push force with better scaling
 		var push_force = segment_config.ROCK_PUSH_SCALE
 		if current_pull_force > 0:
 			push_force += chain_factor * segment_config.CHAIN_FORCE_SCALE
 			
-			# Build up force over time
 			collision_force_multiplier = lerp(
 				collision_force_multiplier,
 				push_force,
 				segment_config.PUSH_FORCE_BUILDUP
 			)
 			
-			# Transfer momentum more gradually
 			var transfer_velocity = -normal * current_pull_force * 0.3
 			other.cached_velocity = other.cached_velocity.lerp(transfer_velocity, chain_factor * 0.2)
 	
@@ -416,18 +378,16 @@ func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: 
 	collision_force_multiplier = move_toward(collision_force_multiplier, 1.0, 0.1)
 
 func _process(_delta):
-	# Interpolate visual position between physics updates
 	var fraction = Engine.get_physics_interpolation_fraction()
 	visual_pos = physics_pos.lerp(global_position, fraction)
 	
-	# Update visual representation
 	mesh_instance.global_position = visual_pos
 
 func become_dangerous():
-	if not is_dangerous:  # Only change state if not already dangerous
+	if not is_dangerous:
 		is_dangerous = true
 		target_color = segment_config.DANGER_COLOR
-		current_color = segment_config.DANGER_COLOR  # Set current color too for immediate effect
+		current_color = segment_config.DANGER_COLOR
 		
 		if current_material:
 			current_material.albedo_color = segment_config.DANGER_COLOR
@@ -435,20 +395,17 @@ func become_dangerous():
 			current_material.emission_enabled = true
 		
 		add_to_group("dangerous")
-		# Ensure material color updates immediately
 		current_material.albedo_color = segment_config.DANGER_COLOR
 		
-		 # Reduced visual feedback
 		var tween = create_tween()
-		tween.tween_property(mesh_instance, "scale", mesh_instance.scale * 1.2, 0.15)  # Reduced scale pop
+		tween.tween_property(mesh_instance, "scale", mesh_instance.scale * 1.2, 0.15)
 		tween.tween_property(mesh_instance, "scale", mesh_instance.scale, 0.25)
 		
-		# Softer emission pulse
 		var flash_material = current_material.duplicate()
 		mesh_instance.material_override = flash_material
-		flash_material.emission_energy_multiplier = 2.0  # Reduced from 4.0
+		flash_material.emission_energy_multiplier = 2.0
 		
-		tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 1.0, 0.4)  # Longer fade
+		tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 1.0, 0.4)
 		tween.tween_callback(func(): mesh_instance.material_override = null)
 
 func dead_eat() -> float:
@@ -471,12 +428,11 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 			apply_physics_scale(1.0)
 			spring_stiffness_multiplier = 1.0
 	
-	# Just update cached velocity
 	cached_velocity = state.linear_velocity
 
 func _check_player_connection() -> bool:
 	var current_target = target
-	var depth = 0  # Prevent infinite loops
+	var depth = 0
 	while current_target and depth < 100:
 		if current_target is Player:
 			return true
@@ -536,10 +492,8 @@ func _handle_collisions(delta: float) -> void:
 	collision_recovery_timer = 0.0
 
 func _update_visuals(delta: float) -> void:
-	# Store physics state
 	physics_pos = global_position
 
-	# Update color
 	if current_material:
 		if is_dangerous:
 			current_color = segment_config.DANGER_COLOR
@@ -574,32 +528,26 @@ func _handle_proximity_and_obstacles(_delta: float) -> void:
 			apply_force(-push_force * 0.3)
 
 func init_with_scale_and_velocity(initial_scale: float, initial_velocity: Vector3) -> void:
-	# Initialize scale
 	apply_physics_scale(initial_scale, true)
 	spring_stiffness_multiplier = lerp(segment_config.INITIAL_SPRING_REDUCTION, 1.0, initial_scale)
 	growth_timer = segment_config.GROWTH_DURATION * ((initial_scale - segment_config.INITIAL_SCALE) / (1.0 - segment_config.INITIAL_SCALE))
 	is_growing = initial_scale < 1.0
 	
-	# Initialize physics
 	cached_velocity = initial_velocity
 	smoothed_velocity = initial_velocity
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
 	
-	# Set initial chain properties
 	chain_tension = 0.0
 	current_pull_multiplier = 0.0
 	
-	# Set initial collision state
 	collision_recovery_timer = 0.0
 	has_collision = false
 	is_recovering = false
 
-# Add the missing function
 func _handle_base_physics(delta: float) -> bool:
 	_update_friction()
 	_check_velocity_limits()
 	
-	# Handle early-out conditions
 	if _handle_recovery(delta):
 		return false
 	

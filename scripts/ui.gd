@@ -3,7 +3,7 @@ extends Control
 @onready var score_label = $ScoreLabel
 @onready var pause_menu = $PauseMenu
 @onready var game_over_menu = $GameOverMenu
-@onready var gameplay_pause_label = $GameplayPauseLabel  # Reference to new label
+@onready var gameplay_pause_label = $GameplayPauseLabel
 
 func _ready():
 	gameplay_pause_label.visible = false

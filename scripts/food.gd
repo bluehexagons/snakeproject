@@ -5,9 +5,9 @@ const LEVITATION = 0.5
 const HOVER_HEIGHT = 0.1
 const HOVER_SPEED = 2.0
 const ROTATION_SPEED = 2.0
-const MIN_SCALE = 0.8  # Prevent complete shrinking
-const MAX_SCALE = 1.2  # Allow slight growth
-const SCALE_SPEED = 1.3  # How fast the scaling happens
+const MIN_SCALE = 0.8
+const MAX_SCALE = 1.2
+const SCALE_SPEED = 1.3
 const CONSUME_DURATION = 0.3
 const CONSUME_SCALE_END = 0.1
 
@@ -31,17 +31,13 @@ func _process(delta):
 			queue_free()
 			return
 			
-		# Move towards consumer
 		if consuming_target:
-			var t = ease(progress, 0.7)  # Smooth easing
+			var t = ease(progress, 0.7)
 			global_position = global_position.lerp(consuming_target.global_position, t)
-			# Scale down during consumption
 			mesh.scale = Vector3.ONE * lerp(1.0, CONSUME_SCALE_END, t)
-			# Spin faster as it's consumed
 			mesh.rotate_y(ROTATION_SPEED * (1.0 + progress * 2.0) * delta)
 		return
 		
-	# Normal hover behavior
 	time += delta
 	position.y = start_y + LEVITATION + sin(time * HOVER_SPEED) * HOVER_HEIGHT
 	rotate_y(ROTATION_SPEED * delta)
@@ -53,7 +49,6 @@ func eat() -> float:
 		return 0.0
 	is_consumed = true
 	consume_timer = 0.0
-	# Get the player reference
 	var player = get_tree().get_first_node_in_group("player")
 	if player:
 		consuming_target = player

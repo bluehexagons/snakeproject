@@ -58,4 +58,4 @@ func _init():
 	singleton = self
 
 func _ready():
-	process_mode = Node.PROCESS_MODE_DISABLED  # This is a data-only node
+	process_mode = Node.PROCESS_MODE_DISABLED

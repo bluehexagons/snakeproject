@@ -2,12 +2,11 @@ extends Node
 
 const DANGER_EMISSION = Color(0.8, 0.1, 0.1, 1.0)
 
-const POOL_SIZE = 20  # Maximum number of flash materials to keep in pool
+const POOL_SIZE = 20
 var available_materials: Array[StandardMaterial3D] = []
-var in_use_materials: Dictionary = {}  # MeshInstance3D -> Material
+var in_use_materials: Dictionary = {}
 
 func _ready():
-	# Pre-create some materials
 	for i in range(POOL_SIZE):
 		var material = StandardMaterial3D.new()
 		material.emission_enabled = true
@@ -17,14 +16,11 @@ func get_flash_material(base_material: StandardMaterial3D) -> StandardMaterial3D
 	var flash_material: StandardMaterial3D
 	
 	if available_materials.is_empty():
-		# Create new material if pool is empty
 		flash_material = StandardMaterial3D.new()
 		flash_material.emission_enabled = true
 	else:
-		# Reuse material from pool
 		flash_material = available_materials.pop_back()
 	
-	# Copy relevant properties from base material
 	flash_material.albedo_color = base_material.albedo_color
 	flash_material.metallic = base_material.metallic
 	flash_material.roughness = base_material.roughness

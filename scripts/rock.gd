@@ -5,13 +5,13 @@ const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
 const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
 const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
 
-const SPAWN_HEIGHT = 15.0  # Higher drop
-const SPAWN_DURATION = 0.7  # Slightly faster
+const SPAWN_HEIGHT = 15.0
+const SPAWN_DURATION = 0.7
 const INITIAL_SCALE = 0.1
-const GROWTH_START = 0.1  # Slight delay before growth
+const GROWTH_START = 0.1
 const GROWTH_PEAK = 0.6
-const GROWTH_CURVE = 0.4  # Smoother curve
-const SCALE_OVERSHOOT = 1.3  # Less overshoot
+const GROWTH_CURVE = 0.4
+const SCALE_OVERSHOOT = 1.3
 const INITIAL_SPIN = 12.0
 const DROP_HEIGHT = 0.3
 const BOUNCE_AMPLITUDE = 0.4
@@ -30,7 +30,6 @@ func _ready():
 	super()
 	material_type = PhysicsConstants.MATERIAL_ROCK
 	
-	# Configure RigidBody3D properties
 	var settings = PhysicsConstants.RIGID_BODY_SETTINGS.rock
 	linear_damp = settings.linear_damp
 	angular_damp = settings.angular_damp
@@ -40,7 +39,6 @@ func _ready():
 	max_contacts_reported = PhysicsConstants.ROCK_MAX_CONTACTS
 	continuous_cd = true
 	
-	# Set up physics material
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.friction = settings.friction
 	physics_material_override.bounce = settings.bounce
@@ -60,18 +58,15 @@ func setup_rock(spawn_position: Vector3) -> void:
 	physics_pos = position
 	visual_pos = position
 	
-	# Random spin
 	rotation = Vector3(randf_range(-PI, PI), randf_range(-PI, PI), randf_range(-PI, PI))
 	angular_velocity = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * INITIAL_SPIN
 	
-	# Initial state
 	apply_physics_scale(INITIAL_SCALE, true)
 	mesh.scale = Vector3.ONE * INITIAL_SCALE
 	cached_velocity = Vector3.ZERO
 	gravity_scale = 0.0
 	spawn_timer = 0.0
 	
-	# Lock rotation during spawn
 	axis_lock_angular_x = true
 	axis_lock_angular_z = true
 
@@ -83,7 +78,6 @@ func _physics_process(delta: float) -> void:
 		spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)
 		spawn_progress = spawn_timer / SPAWN_DURATION
 		
-		# Calculate scale
 		var scale_progress = clampf((spawn_progress - GROWTH_START) / (GROWTH_PEAK - GROWTH_START), 0.0, 1.0)
 		var target_scale = INITIAL_SCALE
 		
@@ -95,7 +89,6 @@ func _physics_process(delta: float) -> void:
 				var settle = ease((spawn_progress - GROWTH_PEAK) / (1.0 - GROWTH_PEAK), 0.6)
 				target_scale = lerp(SCALE_OVERSHOOT, 1.0, settle)
 		
-		# Update scale and physics
 		mesh.scale = Vector3.ONE * target_scale
 		apply_physics_scale(target_scale)
 		gravity_scale = spawn_progress * spawn_progress
@@ -110,26 +103,21 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if is_spawning:
 		return
 	
-	# Use PhysicsDirectBodyState3D for contact handling
 	for i in state.get_contact_count():
 		var contact_normal = state.get_contact_local_normal(i)
 		var contact_position = state.get_contact_local_position(i)
 		var contact_collider = state.get_contact_collider_object(i)
 		
-		# Apply ground friction
 		if contact_normal.dot(Vector3.UP) > 0.7:
 			state.apply_central_force(-state.linear_velocity * PhysicsConstants.ROCK_STATIC_FRICTION * mass)
 		
-		# Apply anti-sticking force using proper impulse
-		if contact_normal.dot(Vector3.UP) > 0.1:  # Only push up if somewhat facing up
+		if contact_normal.dot(Vector3.UP) > 0.1:
 			state.apply_central_impulse(contact_normal * 0.1)
 	
-	# Use built-in velocity limiting
 	var current_speed = state.linear_velocity.length()
 	if current_speed > PhysicsConstants.ROCK_MAX_SPEED:
 		state.linear_velocity = state.linear_velocity * (PhysicsConstants.ROCK_MAX_SPEED / current_speed)
 
-	# Update cached velocity
 	cached_velocity = state.linear_velocity
 
 func _process(delta):
@@ -147,13 +135,13 @@ func get_save_data() -> Dictionary:
 func make_dangerous():
 	is_dangerous = true
 	target_color = DANGER_COLOR
-	current_color = DANGER_COLOR  # Immediate color change
-	state_color = DANGER_COLOR    # Add this line
+	current_color = DANGER_COLOR
+	state_color = DANGER_COLOR
 	base_emission = DANGER_EMISSION
-	state_emission = DANGER_EMISSION  # Add this line
+	state_emission = DANGER_EMISSION
 	base_emission_energy = 1.0
-	state_emission_energy = 1.0   # Add this line
-	apply_color(DANGER_COLOR, DANGER_EMISSION, 1.0)  # Force immediate update
+	state_emission_energy = 1.0
+	apply_color(DANGER_COLOR, DANGER_EMISSION, 1.0)
 	add_to_group("dangerous")
 
 func dead_eat() -> float:
@@ -161,6 +149,4 @@ func dead_eat() -> float:
 	return 2.0
 
 func break_rock():
-	# Add visual and sound effects for breaking the rock
-	# For now, just queue_free the rock
 	queue_free()

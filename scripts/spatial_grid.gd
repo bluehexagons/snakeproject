@@ -5,10 +5,9 @@ const GRID_LAYERS = 4
 
 var grid = {}
 var object_cells = {}
-var cell_coords = Vector2i()  # Reusable vector to avoid allocations
+var cell_coords = Vector2i()
 
 func _init():
-	# Initialize empty grid
 	grid = {}
 	object_cells = {}
 
@@ -49,7 +48,6 @@ func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = 0) -> Arra
 	var pos_coords = get_cell_coords(pos)
 	var nearby = []
 	
-	# Preallocate capacity for better performance
 	nearby.resize(16)
 	var nearby_count = 0
 	
@@ -64,7 +62,6 @@ func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = 0) -> Arra
 					nearby[nearby_count] = obj
 					nearby_count += 1
 	
-	# Trim array to actual size
 	nearby.resize(nearby_count)
 	return nearby
 

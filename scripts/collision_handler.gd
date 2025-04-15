@@ -1,9 +1,8 @@
 extends Node
 
-# Spatial partitioning constants
-const PROXIMITY_RADIUS = 1.0  # Base radius for proximity checks
-const PROXIMITY_GRID_SIZE = 2.0  # Size of spatial grid cells
-const MAX_BODIES_PER_CELL = 8  # Limit checks in dense areas
+const PROXIMITY_RADIUS = 1.0
+const PROXIMITY_GRID_SIZE = 2.0
+const MAX_BODIES_PER_CELL = 8
 
 @onready var spatial_grid = preload("res://scripts/spatial_grid.gd").new()
 
