@@ -26,7 +26,7 @@ var spawn_progress: float = 0.0
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 
-func _ready():
+func _ready() -> void:
 	super()
 	material_type = PhysicsConstants.MATERIAL_ROCK
 	
@@ -120,8 +120,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 
 	cached_velocity = state.linear_velocity
 
-func _process(delta):
-	if !is_initialized or is_spawning:
+func _process(delta: float) -> void:
+	if not is_initialized or is_spawning:
 		mesh.global_position = position
 		return
 	
@@ -132,7 +132,7 @@ func get_save_data() -> Dictionary:
 	base_data["is_dangerous"] = is_dangerous
 	return base_data
 
-func make_dangerous():
+func make_dangerous() -> void:
 	is_dangerous = true
 	target_color = DANGER_COLOR
 	current_color = DANGER_COLOR
@@ -148,5 +148,5 @@ func dead_eat() -> float:
 	queue_free()
 	return 2.0
 
-func break_rock():
+func break_rock() -> void:
 	queue_free()

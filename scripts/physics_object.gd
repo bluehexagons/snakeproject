@@ -40,13 +40,15 @@ var target_distance: float = 1.0
 var collision_force_multiplier: float = 1.0
 var spring_stiffness_multiplier: float = 1.0
 
+@export_category("Physics Properties")
 @export var base_mass: float = 1.0:
-	set(value):
-		base_mass = value
-		if is_inside_tree():
-			mass = value * current_scale * current_scale
-	get:
-		return base_mass
+ 	set(value):
+ 		base_mass = value
+ 		if is_inside_tree():
+ 			mass = value * current_scale * current_scale
+ 	get:
+ 		return base_mass
+
 @export var base_scale: float = 1.0
 
 var cached_velocity: Vector3:

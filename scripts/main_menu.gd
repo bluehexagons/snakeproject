@@ -1,21 +1,21 @@
 extends Control
 
-@onready var continue_button = $Panel/VBoxContainer/ContinueButton
+@onready var continue_button: Button = $Panel/VBoxContainer/ContinueButton
 
-func _ready():
+func _ready() -> void:
 	continue_button.visible = GameState.has_saved_game()
 	continue_button.pressed.connect(_on_continue_button_pressed)
 	$Panel/VBoxContainer/NewGameButton.pressed.connect(on_new_game_pressed)
 	$Panel/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
 
-func on_new_game_pressed():
+func on_new_game_pressed() -> void:
 	GameState.delete_save_game()
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
-func on_quit_pressed():
+func on_quit_pressed() -> void:
 	get_tree().quit()
 
-func _on_continue_button_pressed():
+func _on_continue_button_pressed() -> void:
 	if GameState.has_saved_game():
 		await get_tree().create_timer(0.1).timeout
 		var game_manager = get_tree().get_first_node_in_group("game_manager")

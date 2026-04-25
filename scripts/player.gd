@@ -96,11 +96,10 @@ var current_acceleration: float = 0.0
 var input_smoothed: Vector3 = Vector3.ZERO
 var movement_ramp: float = 0.0
 
-func _ready():
+func _ready() -> void:
 	super()
 	material_type = PhysicsConstants.MATERIAL_PLAYER
 	
-	# Configure RigidBody3D properties
 	var settings = PhysicsConstants.RIGID_BODY_SETTINGS.player
 	linear_damp = settings.linear_damp
 	angular_damp = settings.angular_damp
@@ -110,13 +109,11 @@ func _ready():
 	max_contacts_reported = 4
 	continuous_cd = true
 	
-	# Set up physics material
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.friction = settings.friction
 	physics_material_override.bounce = settings.bounce
 	physics_material_override.rough = true
 	
-	# Add to necessary groups
 	add_to_group("player")
 	add_to_group("physics_object")
 	
@@ -127,7 +124,6 @@ func _ready():
 	
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
-	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	static_friction = 0.01
 	dynamic_friction = 0.005
 	rolling_friction = 0.002
@@ -137,7 +133,6 @@ func _ready():
 	current_color = BASE_COLOR
 	physics_basis = mesh_instance.basis
 	visual_basis = mesh_instance.basis
-	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	
 	if current_material is StandardMaterial3D:
 		base_emission = current_material.emission
@@ -152,10 +147,6 @@ func _ready():
 	base_scale = 1.0
 	current_scale = 1.0
 	target_scale = 1.0
-
-	set_process_input(true)
-	set_physics_process(true)
-	process_mode = Node.PROCESS_MODE_INHERIT
 
 func _physics_process(delta):
 	if Input.is_action_just_pressed("toggle_unkillable"):

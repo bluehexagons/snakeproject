@@ -71,14 +71,7 @@ static func calculate_chain_forces(
 	var direction = to_target / current_distance
 	var spring_force = direction * (current_distance - target_distance) * stiffness
 	
-	# DEBUG: Print calculated spring force for diagnostics
-	# Temporarily boost stiffness and reduce multipliers for testing
-	var debug_stiffness = 120.0 # Try a much higher value for visibility
-	stiffness = debug_stiffness
-	# Remove or reduce multipliers for easier testing
-	# spring_force *= force_scale * position_scale * length_factor * current_tension * collision_recovery
-	spring_force *= current_tension # Only tension for now
-	print("[ChainPhysics] spring_force=", spring_force, " mag=", spring_force.length(), " tension=", current_tension)
+	spring_force *= force_scale * position_scale * length_factor * current_tension * collision_recovery
 	
 	return {
 		"spring_force": spring_force,

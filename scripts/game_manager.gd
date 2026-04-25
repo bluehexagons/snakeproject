@@ -42,13 +42,13 @@ var is_game_over: bool = false
 
 var score: int = 0
 
-@onready var camera = $GameplayContainer/Camera3D
-@onready var ui = $UI
-@onready var gameplay_container = $GameplayContainer
+@onready var camera: Camera3D = $GameplayContainer/Camera3D
+@onready var ui: Control = $UI
+@onready var gameplay_container: Node3D = $GameplayContainer
 
-var was_toggle_pressed: bool = false
+var _was_toggle_pressed: bool = false
 
-func _ready():
+func _ready() -> void:
 	load_game_state()
 	
 	get_tree().root.size_changed.connect(_on_window_resize)
@@ -67,16 +67,16 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(_delta: float) -> void:
 	pass
 
-func toggle_gameplay_pause():
+func toggle_gameplay_pause() -> void:
 	if is_game_over:
 		return
 
-	is_gameplay_paused = !is_gameplay_paused
+	is_gameplay_paused = not is_gameplay_paused
 	update_pause_state()
 	if ui:
 		ui.set_gameplay_paused(is_gameplay_paused)
 
-func toggle_pause():
+func toggle_pause() -> void:
 	if is_game_over:
 		return
 
@@ -84,10 +84,10 @@ func toggle_pause():
 	update_pause_state()
 	ui.toggle_pause_menu(is_paused)
 
-func update_pause_state():
-	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if (is_paused || is_gameplay_paused) else Node.PROCESS_MODE_INHERIT
+func update_pause_state() -> void:
+	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if (is_paused or is_gameplay_paused) else Node.PROCESS_MODE_INHERIT
 
-func spawn_player():
+func spawn_player() -> void:
 	var player = PLAYER_SCENE.instantiate()
 	gameplay_container.add_child(player)
 	

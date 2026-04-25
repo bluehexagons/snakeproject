@@ -1,15 +1,15 @@
 extends Area3D
 class_name Food
 
-const LEVITATION = 0.5
-const HOVER_HEIGHT = 0.1
-const HOVER_SPEED = 2.0
-const ROTATION_SPEED = 2.0
-const MIN_SCALE = 0.8
-const MAX_SCALE = 1.2
-const SCALE_SPEED = 1.3
-const CONSUME_DURATION = 0.3
-const CONSUME_SCALE_END = 0.1
+const LEVITATION: float = 0.5
+const HOVER_HEIGHT: float = 0.1
+const HOVER_SPEED: float = 2.0
+const ROTATION_SPEED: float = 2.0
+const MIN_SCALE: float = 0.8
+const MAX_SCALE: float = 1.2
+const SCALE_SPEED: float = 1.3
+const CONSUME_DURATION: float = 0.3
+const CONSUME_SCALE_END: float = 0.1
 
 var start_y: float
 var time: float = 0.0
@@ -18,12 +18,12 @@ var consuming_target: Node3D = null
 var consume_timer: float = 0.0
 var initial_distance: float = 0.0
 
-@onready var mesh = $MeshInstance3D
+@onready var mesh: MeshInstance3D = $MeshInstance3D
 
-func _ready():
+func _ready() -> void:
 	start_y = position.y
 
-func _process(delta):
+func _process(delta: float) -> void:
 	if is_consumed:
 		consume_timer += delta
 		var progress = consume_timer / CONSUME_DURATION
@@ -62,4 +62,4 @@ func dead_eat() -> float:
 	return 20.0
 
 func is_available() -> bool:
-	return !is_consumed
+	return not is_consumed
