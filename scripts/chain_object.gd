@@ -1,4 +1,4 @@
-extends PhysicsObject
+extends "res://scripts/physics_object.gd"
 class_name ChainObject
 
 @onready var chain_physics = ChainPhysicsManager

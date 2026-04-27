@@ -1,4 +1,4 @@
-extends PhysicsObject
+extends "res://scripts/physics_object.gd"
 class_name Player
 
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
@@ -66,12 +66,8 @@ const MOVEMENT_RAMP_TIME = 0.2
 const MOVEMENT_DECAY = 0.95
 const INPUT_SMOOTHING = 0.25
 
-const COLLISION_FORCE_LIMIT = 150.0
-const COLLISION_PUSHBACK = 0.8
-
 var facing_direction: Vector3 = Vector3.FORWARD
-var segments: Array[Segment] = []
-var smoothed_velocity: Vector3 = Vector3.ZERO
+var segments: Array = []
 var has_started_moving: bool = false
 var food_eaten: int = 0
 var filler_eaten: int = 0
@@ -107,7 +103,7 @@ func _ready() -> void:
 	collision_mask = PhysicsConstants.LAYER_DEFAULT | PhysicsConstants.LAYER_PHYSICAL
 	contact_monitor = true
 	max_contacts_reported = 4
-	continuous_cd = true
+	continuous_cd = false
 	
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.friction = settings.friction
@@ -117,16 +113,9 @@ func _ready() -> void:
 	add_to_group("player")
 	add_to_group("physics_object")
 	
-	pull_reduction = 0.85
-	target_distance = 1.1
-	collision_force_multiplier = 0.8
-	spring_stiffness_multiplier = 1.2
-	
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
 	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
-	static_friction = 0.01
 	dynamic_friction = 0.005
-	rolling_friction = 0.002
 	base_emission = BASE_EMISSION
 	base_emission_energy = BASE_EMISSION_ENERGY
 	state_color = BASE_COLOR
@@ -279,22 +268,6 @@ func _physics_process(delta):
 	if cached_velocity.length_squared() > 0.1:
 		facing_direction = cached_velocity.normalized()
 	
-	var collision = move_and_collide(cached_velocity * delta)
-	if collision:
-		var collider = collision.get_collider()
-		if collider.is_in_group("dangerous"):
-			die()
-		
-		if is_dead:
-			if collider.has_method("dead_eat"):
-				score_change += collider.dead_eat()
-		elif collider.has_method("eat"):
-			score_change += collider.eat()
-		
-		if collider is PhysicsObject:
-			var relative_velocity = cached_velocity - collider.cached_velocity
-			handle_collision(collider, collision.get_normal(), relative_velocity)
-	
 	var nearby_segments = get_node("/root/CollisionHandler").get_nearby_bodies(global_position)
 	for segment in nearby_segments:
 		if segment == self or not segment is PhysicsObject:
@@ -366,7 +339,7 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 	if is_dead:
 		return null
 	
-	var segment: Segment = SEGMENT_SCENE.instantiate()
+	var segment = SEGMENT_SCENE.instantiate()
 	segment.set_script(load("res://scripts/segment.gd"))
 	get_parent().add_child(segment)
 	
@@ -413,11 +386,6 @@ func get_segment_positions() -> Array:
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
-	base_data["smoothed_velocity"] = {
-		"x": smoothed_velocity.x,
-		"y": smoothed_velocity.y,
-		"z": smoothed_velocity.z
-	}
 	base_data["facing_direction"] = {
 		"x": facing_direction.x,
 		"y": facing_direction.y,
@@ -450,11 +418,6 @@ func restore_from_save(data: Dictionary):
 			float(state.velocity.x),
 			float(state.velocity.y),
 			float(state.velocity.z)
-		)
-		smoothed_velocity = Vector3(
-			float(state.smoothed_velocity.x),
-			float(state.smoothed_velocity.y),
-			float(state.smoothed_velocity.z)
 		)
 		facing_direction = Vector3(
 			float(state.facing_direction.x),
@@ -518,22 +481,10 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 	if other is PhysicsObject:
 		other.apply_force(-repulsion + velocity_correction)
 
-func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: Vector3) -> void:
-	if other.is_in_group("dangerous") and not unkillable:
-		die()
-		return
-	
-	if is_dead:
-		if other.has_method("dead_eat"):
-			other.dead_eat()
-	elif other.has_method("eat"):
-		other.eat()
-	
-	super.handle_collision(other, normal, relative_velocity)
-
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if is_dead:
 		state.linear_velocity *= 0.98
+		super._integrate_forces(state)
 		return
 	
 	if not has_lost and input_smoothed != Vector3.ZERO:
@@ -565,4 +516,4 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if state.linear_velocity.length_squared() > 0.1:
 		facing_direction = state.linear_velocity.normalized()
 	
-	cached_velocity = state.linear_velocity
+	super._integrate_forces(state)

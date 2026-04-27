@@ -27,27 +27,18 @@ var current_color: Color = Color.WHITE
 var state_emission: Color = Color.BLACK
 var state_emission_energy: float = 0.0
 
-var static_friction: float = PhysicsConstants.BASE_STATIC_FRICTION
 var dynamic_friction: float = PhysicsConstants.BASE_DYNAMIC_FRICTION
-var rolling_friction: float = PhysicsConstants.BASE_ROLLING_FRICTION
-var is_static: bool = false
 
 var material_type: String = "default"
 
-var minimum_speed: float
-var pull_reduction: float = 1.0
-var target_distance: float = 1.0
-var collision_force_multiplier: float = 1.0
-var spring_stiffness_multiplier: float = 1.0
-
 @export_category("Physics Properties")
 @export var base_mass: float = 1.0:
- 	set(value):
- 		base_mass = value
- 		if is_inside_tree():
- 			mass = value * current_scale * current_scale
- 	get:
- 		return base_mass
+	set(value):
+		base_mass = value
+		if is_inside_tree():
+			mass = value * current_scale * current_scale
+	get:
+		return base_mass
 
 @export var base_scale: float = 1.0
 
@@ -76,17 +67,8 @@ const MAX_SCALE = 2.0
 var is_grounded: bool = false
 var ground_contact_timer: float = 0.0
 const GROUND_CONTACT_TIME: float = 0.1
-const GROUND_LIFT_RESISTANCE: float = 3.5
-const GROUND_CHECK_DISTANCE: float = 0.1
 
-static var COLLISION_RESPONSE_FACTOR = 0.2
 static var RESTITUTION = 0.01
-static var FRICTION_TRANSFER = 0.5
-static var VELOCITY_BLEND = 0.1
-static var COLLISION_DAMPING = 0.96
-static var MIN_SEPARATION = 1.1
-static var SEPARATION_FORCE = 5.0
-static var MIN_COLLISION_SPEED = 0.1
 
 const MAX_CONTACTS = 4
 const CONTACT_MONITOR_ENABLED = true
@@ -103,10 +85,10 @@ func _ready():
 
 	mass = base_mass
 	gravity_scale = 1.0
-	continuous_cd = true
+	continuous_cd = false
 	contact_monitor = CONTACT_MONITOR_ENABLED
 	max_contacts_reported = MAX_CONTACTS
-	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	
 	linear_damp = 0.1
 	angular_damp = 2.0
@@ -138,15 +120,25 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 		var contact_normal = state.get_contact_local_normal(i)
 		if contact_normal.dot(Vector3.UP) > 0.7:
 			is_on_ground = true
-			var friction_coeffs = PhysicsConstants.get_ground_friction_coefficients(material_type)
-			var friction = friction_coeffs[1]
-			if state.linear_velocity.length() < PhysicsConstants.ROLLING_THRESHOLD:
-				friction = friction_coeffs[0]
-			state.apply_central_force(-state.linear_velocity * friction * get_effective_mass() * PhysicsConstants.GRAVITY)
 
 	is_grounded = is_on_ground
 	if is_grounded:
 		ground_contact_timer = GROUND_CONTACT_TIME
+	else:
+		ground_contact_timer = max(0.0, ground_contact_timer - state.step)
+
+	var velocity = state.linear_velocity
+	var horizontal_velocity = Vector3(velocity.x, 0.0, velocity.z)
+	if horizontal_velocity.length_squared() > 0.0001:
+		var drag_force = -horizontal_velocity.normalized() * horizontal_velocity.length_squared() * drag_coefficient
+		state.apply_central_force(drag_force)
+
+		if is_grounded:
+			var friction_coeffs = PhysicsConstants.get_ground_friction_coefficients(material_type)
+			var friction = friction_coeffs[1]
+			if horizontal_velocity.length() < PhysicsConstants.ROLLING_THRESHOLD:
+				friction = friction_coeffs[0]
+			state.apply_central_force(-horizontal_velocity.normalized() * friction * get_effective_mass() * PhysicsConstants.GRAVITY)
 
 	if accumulated_force != Vector3.ZERO:
 		state.apply_central_force(accumulated_force)
@@ -159,7 +151,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if state.linear_velocity.length_squared() > max_speed * max_speed:
 		state.linear_velocity = state.linear_velocity.normalized() * max_speed
 
-	physics_pos = global_position
+	cached_velocity = state.linear_velocity
+	physics_pos = state.transform.origin
 
 func _physics_process(delta: float):
 	var scale_error = target_scale - current_scale
@@ -181,36 +174,15 @@ func _physics_process(delta: float):
 		push_warning("Invalid accumulated impulse detected, resetting")
 		accumulated_impulse = Vector3.ZERO
 	
-	if get_effective_mass() > 0:
-		var force_delta = accumulated_force * (delta / get_effective_mass())
-		if is_valid_vector(force_delta):
-			apply_central_force(force_delta)
-		
-		var impulse_delta = accumulated_impulse / get_effective_mass()
-		if is_valid_vector(impulse_delta):
-			apply_central_impulse(impulse_delta)
-	
 	if not is_valid_vector(cached_velocity):
 		push_warning("Invalid velocity detected, resetting")
 		cached_velocity = Vector3.ZERO
-	
-	accumulated_force = Vector3.ZERO
-	accumulated_impulse = Vector3.ZERO
-	
-	apply_gravity(delta)
-	apply_drag(delta)
-	limit_speed()
+
 	physics_pos = global_position
 
 	if current_material:
 		current_color = current_color.lerp(state_color, delta * color_change_speed)
 		apply_color(current_color, state_emission, state_emission_energy)
-
-	for body in get_colliding_bodies():
-		if body is PhysicsObject:
-			var collision_info = get_contact_info(body)
-			if collision_info:
-				handle_collision(body, collision_info.normal, collision_info.relative_velocity)
 
 func _process(_delta):
 	if mesh_instance:
@@ -273,55 +245,6 @@ func restore_from_save_data(data: Dictionary) -> void:
 	is_grounded = data.get("is_grounded", false)
 	ground_contact_timer = data.get("ground_contact_timer", 0.0)
 
-func apply_gravity(delta: float) -> void:
-	var collision_radius = 0.4
-	if position.y <= PhysicsConstants.GROUND_LEVEL + collision_radius:
-		ground_contact_timer = GROUND_CONTACT_TIME
-		is_grounded = true
-	else:
-		ground_contact_timer = max(0.0, ground_contact_timer - delta)
-		is_grounded = ground_contact_timer > 0.0
-	
-	var gravity_multiplier = GROUND_LIFT_RESISTANCE if is_grounded else 1.0
-	
-	if position.y > PhysicsConstants.GROUND_LEVEL + collision_radius:
-		apply_force(Vector3.DOWN * get_effective_mass() * PhysicsConstants.GRAVITY * gravity_multiplier)
-	elif position.y < PhysicsConstants.GROUND_LEVEL + collision_radius:
-		position.y = PhysicsConstants.GROUND_LEVEL + collision_radius
-		if cached_velocity.y < 0:
-			var impulse = Vector3.UP * (-cached_velocity.y * get_effective_mass() * (1.0 + PhysicsConstants.BOUNCE_DAMPENING))
-			apply_impulse(impulse)
-			if abs(cached_velocity.y) < 0.1:
-				cached_velocity.y = 0
-
-func apply_drag(_delta: float) -> void:
-	var speed_squared = cached_velocity.length_squared()
-	
-	if speed_squared < minimum_speed * minimum_speed:
-		if speed_squared < PhysicsConstants.STATIC_BREAKAWAY_THRESHOLD:
-			cached_velocity = Vector3.ZERO
-			is_static = true
-			return
-	
-	var drag_force = -cached_velocity.normalized() * speed_squared * drag_coefficient
-	apply_force(drag_force)
-	
-	if is_grounded:
-		var friction_coeffs = PhysicsConstants.get_ground_friction_coefficients(material_type)
-		var friction_coeff = friction_coeffs[1]
-		if speed_squared < PhysicsConstants.ROLLING_THRESHOLD:
-			friction_coeff = friction_coeffs[0]
-		
-		var normal_force = get_effective_mass() * PhysicsConstants.GRAVITY
-		var friction_force = -cached_velocity.normalized() * friction_coeff * normal_force
-		apply_force(friction_force)
-	
-	is_static = false
-
-func limit_speed() -> void:
-	if cached_velocity.length_squared() > max_speed * max_speed:
-		cached_velocity = cached_velocity.normalized() * max_speed
-
 func handle_impact(force: float) -> void:
 	if !current_material or !mesh_instance:
 		return
@@ -349,27 +272,6 @@ func handle_impact(force: float) -> void:
 			mesh_instance.material_override = null
 	)
 
-func handle_collision(other: PhysicsObject, normal: Vector3, relative_velocity: Vector3) -> void:
-	var normal_velocity = relative_velocity.dot(normal)
-	if normal_velocity >= 0 or normal_velocity > -MIN_COLLISION_SPEED:
-		return
-	
-	var contact_mass = get_effective_mass() * other.get_effective_mass() / (get_effective_mass() + other.get_effective_mass())
-	var impulse = normal * -normal_velocity * contact_mass * COLLISION_RESPONSE_FACTOR
-	
-	apply_central_impulse(-impulse)
-	other.apply_central_impulse(impulse)
-	
-	handle_impact(impulse.length() * collision_force_multiplier)
-
-func _calculate_separation(other: PhysicsObject) -> Vector3:
-	var separation_vector = global_position - other.global_position
-	var distance = separation_vector.length()
-	if distance > 0 and distance < MIN_SEPARATION:
-		var delta = get_physics_process_delta_time()
-		return separation_vector.normalized() * SEPARATION_FORCE * (1.0 - distance / MIN_SEPARATION) * delta
-	return Vector3.ZERO
-
 func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: float = -1.0) -> void:
 	if current_material:
 		current_material.albedo_color = color
@@ -391,52 +293,6 @@ func add_physics_impulse(impulse: Vector3) -> void:
 		push_warning("Invalid impulse vector detected: ", impulse)
 		return
 	accumulated_impulse += impulse
-
-func calculate_friction_force(other: PhysicsObject, normal_force: float, relative_velocity: Vector3, collision_normal: Vector3) -> Vector3:
-	if not is_valid_vector(relative_velocity) or not is_finite(normal_force) or not is_valid_vector(collision_normal):
-		return Vector3.ZERO
-
-	var friction_coeffs = PhysicsConstants.get_friction_coefficients(material_type, other.material_type)
-	var object_static_coeff = friction_coeffs[0]
-	var object_dynamic_coeff = friction_coeffs[1]
-	
-	var tangential_velocity = relative_velocity - collision_normal * relative_velocity.dot(collision_normal)
-	var tangential_speed = tangential_velocity.length()
-	
-	if tangential_speed < 0.0001:
-		return Vector3.ZERO
-	
-	var friction_direction = -tangential_velocity.normalized()
-	
-	if tangential_speed < minimum_speed:
-		var max_static_force = object_static_coeff * normal_force
-		var stopping_force = get_effective_mass() * tangential_speed / get_physics_process_delta_time()
-		return friction_direction * min(max_static_force, stopping_force)
-	
-	var friction_scale = clamp(tangential_speed / (minimum_speed * 2.0), 0.0, 1.0)
-	return friction_direction * object_dynamic_coeff * normal_force * friction_scale
-
-func get_contact_info(other: PhysicsObject) -> Dictionary:
-	var contacts = get_colliding_bodies()
-	var space_state = get_world_3d().direct_space_state
-	
-	if other in contacts:
-		var query = PhysicsRayQueryParameters3D.create(
-			global_position,
-			other.global_position,
-			collision_mask,
-			[self]  # Exclude self from ray test
-		)
-		var result = space_state.intersect_ray(query)
-		
-		if result:
-			return {
-				"normal": result.normal,
-				"relative_velocity": linear_velocity - other.linear_velocity,
-				"position": result.position
-			}
-	
-	return {}
 
 func get_effective_mass() -> float:
 	return mass

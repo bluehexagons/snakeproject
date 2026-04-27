@@ -291,7 +291,7 @@ func save_game_state():
 		return
 
 	var player = gameplay_container.get_node_or_null("Player")
-	if not player or not player is Player or player.get("is_dead"):
+	if not player or not player.is_in_group("player") or player.get("is_dead"):
 		return
 		
 	var foods = get_tree().get_nodes_in_group("food")

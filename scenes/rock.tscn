@@ -20,7 +20,7 @@ material = SubResource("StandardMaterial3D_rock")
 collision_layer = 2
 collision_mask = 7
 freeze_mode = 1
-continuous_cd = true
+continuous_cd = false
 script = ExtResource("1_rock_script")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]

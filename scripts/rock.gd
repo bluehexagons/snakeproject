@@ -1,4 +1,4 @@
-extends PhysicsObject
+extends "res://scripts/physics_object.gd"
 class_name Rock
 
 const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
@@ -37,7 +37,7 @@ func _ready() -> void:
 	collision_mask = PhysicsConstants.LAYER_DEFAULT | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_PLAYER
 	contact_monitor = true
 	max_contacts_reported = PhysicsConstants.ROCK_MAX_CONTACTS
-	continuous_cd = true
+	continuous_cd = false
 	
 	physics_material_override = PhysicsMaterial.new()
 	physics_material_override.friction = settings.friction
@@ -103,22 +103,11 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if is_spawning:
 		return
 	
-	for i in state.get_contact_count():
-		var contact_normal = state.get_contact_local_normal(i)
-		var contact_position = state.get_contact_local_position(i)
-		var contact_collider = state.get_contact_collider_object(i)
-		
-		if contact_normal.dot(Vector3.UP) > 0.7:
-			state.apply_central_force(-state.linear_velocity * PhysicsConstants.ROCK_STATIC_FRICTION * mass)
-		
-		if contact_normal.dot(Vector3.UP) > 0.1:
-			state.apply_central_impulse(contact_normal * 0.1)
-	
 	var current_speed = state.linear_velocity.length()
 	if current_speed > PhysicsConstants.ROCK_MAX_SPEED:
 		state.linear_velocity = state.linear_velocity * (PhysicsConstants.ROCK_MAX_SPEED / current_speed)
 
-	cached_velocity = state.linear_velocity
+	super._integrate_forces(state)
 
 func _process(delta: float) -> void:
 	if not is_initialized or is_spawning:
