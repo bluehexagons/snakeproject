@@ -1,9 +1,11 @@
 extends Control
 
 @onready var continue_button: Button = $Panel/VBoxContainer/ContinueButton
+@onready var best_score_label: Label = $Panel/VBoxContainer/BestScoreLabel
 
 func _ready() -> void:
 	continue_button.visible = GameState.has_saved_game()
+	best_score_label.text = "BEST SCORE  %d" % GameState.get_best_score()
 	continue_button.pressed.connect(_on_continue_button_pressed)
 	$Panel/VBoxContainer/NewGameButton.pressed.connect(on_new_game_pressed)
 	$Panel/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
@@ -17,10 +19,5 @@ func on_quit_pressed() -> void:
 
 func _on_continue_button_pressed() -> void:
 	if GameState.has_saved_game():
-		await get_tree().create_timer(0.1).timeout
-		var game_manager = get_tree().get_first_node_in_group("game_manager")
-		if game_manager:
-			game_manager.load_game_state()
-
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
 			

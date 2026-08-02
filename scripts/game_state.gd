@@ -1,6 +1,7 @@
 extends Node
 
 const SAVE_FILE = "user://save_game.dat"
+const BEST_SCORE_FILE = "user://best_score.dat"
 
 func save_game_state(data: Dictionary) -> bool:
 	var file = FileAccess.open(SAVE_FILE, FileAccess.WRITE)
@@ -53,4 +54,29 @@ func delete_save_game() -> bool:
 	if result != OK:
 		push_error("Failed to delete save file: ", result)
 		return false
+	return true
+
+func get_best_score() -> int:
+	if not FileAccess.file_exists(BEST_SCORE_FILE):
+		return 0
+
+	var file = FileAccess.open(BEST_SCORE_FILE, FileAccess.READ)
+	if not file:
+		return 0
+
+	var value = file.get_as_text().to_int()
+	file.close()
+	return max(value, 0)
+
+func save_best_score(score: int) -> bool:
+	if score <= get_best_score():
+		return true
+
+	var file = FileAccess.open(BEST_SCORE_FILE, FileAccess.WRITE)
+	if not file:
+		push_error("Failed to open best score file for writing: ", FileAccess.get_open_error())
+		return false
+
+	file.store_string(str(score))
+	file.close()
 	return true

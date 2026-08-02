@@ -9,6 +9,7 @@ const LOAD_TARGETS = [
 	"res://scenes/segment.tscn",
 	"res://scenes/rock.tscn",
 	"res://scenes/main.tscn",
+	"res://scenes/main_menu.tscn",
 ]
 
 const SPATIAL_GRID = preload("res://scripts/spatial_grid.gd")

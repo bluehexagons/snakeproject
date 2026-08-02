@@ -42,6 +42,7 @@ var is_gameplay_paused: bool = false
 var is_game_over: bool = false
 
 var score: int = 0
+var is_new_best: bool = false
 
 @onready var camera: Camera3D = $GameplayContainer/Camera3D
 @onready var ui: Control = $UI
@@ -261,7 +262,11 @@ func _on_window_resize():
 	pass
 
 func update_score(points: int):
+	var previous_best = GameState.get_best_score()
 	score += points
+	if score > previous_best:
+		is_new_best = true
+	GameState.save_best_score(score)
 	if ui:
 		ui.update_score(score)
 
@@ -270,10 +275,11 @@ func game_over():
 		return
 
 	is_game_over = true
+	GameState.save_best_score(score)
 	Engine.time_scale = 0.5
 	is_gameplay_paused = false
 	update_pause_state()
-	ui.show_game_over(score)
+	ui.show_game_over(score, GameState.get_best_score(), is_new_best)
 
 func return_to_main_menu():
 	save_game_state()
