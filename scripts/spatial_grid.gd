@@ -43,7 +43,7 @@ func update_position(obj: Node3D, layer: int = 0) -> void:
 		remove(obj, layer)
 		insert(obj, layer)
 
-func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = 0) -> Array:
+func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = -1) -> Array:
 	var cells_to_check = ceili(radius / CELL_SIZE)
 	var pos_coords = get_cell_coords(pos)
 	var nearby = []
@@ -53,14 +53,16 @@ func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = 0) -> Arra
 	
 	for x in range(pos_coords.x - cells_to_check, pos_coords.x + cells_to_check + 1):
 		for y in range(pos_coords.y - cells_to_check, pos_coords.y + cells_to_check + 1):
-			var key = str(x) + "," + str(y) + "," + str(layer)
-			if grid.has(key):
-				var cell = grid[key]
-				for obj in cell:
-					if nearby_count >= nearby.size():
-						nearby.resize(nearby.size() * 2)
-					nearby[nearby_count] = obj
-					nearby_count += 1
+			var layers = range(GRID_LAYERS) if layer < 0 else [layer]
+			for current_layer in layers:
+				var key = str(x) + "," + str(y) + "," + str(current_layer)
+				if grid.has(key):
+					var cell = grid[key]
+					for obj in cell:
+						if nearby_count >= nearby.size():
+							nearby.resize(nearby.size() * 2)
+						nearby[nearby_count] = obj
+						nearby_count += 1
 	
 	nearby.resize(nearby_count)
 	return nearby

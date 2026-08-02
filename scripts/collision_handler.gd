@@ -16,7 +16,7 @@ func _physics_process(_delta):
 			spatial_grid.insert(obj, get_object_layer(obj))
 
 func get_nearby_bodies(pos: Vector3, radius: float = PROXIMITY_RADIUS) -> Array:
-	var nearby = spatial_grid.get_nearby(pos, radius)
+	var nearby = spatial_grid.get_nearby(pos, radius, -1)
 	return nearby.filter(func(obj): return is_instance_valid(obj) and obj.is_inside_tree())
 
 func get_object_layer(obj: Node) -> int:

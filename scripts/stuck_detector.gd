@@ -26,7 +26,7 @@ func update(current_pos: Vector3, delta: float) -> bool:
 	
 	var oldest_pos = position_history[0]
 	var total_movement = oldest_pos.distance_to(current_pos)
-	var time_span = position_history.size() * delta
+	var time_span = max((position_history.size() - 1) * delta, delta)
 	var current_speed = total_movement / time_span
 	
 	var is_currently_stuck = current_speed < MIN_MOVEMENT_THRESHOLD

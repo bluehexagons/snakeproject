@@ -21,6 +21,7 @@ const PREFERRED_PLAYER_DISTANCE = 8.0
 const MIN_PLAYER_DISTANCE = 2.0
 const MIN_FOOD_DANGER_DISTANCE = 1.5
 const MIN_FOOD_ROCK_DISTANCE = 0.25
+const MAX_ROCK_SPAWN_ATTEMPTS = 30
 
 var is_isometric: bool = false
 
@@ -193,45 +194,47 @@ func spawn_initial_rocks():
 	for i in range(INITIAL_ROCKS):
 		spawn_rock(true)
 
-func spawn_rock(force_safe: bool = false):
-	var rock = ROCK_SCENE.instantiate()
-	gameplay_container.add_child(rock)
-	
-	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
-	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-	var spawn_pos = Vector3(random_x, 0, random_z)
-	
-	rock.setup_rock(spawn_pos)
-	
+func spawn_rock(force_safe: bool = false) -> bool:
 	var player = gameplay_container.get_node_or_null("Player")
-	var should_be_dangerous = false
-	
-	if !force_safe && score >= DANGER_START_SCORE:
-		var score_factor = clamp(float(score - DANGER_START_SCORE) / (DANGER_MAX_SCORE - DANGER_START_SCORE), 0.0, 1.0)
-		var danger_probability = score_factor * MAX_DANGER_PROBABILITY
-		
-		if randf() < danger_probability:
-			var is_safe_position = true
-			if player:
-				var dist_to_player = player.global_position.distance_to(spawn_pos)
-				if dist_to_player < SAFE_SPAWN_DISTANCE:
-					is_safe_position = false
-				else:
-					var to_rock = (spawn_pos - player.global_position).normalized()
-					var angle = rad_to_deg(acos(clampf(to_rock.dot(player.facing_direction), -1.0, 1.0)))
-					if angle < SAFE_FORWARD_ANGLE:
+	for _attempt in range(MAX_ROCK_SPAWN_ATTEMPTS):
+		var rock = ROCK_SCENE.instantiate()
+		gameplay_container.add_child(rock)
+
+		var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
+		var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
+		var spawn_pos = Vector3(random_x, 0, random_z)
+		rock.setup_rock(spawn_pos)
+
+		var should_be_dangerous = false
+		if !force_safe && score >= DANGER_START_SCORE:
+			var score_factor = clamp(float(score - DANGER_START_SCORE) / (DANGER_MAX_SCORE - DANGER_START_SCORE), 0.0, 1.0)
+			if randf() < score_factor * MAX_DANGER_PROBABILITY:
+				var is_safe_position = true
+				if player:
+					var dist_to_player = player.global_position.distance_to(spawn_pos)
+					if dist_to_player < SAFE_SPAWN_DISTANCE:
 						is_safe_position = false
-			
-			should_be_dangerous = is_safe_position
-	
-	if should_be_dangerous:
-		rock.make_dangerous()
-	
-	for other_rock in get_tree().get_nodes_in_group("rock"):
-		if other_rock != rock and other_rock.position.distance_to(rock.position) < 2.0:
-			rock.queue_free()
-			spawn_rock(force_safe)  # Try again
-			return
+					else:
+						var to_rock = (spawn_pos - player.global_position).normalized()
+						var angle = rad_to_deg(acos(clampf(to_rock.dot(player.facing_direction), -1.0, 1.0)))
+						if angle < SAFE_FORWARD_ANGLE:
+							is_safe_position = false
+				should_be_dangerous = is_safe_position
+
+		if should_be_dangerous:
+			rock.make_dangerous()
+
+		var overlaps_rock = false
+		for other_rock in get_tree().get_nodes_in_group("rock"):
+			if other_rock != rock and not other_rock.is_queued_for_deletion() and other_rock.position.distance_to(rock.position) < 2.0:
+				overlaps_rock = true
+				break
+		if not overlaps_rock:
+			return true
+		rock.queue_free()
+
+	push_warning("Failed to spawn a rock after %d attempts" % MAX_ROCK_SPAWN_ATTEMPTS)
+	return false
 
 func add_score(points: int):
 	if is_game_over:

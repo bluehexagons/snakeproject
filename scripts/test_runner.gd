@@ -11,6 +11,8 @@ const LOAD_TARGETS = [
 	"res://scenes/main.tscn",
 ]
 
+const SPATIAL_GRID = preload("res://scripts/spatial_grid.gd")
+
 func _ready() -> void:
 	call_deferred("run")
 
@@ -21,6 +23,22 @@ func run() -> void:
 		if resource == null:
 			push_error("Failed to load %s" % path)
 			failed = true
+
+	var grid = SPATIAL_GRID.new()
+	var segment = Node3D.new()
+	segment.position = Vector3.ZERO
+	var rock = Node3D.new()
+	rock.position = Vector3.ZERO
+	add_child(segment)
+	add_child(rock)
+	grid.insert(segment, 1)
+	grid.insert(rock, 2)
+	if grid.get_nearby(Vector3.ZERO, 1.0).size() != 2:
+		push_error("Spatial grid did not query all layers")
+		failed = true
+	segment.free()
+	rock.free()
+	grid.free()
 
 	var main_scene := load("res://scenes/main.tscn")
 	if main_scene and main_scene is PackedScene:

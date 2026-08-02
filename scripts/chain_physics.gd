@@ -56,7 +56,7 @@ static func calculate_chain_forces(
 	var to_target = target_pos - current_pos
 	var current_distance = to_target.length()
 	
-	if current_distance <= 0:
+	if current_distance <= 0 or target_distance <= 0:
 		return {
 			"spring_force": Vector3.ZERO,
 			"chain_factor": chain_factor,
