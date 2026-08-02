@@ -116,7 +116,7 @@ func is_valid_vector(v: Vector3) -> bool:
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	var is_on_ground = false
-	for i in state.get_contact_count():
+	for i in range(state.get_contact_count()):
 		var contact_normal = state.get_contact_local_normal(i)
 		if contact_normal.dot(Vector3.UP) > 0.7:
 			is_on_ground = true

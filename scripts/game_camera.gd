@@ -79,7 +79,7 @@ func _process(delta: float) -> void:
 		var look_ahead = target_pos + (predicted_direction * LOOK_AHEAD_DISTANCE)
 		look_ahead.y += 1.0
 		
-		var desired_transform = Transform3D().looking_at(look_ahead - position, Vector3.UP)
+		var desired_transform = global_transform.looking_at(look_ahead, Vector3.UP)
 		global_transform = global_transform.interpolate_with(desired_transform, delta * ROTATION_SMOOTHING)
 
 func toggle_view() -> void:

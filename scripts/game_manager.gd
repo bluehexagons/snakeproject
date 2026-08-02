@@ -218,7 +218,7 @@ func spawn_rock(force_safe: bool = false):
 					is_safe_position = false
 				else:
 					var to_rock = (spawn_pos - player.global_position).normalized()
-					var angle = rad_to_deg(acos(to_rock.dot(player.facing_direction)))
+					var angle = rad_to_deg(acos(clampf(to_rock.dot(player.facing_direction), -1.0, 1.0)))
 					if angle < SAFE_FORWARD_ANGLE:
 						is_safe_position = false
 			
