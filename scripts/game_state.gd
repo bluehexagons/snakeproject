@@ -50,7 +50,7 @@ func delete_save_game() -> bool:
 		push_error("Failed to open user directory: ", DirAccess.get_open_error())
 		return false
 	
-	var result = dir.remove(SAVE_FILE)
+	var result = dir.remove(SAVE_FILE.get_file())
 	if result != OK:
 		push_error("Failed to delete save file: ", result)
 		return false

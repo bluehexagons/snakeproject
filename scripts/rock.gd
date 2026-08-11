@@ -1,7 +1,6 @@
 extends "res://scripts/physics_object.gd"
 class_name Rock
 
-const SAFE_COLOR = Color(0.7, 0.7, 0.7, 1.0)
 const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
 const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
 
@@ -13,15 +12,11 @@ const GROWTH_PEAK = 0.6
 const GROWTH_CURVE = 0.4
 const SCALE_OVERSHOOT = 1.3
 const INITIAL_SPIN = 12.0
-const DROP_HEIGHT = 0.3
-const BOUNCE_AMPLITUDE = 0.4
-const BOUNCE_FREQUENCY = 6.0
 
 var is_dangerous: bool = false
 var is_initialized: bool = false
 var spawn_timer: float = 0.0
 var is_spawning: bool = true
-var spawn_start_pos: Vector3
 var spawn_progress: float = 0.0
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -53,7 +48,6 @@ func finish_spawn() -> void:
 
 func setup_rock(spawn_position: Vector3) -> void:
 	is_initialized = true
-	spawn_start_pos = spawn_position
 	position = spawn_position + Vector3.UP * SPAWN_HEIGHT
 	physics_pos = position
 	visual_pos = position

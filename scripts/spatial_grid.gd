@@ -1,70 +1,63 @@
 extends Node
+class_name SpatialGrid
 
 const CELL_SIZE = 2.0
 const GRID_LAYERS = 4
 
-var grid = {}
-var object_cells = {}
-var cell_coords = Vector2i()
-
-func _init():
-	grid = {}
-	object_cells = {}
+var grid: Dictionary = {}
+var object_cells: Dictionary = {}
 
 func get_cell_coords(pos: Vector3) -> Vector2i:
-	cell_coords.x = floori(pos.x / CELL_SIZE)
-	cell_coords.y = floori(pos.z / CELL_SIZE)
-	return cell_coords
+	return Vector2i(floori(pos.x / CELL_SIZE), floori(pos.z / CELL_SIZE))
+
+func _cell_key(coords: Vector2i, layer: int) -> Vector3i:
+	return Vector3i(coords.x, coords.y, layer)
 
 func insert(obj: Node3D, layer: int = 0) -> void:
+	if object_cells.has(obj):
+		remove(obj)
+
 	var coords = get_cell_coords(obj.global_position)
-	var key = str(coords.x) + "," + str(coords.y) + "," + str(layer)
+	var key = _cell_key(coords, layer)
 	
-	if !grid.has(key):
+	if not grid.has(key):
 		grid[key] = []
 	grid[key].append(obj)
-	object_cells[obj] = coords
+	object_cells[obj] = {"coords": coords, "layer": layer}
 
-func remove(obj: Node3D, layer: int = 0) -> void:
-	var coords = object_cells.get(obj)
-	if coords:
-		var key = str(coords.x) + "," + str(coords.y) + "," + str(layer)
-		if grid.has(key):
-			grid[key].erase(obj)
-			if grid[key].is_empty():
-				grid.erase(key)
-		object_cells.erase(obj)
+func remove(obj: Node3D, _layer: int = -1) -> void:
+	var record: Dictionary = object_cells.get(obj, {})
+	if record.is_empty():
+		return
+
+	var key = _cell_key(record.coords, record.layer)
+	if grid.has(key):
+		grid[key].erase(obj)
+		if grid[key].is_empty():
+			grid.erase(key)
+	object_cells.erase(obj)
 
 func update_position(obj: Node3D, layer: int = 0) -> void:
 	var new_coords = get_cell_coords(obj.global_position)
-	var old_coords = object_cells.get(obj)
+	var old_record: Dictionary = object_cells.get(obj, {})
 	
-	if old_coords != new_coords:
-		remove(obj, layer)
+	if old_record.is_empty() or old_record.coords != new_coords or old_record.layer != layer:
+		remove(obj)
 		insert(obj, layer)
 
-func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = -1) -> Array:
-	var cells_to_check = ceili(radius / CELL_SIZE)
+func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = -1) -> Array[Node3D]:
+	var cells_to_check = ceili(maxf(radius, 0.0) / CELL_SIZE)
 	var pos_coords = get_cell_coords(pos)
-	var nearby = []
-	
-	nearby.resize(16)
-	var nearby_count = 0
+	var nearby: Array[Node3D] = []
+	var layers = range(GRID_LAYERS) if layer < 0 else [layer]
 	
 	for x in range(pos_coords.x - cells_to_check, pos_coords.x + cells_to_check + 1):
 		for y in range(pos_coords.y - cells_to_check, pos_coords.y + cells_to_check + 1):
-			var layers = range(GRID_LAYERS) if layer < 0 else [layer]
 			for current_layer in layers:
-				var key = str(x) + "," + str(y) + "," + str(current_layer)
+				var key = _cell_key(Vector2i(x, y), current_layer)
 				if grid.has(key):
-					var cell = grid[key]
-					for obj in cell:
-						if nearby_count >= nearby.size():
-							nearby.resize(nearby.size() * 2)
-						nearby[nearby_count] = obj
-						nearby_count += 1
-	
-	nearby.resize(nearby_count)
+					nearby.append_array(grid[key])
+
 	return nearby
 
 func clear() -> void:

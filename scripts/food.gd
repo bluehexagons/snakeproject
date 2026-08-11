@@ -16,7 +16,6 @@ var time: float = 0.0
 var is_consumed: bool = false
 var consuming_target: Node3D = null
 var consume_timer: float = 0.0
-var initial_distance: float = 0.0
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 
@@ -52,7 +51,6 @@ func eat() -> float:
 	var player = get_tree().get_first_node_in_group("player")
 	if player:
 		consuming_target = player
-		initial_distance = global_position.distance_to(player.global_position)
 	return 10.0
 
 func dead_eat() -> float:

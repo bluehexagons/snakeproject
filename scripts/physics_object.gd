@@ -5,14 +5,12 @@ var physics_pos: Vector3
 var visual_pos: Vector3
 
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
-@onready var current_material: StandardMaterial3D = mesh_instance.mesh.surface_get_material(0).duplicate() if mesh_instance else null
+@onready var current_material: StandardMaterial3D = _duplicate_mesh_material()
 
 const IMPACT_FLASH_DURATION = 0.15
 const IMPACT_MIN_FORCE = 0.3
 const IMPACT_MAX_FORCE = 35.0
 
-var current_emission: Color = Color.BLACK
-var current_emission_energy: float = 1.0
 var target_color: Color
 var base_emission: Color
 var base_emission_energy: float = 0.3
@@ -21,7 +19,6 @@ var color_change_speed: float = 5.0
 var drag_coefficient: float = PhysicsConstants.BASE_DRAG_COEFFICIENT
 var max_speed: float = PhysicsConstants.MAX_SPEED
 
-var base_color: Color = Color.WHITE
 var state_color: Color = Color.WHITE
 var current_color: Color = Color.WHITE
 var state_emission: Color = Color.BLACK
@@ -39,8 +36,6 @@ var material_type: String = "default"
 			mass = value * current_scale * current_scale
 	get:
 		return base_mass
-
-@export var base_scale: float = 1.0
 
 var cached_velocity: Vector3:
 	get: return linear_velocity
@@ -68,10 +63,16 @@ var is_grounded: bool = false
 var ground_contact_timer: float = 0.0
 const GROUND_CONTACT_TIME: float = 0.1
 
-static var RESTITUTION = 0.01
+const RESTITUTION: float = 0.01
 
 const MAX_CONTACTS = 4
 const CONTACT_MONITOR_ENABLED = true
+
+func _duplicate_mesh_material() -> StandardMaterial3D:
+	if not mesh_instance or not mesh_instance.mesh:
+		return null
+	var material = mesh_instance.mesh.surface_get_material(0)
+	return material.duplicate() as StandardMaterial3D if material is StandardMaterial3D else null
 
 func _ready():
 	physics_pos = global_position
@@ -79,8 +80,6 @@ func _ready():
 	if mesh_instance and current_material:
 		mesh_instance.mesh.surface_set_material(0, current_material)
 		base_emission = current_material.emission
-		current_emission = base_emission
-		current_emission_energy = base_emission_energy
 		mesh_instance.global_position = global_position
 
 	mass = base_mass
@@ -218,32 +217,21 @@ func get_save_data() -> Dictionary:
 	return base_data
 
 func restore_from_save_data(data: Dictionary) -> void:
-	if data.has("position"):
-		position = Vector3(
-			float(data.position.x),
-			float(data.position.y),
-			float(data.position.z)
-		)
-	if data.has("physics_pos"):
-		physics_pos = Vector3(
-			float(data.physics_pos.x),
-			float(data.physics_pos.y),
-			float(data.physics_pos.z)
-		)
-	if data.has("visual_pos"):
-		visual_pos = Vector3(
-			float(data.visual_pos.x),
-			float(data.visual_pos.y),
-			float(data.visual_pos.z)
-		)
-	if data.has("velocity"):
-		cached_velocity = Vector3(
-			float(data.velocity.x),
-			float(data.velocity.y),
-			float(data.velocity.z)
-		)
-	is_grounded = data.get("is_grounded", false)
-	ground_contact_timer = data.get("ground_contact_timer", 0.0)
+	position = _vector_from_data(data.get("position"), position)
+	physics_pos = _vector_from_data(data.get("physics_pos"), physics_pos)
+	visual_pos = _vector_from_data(data.get("visual_pos"), visual_pos)
+	cached_velocity = _vector_from_data(data.get("velocity"), cached_velocity)
+	is_grounded = bool(data.get("is_grounded", false))
+	ground_contact_timer = maxf(float(data.get("ground_contact_timer", 0.0)), 0.0)
+
+func _vector_from_data(data: Variant, fallback: Vector3) -> Vector3:
+	if not data is Dictionary:
+		return fallback
+	return Vector3(
+		float(data.get("x", fallback.x)),
+		float(data.get("y", fallback.y)),
+		float(data.get("z", fallback.z))
+	)
 
 func handle_impact(force: float) -> void:
 	if !current_material or !mesh_instance:
@@ -253,7 +241,7 @@ func handle_impact(force: float) -> void:
 	if flash_intensity <= 0.0:
 		return
 	
-	flash_intensity = 1.0 - (1.0 - flash_intensity) * 0.95 + flash_intensity
+	flash_intensity = 1.0 - (1.0 - flash_intensity) * 0.95
 	
 	var flash_material = current_material.duplicate()
 	var flash_emission = state_emission if state_emission != Color.BLACK else current_material.emission

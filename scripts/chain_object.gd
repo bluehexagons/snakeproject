@@ -1,12 +1,11 @@
 extends "res://scripts/physics_object.gd"
 class_name ChainObject
 
-@onready var chain_physics = ChainPhysicsManager
+var chain_physics: ChainPhysics = ChainPhysicsManager
 var chain_index: int = 0
 var chain_length: int = 1
 var chain_tension: float = 0.0
 var target: Node3D
-var last_target_pos: Vector3
 var collision_recovery_timer: float = 0.0
 
 func _physics_process(delta: float) -> void:
@@ -19,7 +18,7 @@ func _handle_chain_physics(delta: float) -> bool:
 
 	var target_offset = target.global_position - global_position
 	var distance = target_offset.length()
-	var desired_distance = 1.4
+	var desired_distance = SegmentConstants.TARGET_DISTANCE
 
 	if distance > desired_distance:
 		chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta)
@@ -28,9 +27,6 @@ func _handle_chain_physics(delta: float) -> bool:
 
 	collision_recovery_timer = min(collision_recovery_timer + delta, chain_physics.COLLISION_RECOVERY_DELAY)
 	return true
-
-func _custom_physics_process(_delta: float) -> void:
-	pass
 
 func get_chain_data() -> Dictionary:
 	var target_offset = target.global_position - global_position

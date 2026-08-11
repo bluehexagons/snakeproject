@@ -7,18 +7,12 @@ func _ready():
 # Timing constants
 const SPRING_FORCE_DELAY = 0.1
 const COLLISION_RECOVERY_DELAY = 0.1
-const FORCE_RESPONSE_RATE = 0.8
-
 # Chain behavior
 const TENSION_BUILD_RATE = 0.8
 const MIN_TENSION = 0.2
 const TENSION_DAMPING = 0.85
-const CHAIN_DRAG_REDUCTION = 0.7
-const CHAIN_MIN_SPEED = 1.0
 
 # Movement constants and thresholds
-const MAX_STRETCH = 2.5
-const STRETCH_THRESHOLD = 0.99
 const SPRING_STIFFNESS = 40.0
 const STIFFNESS_SCALE = 10.4
 const SNAP_THRESHOLD = 0.1
@@ -26,16 +20,10 @@ const SNAP_THRESHOLD = 0.1
 # Force scaling
 const MIN_STIFFNESS = 0.15
 const CHAIN_LENGTH_SCALING = 0.95
-const MAX_FORCE_SCALE = 2.0
 const FORCE_FALLOFF_RATE = 1.2
-
-# Force calculations
-const SAFE_FORCE_THRESHOLD = 0.1
 
 # Movement and behavior
 const MAX_WALK_SPEED = 10.0
-const WALK_ACCELERATION = 40.0
-const WALK_FORCE_SCALE = 0.8
 
 static func calculate_chain_forces(
 		current_pos: Vector3,
@@ -102,9 +90,3 @@ static func calculate_walk_force(
 		force *= (1.0 - clamp(approaching_speed / MAX_WALK_SPEED, 0.0, 1.0))
 	
 	return force
-
-static func calculate_spring_force(from_pos: Vector3, to_pos: Vector3, distance: float, stiffness: float, scale: float, tension: float) -> Vector3:
-	if distance <= 0:
-		return Vector3.ZERO
-	var direction = (to_pos - from_pos) / distance
-	return direction * distance * stiffness * scale * tension

@@ -4,7 +4,6 @@ const TOP_DOWN_HEIGHT = 20.0
 const THIRD_PERSON_HEIGHT = 15.0
 const THIRD_PERSON_DISTANCE = 15.0
 const LOOK_AHEAD_DISTANCE = 8.0
-const MIN_LOOK_AHEAD = 2.0
 const INITIAL_SIZE = 30.0
 const FINAL_SIZE = 15.0
 const ZOOM_DURATION = 1.5
@@ -15,12 +14,10 @@ const POSITION_SMOOTHING = 4.0
 const ROTATION_SMOOTHING = 4.0
 const TOP_DOWN_ROTATION_SPEED = 6.0
 const LAG_SPEED = 2.5
-const PREDICTION_STRENGTH = 0.3
 
 var is_third_person: bool = false
 var camera_transition: float = 0.0
 var predicted_direction: Vector3 = Vector3.FORWARD
-var look_target_pos: Vector3
 var current_size: float = INITIAL_SIZE
 var zoom_timer: float = 0.0
 var is_zooming: bool = false
@@ -28,7 +25,6 @@ var is_zooming: bool = false
 func _ready() -> void:
 	rotation_degrees.x = -90
 	position.y = TOP_DOWN_HEIGHT
-	look_target_pos = Vector3.ZERO
 	size = INITIAL_SIZE
 	
 	await get_tree().create_timer(ZOOM_DELAY).timeout
@@ -43,6 +39,8 @@ func _process(delta: float) -> void:
 			is_zooming = false
 	
 	var window_size = DisplayServer.window_get_size()
+	if window_size.y <= 0:
+		return
 	var aspect_ratio = float(window_size.x) / float(window_size.y)
 	size = current_size if aspect_ratio > 1.0 else current_size / aspect_ratio
 	

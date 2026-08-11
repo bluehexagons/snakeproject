@@ -25,10 +25,10 @@ func run() -> void:
 			push_error("Failed to load %s" % path)
 			failed = true
 
-	var grid = SPATIAL_GRID.new()
-	var segment = Node3D.new()
+	var grid: SpatialGrid = SPATIAL_GRID.new()
+	var segment := Node3D.new()
 	segment.position = Vector3.ZERO
-	var rock = Node3D.new()
+	var rock := Node3D.new()
 	rock.position = Vector3.ZERO
 	add_child(segment)
 	add_child(rock)
@@ -36,6 +36,14 @@ func run() -> void:
 	grid.insert(rock, 2)
 	if grid.get_nearby(Vector3.ZERO, 1.0).size() != 2:
 		push_error("Spatial grid did not query all layers")
+		failed = true
+	if grid.get_nearby(Vector3.ZERO, 1.0, 1).size() != 1:
+		push_error("Spatial grid did not filter by layer")
+		failed = true
+	segment.position = Vector3(4, 0, 0)
+	grid.update_position(segment, 1)
+	if grid.get_nearby(Vector3.ZERO, 1.0, 1).size() != 0:
+		push_error("Spatial grid left an object in its old cell")
 		failed = true
 	segment.free()
 	rock.free()

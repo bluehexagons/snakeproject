@@ -31,14 +31,13 @@ func _ready():
 	apply_physics_scale(segment_config.INITIAL_SCALE, true)
 	apply_color(segment_config.SAFE_COLOR, segment_config.SAFE_COLOR)
 
-func init_with_growth(initial_growth: float):
+func init_with_growth(initial_growth: float) -> void:
+	initial_growth = clampf(initial_growth, 0.0, 1.0)
 	growth_timer = segment_config.GROWTH_DURATION * initial_growth
 	var growth = ease(initial_growth, segment_config.GROWTH_CURVE)
 	apply_physics_scale(lerp(segment_config.INITIAL_SCALE, 1.0, growth), true)
 	is_growing = initial_growth < 1.0
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
-	chain_index = 0
-	chain_length = 1
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
@@ -53,12 +52,11 @@ func get_save_data() -> Dictionary:
 	}
 	return base_data
 
-func init_from_save_data(data: Dictionary):
-	if data.has("velocity"):
-		cached_velocity = Vector3(data.velocity.x, data.velocity.y, data.velocity.z)
+func init_from_save_data(data: Dictionary) -> void:
+	restore_from_save_data(data)
 	
-	current_scale = data.get("current_scale", 1.0)
-	var growth = data.get("growth", 1.0)
+	current_scale = float(data.get("current_scale", 1.0))
+	var growth = clampf(float(data.get("growth", 1.0)), 0.0, 1.0)
 	growth_timer = segment_config.GROWTH_DURATION * growth
 	is_growing = growth < 1.0
 	
@@ -66,23 +64,23 @@ func init_from_save_data(data: Dictionary):
 	
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
 	
-	if data.has("is_dangerous") and data.is_dangerous:
+	if data.get("is_dangerous", false):
 		is_dangerous = true
 		add_to_group("dangerous")
 		current_color = segment_config.DANGER_COLOR
 		current_material.albedo_color = segment_config.DANGER_COLOR
 		current_material.emission = segment_config.DANGER_EMISSION
 		current_material.emission_enabled = true
-	elif data.has("current_color"):
+	elif data.get("current_color") is Dictionary:
+		var saved_color: Dictionary = data.current_color
 		current_color = Color(
-			data.current_color.r,
-			data.current_color.g,
-			data.current_color.b,
-			data.current_color.a
+			float(saved_color.get("r", current_color.r)),
+			float(saved_color.get("g", current_color.g)),
+			float(saved_color.get("b", current_color.b)),
+			float(saved_color.get("a", current_color.a))
 		)
 		current_material.albedo_color = current_color
 	
-	growth_timer = segment_config.GROWTH_DURATION
 
 func _physics_process(delta):
 	if not _handle_base_physics(delta) or not is_instance_valid(target):

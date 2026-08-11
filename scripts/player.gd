@@ -4,7 +4,6 @@ class_name Player
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 
-const EXPECTED_MAX_SPEED = 400.0
 const LUNGE_FORCE = 20.0
 const SEGMENT_PUSHBACK = 3.0
 const SPEED_BOOST_BASE = 1.0
@@ -38,7 +37,6 @@ const DEAD_EMISSION_ENERGY = 0.1
 
 const DIGESTION_DURATION = 0.16
 const DIGESTION_FLASH_INTENSITY = 0.3
-const SEGMENT_SPAWN_PUSH = 20.0
 const DIGESTION_PULSE_SCALE = 1.2
 
 const UNKILLABLE_COLOR = Color(0.7, 0.9, 1.0)
@@ -50,15 +48,6 @@ const PROXIMITY_FORCE = 150.0
 const PROXIMITY_FALLOFF = 1.5
 const PROXIMITY_VELOCITY_MATCH = 0.2
 
-const ROCK_FORCE_MULTIPLIER = 2.0
-const PULL_STRENGTH = 1.5
-const MIN_PUSH_FORCE = 50.0
-
-const FORCE_RAMP_RATE = 2.0
-const MAX_PUSH_MULTIPLIER = 3.0
-const RESISTANCE_THRESHOLD = 0.3
-const MIN_RESISTANCE_TIME = 0.1
-
 const DIRECT_ACCELERATION = 90.0
 const MOMENTUM_RETENTION = 0.85
 const TURN_RESPONSIVENESS = 0.65
@@ -67,14 +56,13 @@ const MOVEMENT_DECAY = 0.95
 const INPUT_SMOOTHING = 0.25
 
 var facing_direction: Vector3 = Vector3.FORWARD
-var segments: Array = []
+var segments: Array[Segment] = []
 var has_started_moving: bool = false
 var food_eaten: int = 0
-var filler_eaten: int = 0
 var current_speed_boost: float = SPEED_BOOST_BASE
 var is_dead: bool = false
 var has_lost: bool = false
-var stuck_detector: RefCounted
+var stuck_detector: StuckDetector
 var dead_time: float = 0.0
 var is_digesting: bool = false
 var digestion_timer: float = 0.0
@@ -85,10 +73,6 @@ var physics_basis: Basis
 var visual_basis: Basis
 var collected_food: bool = false
 var input_dir: Vector3 = Vector3.ZERO
-var push_force_multiplier: float = 1.0
-var resistance_timer: float = 0.0
-var last_push_dir: Vector3 = Vector3.ZERO
-var current_acceleration: float = 0.0
 var input_smoothed: Vector3 = Vector3.ZERO
 var movement_ramp: float = 0.0
 
@@ -133,11 +117,10 @@ func _ready() -> void:
 	digestion_flash_material = current_material.duplicate()
 	digestion_flash_material.emission_enabled = true
 
-	base_scale = 1.0
 	current_scale = 1.0
 	target_scale = 1.0
 
-func _physics_process(delta):
+func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("toggle_unkillable"):
 		unkillable = !unkillable
 		print("Unkillable toggled: ", unkillable)
@@ -268,7 +251,7 @@ func _physics_process(delta):
 	if cached_velocity.length_squared() > 0.1:
 		facing_direction = cached_velocity.normalized()
 	
-	var nearby_segments = get_node("/root/CollisionHandler").get_nearby_bodies(global_position)
+	var nearby_segments = CollisionHandler.get_nearby_bodies(global_position)
 	for segment in nearby_segments:
 		if segment == self or not segment is PhysicsObject:
 			continue
@@ -280,34 +263,37 @@ func _physics_process(delta):
 
 	var current_speed = min(max(cached_velocity.length(), current_speed_boost) / current_speed_boost, MAX_BONUS_SPEED_MULTIPLIER)
 
-	var food_nodes = get_tree().get_nodes_in_group("food")
-	food_nodes.sort_custom(func(a, b): 
-		return a.global_position.distance_to(global_position) < b.global_position.distance_to(global_position)
-	)
-	
-	for food_node in food_nodes:
-		if food_node.is_available() and food_node.global_position.distance_to(global_position) < 0.75 and not collected_food:
-			if is_dead:
-				score_change += food_node.dead_eat()
-				collected_food = true
-			else:
-				if not is_digesting:
-					score_change += food_node.eat()
-					start_digestion()
-					food_eaten += 1
-					collected_food = true
-					
-					current_speed_boost = min(
-						SPEED_BOOST_BASE + (food_eaten * BONUS_SPEED_PER_FEED),
-						MAX_SPEED_BOOST
-					)
-					
-					apply_impulse(facing_direction * LUNGE_FORCE)
+	var closest_food: Food
+	var closest_food_distance_squared := 0.75 * 0.75
+	for food_candidate in get_tree().get_nodes_in_group("food"):
+		var food_node := food_candidate as Food
+		if not food_node or not food_node.is_available():
+			continue
+		var distance_squared = global_position.distance_squared_to(food_node.global_position)
+		if distance_squared < closest_food_distance_squared:
+			closest_food = food_node
+			closest_food_distance_squared = distance_squared
 
-					var game_manager = get_tree().get_first_node_in_group("game_manager")
-					if game_manager:
-						game_manager.on_food_collected()
-			break
+	if closest_food and not collected_food:
+		if is_dead:
+			score_change += closest_food.dead_eat()
+			collected_food = true
+		elif not is_digesting:
+			score_change += closest_food.eat()
+			start_digestion()
+			food_eaten += 1
+			collected_food = true
+
+			current_speed_boost = min(
+				SPEED_BOOST_BASE + (food_eaten * BONUS_SPEED_PER_FEED),
+				MAX_SPEED_BOOST
+			)
+
+			apply_impulse(facing_direction * LUNGE_FORCE)
+
+			var game_manager = get_tree().get_first_node_in_group("game_manager")
+			if game_manager:
+				game_manager.on_food_collected()
 
 	if not has_lost and score_change > 0.0:
 		score_change = int(current_speed * score_change * SPEED_SCORE_MULTIPLIER)
@@ -324,8 +310,7 @@ func _physics_process(delta):
 	super._physics_process(delta)
 	physics_basis = mesh_instance.basis.orthonormalized()
 
-func _process(_delta):
-	collected_food = false
+func _process(_delta: float) -> void:
 	var fraction = Engine.get_physics_interpolation_fraction()
 	visual_pos = physics_pos.lerp(global_position, fraction)
 	
@@ -335,22 +320,15 @@ func _process(_delta):
 	mesh_instance.global_position = visual_pos
 	mesh_instance.basis = visual_basis
 
-func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -> PhysicsBody3D:
+func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO, use_saved_position: bool = false) -> Segment:
 	if is_dead:
 		return null
 	
-	var segment = SEGMENT_SCENE.instantiate()
-	segment.set_script(load("res://scripts/segment.gd"))
+	var segment: Segment = SEGMENT_SCENE.instantiate()
 	get_parent().add_child(segment)
 	
-	segment.chain_index = segments.size()
-	segment.chain_length = segments.size() + 1
-	
-	for existing_segment in segments:
-		existing_segment.chain_length = segment.chain_length
-	
 	var spawn_pos: Vector3
-	if saved_pos != Vector3.ZERO:
+	if use_saved_position or saved_pos != Vector3.ZERO:
 		spawn_pos = saved_pos
 	else:
 		var random_offset = Vector3(
@@ -376,7 +354,13 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO) -
 		segments[0].target = segment
 	
 	segments.push_front(segment)
+	_update_chain_metadata()
 	return segment
+
+func _update_chain_metadata() -> void:
+	for index in segments.size():
+		segments[index].chain_index = index
+		segments[index].chain_length = segments.size()
 
 func get_segment_positions() -> Array:
 	var positions = []
@@ -396,36 +380,28 @@ func get_save_data() -> Dictionary:
 	base_data["segments"] = get_segment_positions()
 	return base_data
 
-func restore_from_save(data: Dictionary):
-	var state = data.player_state
-	if state:
-		position = Vector3(
-			float(state.position.x),
-			float(state.position.y),
-			float(state.position.z)
-		)
-		physics_pos = Vector3(
-			float(state.physics_pos.x),
-			float(state.physics_pos.y),
-			float(state.physics_pos.z)
-		)
-		visual_pos = Vector3(
-			float(state.visual_pos.x),
-			float(state.visual_pos.y),
-			float(state.visual_pos.z)
-		)
-		cached_velocity = Vector3(
-			float(state.velocity.x),
-			float(state.velocity.y),
-			float(state.velocity.z)
-		)
-		facing_direction = Vector3(
-			float(state.facing_direction.x),
-			float(state.facing_direction.y),
-			float(state.facing_direction.z)
-		)
-		food_eaten = state.get("food_eaten", 0)
-		current_speed_boost = state.get("current_speed_boost", SPEED_BOOST_BASE)
+func restore_from_save(data: Dictionary) -> void:
+	var state: Dictionary = data.get("player_state", {})
+	if state.is_empty():
+		return
+
+	restore_from_save_data(state)
+	var saved_facing_direction: Variant = state.get("facing_direction")
+	if saved_facing_direction is Dictionary:
+		var restored_direction = _vector_from_save(saved_facing_direction, Vector3.FORWARD)
+		if restored_direction.length_squared() > 0.001:
+			facing_direction = restored_direction.normalized()
+	food_eaten = max(int(state.get("food_eaten", 0)), 0)
+	current_speed_boost = clampf(float(state.get("current_speed_boost", SPEED_BOOST_BASE)), SPEED_BOOST_BASE, MAX_SPEED_BOOST)
+
+func _vector_from_save(data: Variant, fallback: Vector3) -> Vector3:
+	if not data is Dictionary:
+		return fallback
+	return Vector3(
+		float(data.get("x", fallback.x)),
+		float(data.get("y", fallback.y)),
+		float(data.get("z", fallback.z))
+	)
 
 func lose():
 	if has_lost:

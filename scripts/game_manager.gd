@@ -21,21 +21,9 @@ const PREFERRED_PLAYER_DISTANCE = 8.0
 const MIN_PLAYER_DISTANCE = 2.0
 const MIN_FOOD_DANGER_DISTANCE = 1.5
 const MIN_FOOD_ROCK_DISTANCE = 0.25
+const MAX_FOOD_SPAWN_ATTEMPTS = 30
+const MAX_RELAXED_FOOD_SPAWN_ATTEMPTS = 10
 const MAX_ROCK_SPAWN_ATTEMPTS = 30
-
-var is_isometric: bool = false
-
-var target_camera_pos: Vector3
-var target_camera_rot: Vector3
-
-var zoom_timer: float = 0.0
-var is_zooming: bool = false
-
-var previous_player_direction: Vector3 = Vector3.FORWARD
-var camera_transition: float = 0.0
-
-var look_target_pos: Vector3
-var predicted_direction: Vector3 = Vector3.FORWARD
 
 var is_paused: bool = false
 var is_gameplay_paused: bool = false
@@ -48,13 +36,8 @@ var is_new_best: bool = false
 @onready var ui: Control = $UI
 @onready var gameplay_container: Node3D = $GameplayContainer
 
-var _was_toggle_pressed: bool = false
-
 func _ready() -> void:
 	load_game_state()
-	
-	get_tree().root.size_changed.connect(_on_window_resize)
-	_on_window_resize()
 	update_score(0)
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -65,10 +48,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("gameplay_pause"):
 		if !is_paused:
 			toggle_gameplay_pause()
-
-func _process(_delta: float) -> void:
-	pass
-
 func toggle_gameplay_pause() -> void:
 	if is_game_over:
 		return
@@ -101,8 +80,6 @@ func spawn_food(force_spawn: bool = false) -> bool:
 	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f.is_available())
 	var current_count = available_food.size()
 	
-	print("Current food count: ", current_count, ", Max: ", MAX_FOOD_COUNT, ", Min: ", MIN_FOOD_COUNT)
-	
 	if current_count >= MAX_FOOD_COUNT:
 		return false
 	
@@ -117,7 +94,7 @@ func spawn_food(force_spawn: bool = false) -> bool:
 	var best_position = Vector3.ZERO
 	var player = gameplay_container.get_node_or_null("Player")
 	
-	for attempt in range(30):
+	for _attempt in range(MAX_FOOD_SPAWN_ATTEMPTS):
 		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.9, SPAWN_AREA_SIZE.x * 0.9)
 		var random_z = randf_range(-SPAWN_AREA_SIZE.y * 0.9, SPAWN_AREA_SIZE.y * 0.9)
 		var pos = Vector3(random_x, 0, random_z)
@@ -158,11 +135,11 @@ func spawn_food(force_spawn: bool = false) -> bool:
 		print("Food spawned at: ", best_position, " with score: ", best_distance)
 		return true
 	
-	print("Failed to spawn food after 30 attempts")
+	print("Failed to spawn food after %d attempts" % MAX_FOOD_SPAWN_ATTEMPTS)
 	food.queue_free()
 	
 	if force_spawn:
-		print("Retrying force spawn with relaxed constraints")
+		push_warning("Retrying force spawn with relaxed constraints")
 		return spawn_food_relaxed()
 	
 	return false
@@ -171,7 +148,7 @@ func spawn_food_relaxed() -> bool:
 	var food = FOOD_SCENE.instantiate()
 	gameplay_container.add_child(food)
 	
-	for _attempt in range(10):
+	for _attempt in range(MAX_RELAXED_FOOD_SPAWN_ATTEMPTS):
 		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.8, SPAWN_AREA_SIZE.x * 0.8)
 		var random_z = randf_range(-SPAWN_AREA_SIZE.y * 0.8, SPAWN_AREA_SIZE.y * 0.8)
 		var pos = Vector3(random_x, 0, random_z)
@@ -191,7 +168,7 @@ func spawn_food_relaxed() -> bool:
 	food.queue_free()
 	return false
 
-func spawn_initial_rocks():
+func spawn_initial_rocks() -> void:
 	for i in range(INITIAL_ROCKS):
 		spawn_rock(true)
 
@@ -258,15 +235,12 @@ func on_food_collected():
 	if current_food_count < MIN_FOOD_COUNT:
 		spawn_food()
 
-func _on_window_resize():
-	pass
-
-func update_score(points: int):
+func update_score(points: int) -> void:
 	var previous_best = GameState.get_best_score()
 	score += points
 	if score > previous_best:
 		is_new_best = true
-	GameState.save_best_score(score)
+		GameState.save_best_score(score)
 	if ui:
 		ui.update_score(score)
 
@@ -295,7 +269,7 @@ func save_and_quit():
 	is_paused = false
 	get_tree().quit()
 
-func save_game_state():
+func save_game_state() -> void:
 	if is_game_over:
 		return
 
@@ -306,20 +280,20 @@ func save_game_state():
 	var foods = get_tree().get_nodes_in_group("food")
 	var rocks = get_tree().get_nodes_in_group("rock")
 	
-	if not player or foods.is_empty():
-		print("Warning: Could not find valid player or food when saving")
-		return
-	
-	var food_positions = []
+	var food_positions: Array[Dictionary] = []
 	for food in foods:
+		if not food.is_available():
+			continue
 		food_positions.append({
 			"x": food.position.x,
 			"y": food.position.y,
 			"z": food.position.z
 		})
 	
-	var rock_data = []
+	var rock_data: Array[Dictionary] = []
 	for rock in rocks:
+		if rock.is_queued_for_deletion():
+			continue
 		if rock.has_method("get_save_data"):
 			rock_data.append(rock.get_save_data())
 	
@@ -331,12 +305,14 @@ func save_game_state():
 	}
 	GameState.save_game_state(save_data)
 
-func load_game_state():
+func load_game_state() -> bool:
 	for food in get_tree().get_nodes_in_group("food"):
 		food.queue_free()
 	
 	var save_data = GameState.load_game_state()
-	if save_data.is_empty():
+	if save_data.is_empty() or not _is_valid_save_data(save_data):
+		if not save_data.is_empty():
+			push_warning("Ignoring invalid save data and starting a new game")
 		spawn_player()
 		spawn_initial_food()
 		spawn_initial_rocks()
@@ -346,59 +322,62 @@ func load_game_state():
 	gameplay_container.add_child(player)
 	player.restore_from_save(save_data)
 	
-	if save_data["player_state"].has("segments"):
-		var segments = save_data["player_state"]["segments"] as Array
+	var player_state: Dictionary = save_data["player_state"]
+	if player_state.has("segments") and player_state["segments"] is Array:
+		var segments: Array = player_state["segments"]
 		for i in range(segments.size() - 1, -1, -1):
-			var segment_data = segments[i]
-			var pos = Vector3(
-				float(segment_data["position"]["x"]),
-				float(segment_data["position"]["y"]),
-				float(segment_data["position"]["z"])
-			)
-			var segment = player.add_segment(0.0, pos)
+			var segment_data: Dictionary = segments[i] if segments[i] is Dictionary else {}
+			var segment = player.add_segment(0.0, _vector_from_data(segment_data.get("position")), true)
+			if not segment:
+				continue
 			segment.init_from_save_data(segment_data)
 	
-	if save_data.has("food_positions") and !save_data.food_positions.is_empty():
-		for food_pos in save_data.food_positions:
+	var saved_food_positions: Variant = save_data.get("food_positions", [])
+	if saved_food_positions is Array and not saved_food_positions.is_empty():
+		for food_pos in saved_food_positions:
+			if not food_pos is Dictionary:
+				continue
 			var food = FOOD_SCENE.instantiate()
 			gameplay_container.add_child(food)
-			food.position = Vector3(
-				float(food_pos.x),
-				float(food_pos.y),
-				float(food_pos.z)
-			)
+			food.position = _vector_from_data(food_pos)
 	else:
 		spawn_initial_food()
 	
-	if save_data.has("rocks"):
-		for rock_data in save_data.rocks:
+	var saved_rocks: Variant = save_data.get("rocks", [])
+	if saved_rocks is Array:
+		for rock_data in saved_rocks:
+			if not rock_data is Dictionary:
+				continue
 			var rock = ROCK_SCENE.instantiate()
 			gameplay_container.add_child(rock)
-			
-			var pos = Vector3(
-				float(rock_data.position.x),
-				float(rock_data.position.y),
-				float(rock_data.position.z)
-			)
-			
-			rock.setup_rock(pos)
+
+			rock.setup_rock(_vector_from_data(rock_data.get("position")))
 			
 			if rock_data.has("velocity"):
-				rock.cached_velocity = Vector3(
-					float(rock_data.velocity.x),
-					float(rock_data.velocity.y),
-					float(rock_data.velocity.z)
-				)
+				rock.cached_velocity = _vector_from_data(rock_data.velocity)
 			if rock_data.get("is_dangerous", false):
 				rock.make_dangerous()
 			
 			rock.finish_spawn()
 	
-	score = save_data["score"]
+	score = max(int(save_data.get("score", 0)), 0)
 	update_score(0)
 	return true
 
-func spawn_initial_food():
+func _is_valid_save_data(data: Dictionary) -> bool:
+	var score_type := typeof(data.get("score"))
+	return data.get("player_state") is Dictionary and score_type in [TYPE_INT, TYPE_FLOAT]
+
+func _vector_from_data(data: Variant) -> Vector3:
+	if not data is Dictionary:
+		return Vector3.ZERO
+	return Vector3(
+		float(data.get("x", 0.0)),
+		float(data.get("y", 0.0)),
+		float(data.get("z", 0.0))
+	)
+
+func spawn_initial_food() -> void:
 	for food in get_tree().get_nodes_in_group("food"):
 		food.queue_free()
 	
@@ -416,7 +395,7 @@ func spawn_initial_food():
 		food.position = Vector3(SPAWN_AREA_SIZE.x * 0.5, 0, SPAWN_AREA_SIZE.y * 0.5)
 		print("Emergency food spawn at fixed position")
 
-func _notification(what):
+func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		save_game_state()
 		get_tree().quit()
