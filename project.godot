@@ -18,9 +18,6 @@ config/foreground_mode=0
 
 [autoload]
 
-ChainPhysicsManager="*res://scripts/chain_physics.gd"
-PhysicsConstants="*res://scripts/physics_constants.gd"
-SegmentConstants="*res://scripts/segment_constants.gd"
 GameState="*res://scripts/game_state.gd"
 CollisionHandler="*res://scripts/collision_handler.gd"
 

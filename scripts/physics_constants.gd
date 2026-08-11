@@ -1,4 +1,5 @@
-extends Node
+extends RefCounted
+class_name PhysicsConstants
 
 const GRAVITY = 25.0
 const BASE_DRAG_COEFFICIENT = 0.3
@@ -58,5 +59,5 @@ const RIGID_BODY_SETTINGS = {
 	}
 }
 
-func get_ground_friction_coefficients(material_type: String) -> Array:
+static func get_ground_friction_coefficients(material_type: String) -> Array:
 	return GROUND_FRICTION_COEFFICIENTS.get(material_type, GROUND_FRICTION_COEFFICIENTS.default)

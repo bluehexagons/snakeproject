@@ -2,6 +2,9 @@ extends Node
 
 const LOAD_TARGETS = [
 	"res://scripts/physics_object.gd",
+	"res://scripts/physics_constants.gd",
+	"res://scripts/segment_constants.gd",
+	"res://scripts/chain_physics.gd",
 	"res://scripts/player.gd",
 	"res://scripts/segment.gd",
 	"res://scripts/rock.gd",

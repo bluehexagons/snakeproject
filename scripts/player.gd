@@ -2,7 +2,10 @@ extends "res://scripts/physics_object.gd"
 class_name Player
 
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
-const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
+
+signal food_collected(total_food_eaten: int)
+signal score_earned(points: int, popup_position: Vector3)
+signal player_lost
 
 const LUNGE_FORCE = 20.0
 const SEGMENT_PUSHBACK = 3.0
@@ -279,7 +282,7 @@ func _physics_process(delta: float) -> void:
 			score_change += closest_food.dead_eat()
 			collected_food = true
 		elif not is_digesting:
-			score_change += closest_food.eat()
+			score_change += closest_food.eat(self)
 			start_digestion()
 			food_eaten += 1
 			collected_food = true
@@ -290,22 +293,12 @@ func _physics_process(delta: float) -> void:
 			)
 
 			apply_impulse(facing_direction * LUNGE_FORCE)
-
-			var game_manager = get_tree().get_first_node_in_group("game_manager")
-			if game_manager:
-				game_manager.on_food_collected()
+			food_collected.emit(food_eaten)
 
 	if not has_lost and score_change > 0.0:
 		score_change = int(current_speed * score_change * SPEED_SCORE_MULTIPLIER)
 		score_change = max(int(score_change), 1)
-		var game_manager = get_tree().get_first_node_in_group("game_manager")
-		if game_manager:
-			game_manager.add_score(score_change)
-			# Spawn score popup
-			var popup = SCORE_POPUP.instantiate()
-			popup.position = global_position + Vector3(0, 1.5, 0)
-			popup.text = "+" + str(score_change)
-			get_parent().add_child(popup)
+		score_earned.emit(score_change, global_position + Vector3(0, 1.5, 0))
 
 	super._physics_process(delta)
 	physics_basis = mesh_instance.basis.orthonormalized()
@@ -408,10 +401,7 @@ func lose():
 		return
 
 	has_lost = true
-
-	var game_manager = get_tree().get_first_node_in_group("game_manager")
-	if game_manager:
-		game_manager.game_over()
+	player_lost.emit()
 
 func die():
 	if unkillable:

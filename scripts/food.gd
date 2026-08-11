@@ -43,14 +43,12 @@ func _process(delta: float) -> void:
 	var scale_factor = lerp(MIN_SCALE, MAX_SCALE, (sin(time * SCALE_SPEED) + 1.0) * 0.5)
 	mesh.scale = Vector3.ONE * scale_factor
 
-func eat() -> float:
+func eat(target: Node3D) -> float:
 	if is_consumed:
 		return 0.0
 	is_consumed = true
 	consume_timer = 0.0
-	var player = get_tree().get_first_node_in_group("player")
-	if player:
-		consuming_target = player
+	consuming_target = target
 	return 10.0
 
 func dead_eat() -> float:

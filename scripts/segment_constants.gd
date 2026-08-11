@@ -1,4 +1,5 @@
-extends Node
+extends RefCounted
+class_name SegmentConstants
 
 # Growth and Timing
 const GROWTH_DURATION = 0.33

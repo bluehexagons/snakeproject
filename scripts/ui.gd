@@ -1,4 +1,10 @@
 extends Control
+class_name GameUI
+
+signal resume_requested
+signal quit_requested
+signal retry_requested
+signal main_menu_requested
 
 @onready var score_label: Label = $ScoreLabel
 @onready var stats_label: Label = $StatsLabel
@@ -8,6 +14,7 @@ extends Control
 @onready var hint_label: Label = $HintLabel
 
 var hint_elapsed: float = 0.0
+var player: Player
 
 func _ready() -> void:
 	gameplay_pause_label.visible = false
@@ -19,8 +26,7 @@ func _ready() -> void:
 	$GameOverMenu/VBoxContainer/MainMenuButton.pressed.connect(on_main_menu_pressed)
 
 func _process(delta: float) -> void:
-	var player = get_tree().get_first_node_in_group("player")
-	if not player:
+	if not is_instance_valid(player):
 		return
 
 	var length = player.segments.size() + 1
@@ -34,6 +40,9 @@ func _process(delta: float) -> void:
 func update_score(new_score: int) -> void:
 	score_label.text = "Score: %d" % new_score
 
+func set_player(new_player: Player) -> void:
+	player = new_player
+
 func set_gameplay_paused(is_paused: bool) -> void:
 	gameplay_pause_label.visible = is_paused
 
@@ -46,21 +55,13 @@ func show_game_over(final_score: int, best_score: int, is_new_best: bool) -> voi
 	$GameOverMenu/VBoxContainer/SummaryLabel.text = "NEW BEST SCORE!" if is_new_best else "Best Score: %d" % best_score
 
 func on_resume_pressed() -> void:
-	Engine.time_scale = 1.0
-	get_parent().toggle_pause()
+	resume_requested.emit()
 
 func on_quit_pressed() -> void:
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_parent().save_and_quit()
+	quit_requested.emit()
 
 func on_retry_pressed() -> void:
-	GameState.delete_save_game()
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+	retry_requested.emit()
 
 func on_main_menu_pressed() -> void:
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_parent().return_to_main_menu()
+	main_menu_requested.emit()

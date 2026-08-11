@@ -3,6 +3,7 @@ extends Node3D
 const PLAYER_SCENE = preload("res://scenes/player.tscn")
 const FOOD_SCENE = preload("res://scenes/food.tscn")
 const ROCK_SCENE = preload("res://scenes/rock.tscn")
+const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 const SPAWN_AREA_SIZE = Vector2(8, 8)
 
 const INITIAL_ROCKS = 10
@@ -31,14 +32,22 @@ var is_game_over: bool = false
 
 var score: int = 0
 var is_new_best: bool = false
+var player: Player
 
-@onready var camera: Camera3D = $GameplayContainer/Camera3D
-@onready var ui: Control = $UI
+@onready var camera: GameCamera = $GameplayContainer/Camera3D
+@onready var ui: GameUI = $UI
 @onready var gameplay_container: Node3D = $GameplayContainer
 
 func _ready() -> void:
+	_connect_ui()
 	load_game_state()
 	update_score(0)
+
+func _connect_ui() -> void:
+	ui.resume_requested.connect(_on_resume_requested)
+	ui.quit_requested.connect(save_and_quit)
+	ui.retry_requested.connect(_on_retry_requested)
+	ui.main_menu_requested.connect(return_to_main_menu)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_camera_angle"):
@@ -68,13 +77,22 @@ func toggle_pause() -> void:
 func update_pause_state() -> void:
 	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if (is_paused or is_gameplay_paused) else Node.PROCESS_MODE_INHERIT
 
-func spawn_player() -> void:
-	var player = PLAYER_SCENE.instantiate()
+func spawn_player() -> Player:
+	player = PLAYER_SCENE.instantiate()
 	gameplay_container.add_child(player)
+	_bind_player(player)
 	
 	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
 	player.position = Vector3(random_x, 0, random_z)
+	return player
+
+func _bind_player(new_player: Player) -> void:
+	player = new_player
+	player.food_collected.connect(_on_player_food_collected)
+	player.score_earned.connect(_on_player_score_earned)
+	player.player_lost.connect(_on_player_lost)
+	ui.set_player(player)
 
 func spawn_food(force_spawn: bool = false) -> bool:
 	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f.is_available())
@@ -92,7 +110,7 @@ func spawn_food(force_spawn: bool = false) -> bool:
 	var valid_position = false
 	var best_distance = 0.0
 	var best_position = Vector3.ZERO
-	var player = gameplay_container.get_node_or_null("Player")
+	var current_player: Player = player if is_instance_valid(player) else null
 	
 	for _attempt in range(MAX_FOOD_SPAWN_ATTEMPTS):
 		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.9, SPAWN_AREA_SIZE.x * 0.9)
@@ -102,9 +120,9 @@ func spawn_food(force_spawn: bool = false) -> bool:
 		var min_distance_to_danger = INF
 		var min_distance_to_rock = INF
 		var min_distance_to_food = INF
-		var distance_to_player = INF if not player else player.global_position.distance_to(pos)
+		var distance_to_player = INF if not current_player else current_player.global_position.distance_to(pos)
 		
-		if player and distance_to_player < MIN_PLAYER_DISTANCE:
+		if current_player and distance_to_player < MIN_PLAYER_DISTANCE:
 			continue
 		
 		for node in get_tree().get_nodes_in_group("dangerous"):
@@ -121,7 +139,7 @@ func spawn_food(force_spawn: bool = false) -> bool:
 			var base_spacing = min(min_distance_to_danger, min(min_distance_to_rock, min_distance_to_food))
 			
 			var position_score = base_spacing
-			if player:
+			if current_player:
 				var distance_factor = 1.0 - abs(distance_to_player - PREFERRED_PLAYER_DISTANCE) / PREFERRED_PLAYER_DISTANCE
 				position_score *= (1.0 + distance_factor)
 			
@@ -173,7 +191,7 @@ func spawn_initial_rocks() -> void:
 		spawn_rock(true)
 
 func spawn_rock(force_safe: bool = false) -> bool:
-	var player = gameplay_container.get_node_or_null("Player")
+	var current_player: Player = player if is_instance_valid(player) else null
 	for _attempt in range(MAX_ROCK_SPAWN_ATTEMPTS):
 		var rock = ROCK_SCENE.instantiate()
 		gameplay_container.add_child(rock)
@@ -188,13 +206,13 @@ func spawn_rock(force_safe: bool = false) -> bool:
 			var score_factor = clamp(float(score - DANGER_START_SCORE) / (DANGER_MAX_SCORE - DANGER_START_SCORE), 0.0, 1.0)
 			if randf() < score_factor * MAX_DANGER_PROBABILITY:
 				var is_safe_position = true
-				if player:
-					var dist_to_player = player.global_position.distance_to(spawn_pos)
+				if current_player:
+					var dist_to_player = current_player.global_position.distance_to(spawn_pos)
 					if dist_to_player < SAFE_SPAWN_DISTANCE:
 						is_safe_position = false
 					else:
-						var to_rock = (spawn_pos - player.global_position).normalized()
-						var angle = rad_to_deg(acos(clampf(to_rock.dot(player.facing_direction), -1.0, 1.0)))
+						var to_rock = (spawn_pos - current_player.global_position).normalized()
+						var angle = rad_to_deg(acos(clampf(to_rock.dot(current_player.facing_direction), -1.0, 1.0)))
 						if angle < SAFE_FORWARD_ANGLE:
 							is_safe_position = false
 				should_be_dangerous = is_safe_position
@@ -220,13 +238,11 @@ func add_score(points: int):
 	
 	update_score(points)
 
-func on_food_collected():
+func _on_player_food_collected(total_food_eaten: int) -> void:
 	if is_game_over:
 		return
 
-	var player = gameplay_container.get_node_or_null("Player")
-	
-	if player.food_eaten % ROCKS_SPAWN_INTERVAL == 0:
+	if total_food_eaten % ROCKS_SPAWN_INTERVAL == 0:
 		spawn_rock()
 	
 	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f.is_available())
@@ -234,6 +250,28 @@ func on_food_collected():
 	
 	if current_food_count < MIN_FOOD_COUNT:
 		spawn_food()
+
+func _on_player_score_earned(points: int, popup_position: Vector3) -> void:
+	if is_game_over:
+		return
+	add_score(points)
+	var popup = SCORE_POPUP.instantiate()
+	popup.position = popup_position
+	popup.text = "+" + str(points)
+	gameplay_container.add_child(popup)
+
+func _on_player_lost() -> void:
+	game_over()
+
+func _on_resume_requested() -> void:
+	Engine.time_scale = 1.0
+	toggle_pause()
+
+func _on_retry_requested() -> void:
+	GameState.delete_save_game()
+	Engine.time_scale = 1.0
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 func update_score(points: int) -> void:
 	var previous_best = GameState.get_best_score()
@@ -273,8 +311,7 @@ func save_game_state() -> void:
 	if is_game_over:
 		return
 
-	var player = gameplay_container.get_node_or_null("Player")
-	if not player or not player.is_in_group("player") or player.get("is_dead"):
+	if not is_instance_valid(player) or player.is_dead:
 		return
 		
 	var foods = get_tree().get_nodes_in_group("food")
@@ -318,10 +355,11 @@ func load_game_state() -> bool:
 		spawn_initial_rocks()
 		return false
 		
-	var player = PLAYER_SCENE.instantiate()
+	player = PLAYER_SCENE.instantiate()
 	gameplay_container.add_child(player)
 	player.restore_from_save(save_data)
-	
+	_bind_player(player)
+
 	var player_state: Dictionary = save_data["player_state"]
 	if player_state.has("segments") and player_state["segments"] is Array:
 		var segments: Array = player_state["segments"]

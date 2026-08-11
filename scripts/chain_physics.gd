@@ -1,8 +1,5 @@
-extends Node
+extends RefCounted
 class_name ChainPhysics
-
-func _ready():
-	process_mode = Node.PROCESS_MODE_DISABLED  # This is a data-only node
 
 # Timing constants
 const SPRING_FORCE_DELAY = 0.1

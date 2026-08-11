@@ -1,4 +1,5 @@
 extends Camera3D
+class_name GameCamera
 
 const TOP_DOWN_HEIGHT = 20.0
 const THIRD_PERSON_HEIGHT = 15.0
@@ -44,7 +45,7 @@ func _process(delta: float) -> void:
 	var aspect_ratio = float(window_size.x) / float(window_size.y)
 	size = current_size if aspect_ratio > 1.0 else current_size / aspect_ratio
 	
-	var player = get_tree().get_first_node_in_group("player")
+	var player: Player = get_parent().get_node_or_null("Player")
 	if not player:
 		return
 	

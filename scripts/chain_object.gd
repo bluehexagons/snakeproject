@@ -1,7 +1,6 @@
 extends "res://scripts/physics_object.gd"
 class_name ChainObject
 
-var chain_physics: ChainPhysics = ChainPhysicsManager
 var chain_index: int = 0
 var chain_length: int = 1
 var chain_tension: float = 0.0
@@ -21,11 +20,11 @@ func _handle_chain_physics(delta: float) -> bool:
 	var desired_distance = SegmentConstants.TARGET_DISTANCE
 
 	if distance > desired_distance:
-		chain_tension = move_toward(chain_tension, 1.0, chain_physics.TENSION_BUILD_RATE * delta)
+		chain_tension = move_toward(chain_tension, 1.0, ChainPhysics.TENSION_BUILD_RATE * delta)
 	else:
-		chain_tension *= chain_physics.TENSION_DAMPING
+		chain_tension *= ChainPhysics.TENSION_DAMPING
 
-	collision_recovery_timer = min(collision_recovery_timer + delta, chain_physics.COLLISION_RECOVERY_DELAY)
+	collision_recovery_timer = min(collision_recovery_timer + delta, ChainPhysics.COLLISION_RECOVERY_DELAY)
 	return true
 
 func get_chain_data() -> Dictionary:
