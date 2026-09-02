@@ -419,7 +419,7 @@ func load_game_state() -> bool:
 
 func _is_valid_save_data(data: Dictionary) -> bool:
 	var version = data.get("version", GameState.SAVE_VERSION)
-	if typeof(version) != TYPE_INT or version < 1 or version > GameState.SAVE_VERSION:
+	if not GameState.is_supported_save_version(version):
 		return false
 
 	var score_type := typeof(data.get("score"))

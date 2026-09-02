@@ -25,6 +25,13 @@ func _ready() -> void:
 
 func run() -> void:
 	var failed := false
+	if not GameState.is_supported_save_version(1) or not GameState.is_supported_save_version(1.0):
+		push_error("Save version validation rejected a supported numeric version")
+		failed = true
+	if GameState.is_supported_save_version(0.5) or GameState.is_supported_save_version("1"):
+		push_error("Save version validation accepted an invalid version")
+		failed = true
+
 	for path in LOAD_TARGETS:
 		var resource := load(path)
 		if resource == null:

@@ -4,6 +4,13 @@ const SAVE_FILE = "user://save_game.dat"
 const BEST_SCORE_FILE = "user://best_score.dat"
 const SAVE_VERSION = 1
 
+func is_supported_save_version(version: Variant) -> bool:
+	var version_type := typeof(version)
+	if version_type not in [TYPE_INT, TYPE_FLOAT]:
+		return false
+	var numeric_version := float(version)
+	return not is_nan(numeric_version) and not is_inf(numeric_version) and numeric_version == floor(numeric_version) and numeric_version >= 1.0 and numeric_version <= SAVE_VERSION
+
 func _write_text_atomically(path: String, contents: String) -> bool:
 	var temporary_path = path + ".tmp"
 	var file = FileAccess.open(temporary_path, FileAccess.WRITE)
@@ -46,12 +53,10 @@ func save_game_state(data: Dictionary) -> bool:
 	return _write_text_atomically(SAVE_FILE, JSON.stringify(save_data))
 
 func load_game_state() -> Dictionary:
-	if not FileAccess.file_exists(SAVE_FILE):
-		return {}
-		
 	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
 	if not file:
-		push_error("Failed to open save file for reading: ", FileAccess.get_open_error())
+		if FileAccess.get_open_error() != ERR_FILE_NOT_FOUND:
+			push_error("Failed to open save file for reading: ", FileAccess.get_open_error())
 		return {}
 	
 	var json_string = file.get_as_text()
@@ -71,9 +76,6 @@ func load_game_state() -> Dictionary:
 	return data
 
 func has_saved_game() -> bool:
-	if not FileAccess.file_exists(SAVE_FILE):
-		return false
-
 	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
 	if not file:
 		return false
@@ -87,7 +89,8 @@ func has_saved_game() -> bool:
 	if not data is Dictionary:
 		return false
 	var version = data.get("version", SAVE_VERSION)
-	return typeof(version) == TYPE_INT and version >= 1 and version <= SAVE_VERSION and data.has("score") and typeof(data.get("score")) in [TYPE_INT, TYPE_FLOAT] and data.get("player_state") is Dictionary and data.player_state.has("position")
+	var valid = is_supported_save_version(version) and data.has("score") and typeof(data.get("score")) in [TYPE_INT, TYPE_FLOAT] and data.get("player_state") is Dictionary and data.player_state.has("position")
+	return valid
 
 func delete_save_game() -> bool:
 	if not FileAccess.file_exists(SAVE_FILE):
@@ -105,9 +108,6 @@ func delete_save_game() -> bool:
 	return true
 
 func get_best_score() -> int:
-	if not FileAccess.file_exists(BEST_SCORE_FILE):
-		return 0
-
 	var file = FileAccess.open(BEST_SCORE_FILE, FileAccess.READ)
 	if not file:
 		return 0

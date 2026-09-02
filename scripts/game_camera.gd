@@ -78,8 +78,16 @@ func _process(delta: float) -> void:
 		var look_ahead = target_pos + (predicted_direction * LOOK_AHEAD_DISTANCE)
 		look_ahead.y += 1.0
 		
-		var desired_transform = global_transform.looking_at(look_ahead, Vector3.UP)
-		global_transform = global_transform.interpolate_with(desired_transform, delta * ROTATION_SMOOTHING)
+		var look_direction = look_ahead - global_position
+		if look_direction.length_squared() > 0.001:
+			var up_direction = Vector3.UP
+			var normalized_look_direction = look_direction.normalized()
+			if abs(normalized_look_direction.dot(up_direction)) > 0.95:
+				up_direction = Vector3.FORWARD
+			if abs(normalized_look_direction.dot(up_direction)) > 0.999:
+				up_direction = Vector3.RIGHT
+			var desired_transform = global_transform.looking_at(look_ahead, up_direction)
+			global_transform = global_transform.interpolate_with(desired_transform, delta * ROTATION_SMOOTHING)
 
 func toggle_view() -> void:
 	is_third_person = !is_third_person

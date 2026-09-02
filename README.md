@@ -23,3 +23,22 @@ can be run with:
 ```sh
 godot --headless --path . --scene res://scenes/test_runner.tscn
 ```
+
+For a repeatable clean-checkout verification, run:
+
+```sh
+./scripts/verify_project.sh
+```
+
+On an infra-tools VM, check the development toolchain, then export and publish
+the project for browser testing:
+
+```sh
+infra-tools agent doctor --capability development --json
+infra-web publish godot --preset Web --json
+infra-web doctor snake3d
+```
+
+Use the HTTPS URL returned by `infra-web` with the managed infra-tools
+Playwright workflow for visual, input, network, and console checks; do not
+substitute a local port.

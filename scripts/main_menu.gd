@@ -4,11 +4,18 @@ extends Control
 @onready var best_score_label: Label = $Panel/VBoxContainer/BestScoreLabel
 
 func _ready() -> void:
-	continue_button.visible = GameState.has_saved_game()
+	_refresh_continue_button()
 	best_score_label.text = "BEST SCORE  %d" % GameState.get_best_score()
 	continue_button.pressed.connect(_on_continue_button_pressed)
 	$Panel/VBoxContainer/NewGameButton.pressed.connect(on_new_game_pressed)
 	$Panel/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
+	# Web storage commits asynchronously. Refresh once after the scene enters
+	# the tree so a save made immediately before returning here is discoverable.
+	call_deferred("_refresh_continue_button")
+
+func _refresh_continue_button() -> void:
+	if is_instance_valid(continue_button):
+		continue_button.visible = GameState.has_saved_game()
 
 func on_new_game_pressed() -> void:
 	GameState.delete_save_game()
