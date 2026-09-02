@@ -117,15 +117,14 @@ func has_saved_game() -> bool:
 	return valid
 
 func delete_save_game() -> bool:
-	if not FileAccess.file_exists(SAVE_FILE):
-		return false
-	
 	var dir = DirAccess.open("user://")
 	if not dir:
 		push_error("Failed to open user directory: ", DirAccess.get_open_error())
 		return false
 	
 	var result = dir.remove(SAVE_FILE.get_file())
+	if result == ERR_FILE_NOT_FOUND:
+		return true
 	if result != OK:
 		push_error("Failed to delete save file: ", result)
 		return false

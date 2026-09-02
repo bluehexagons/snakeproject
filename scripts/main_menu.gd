@@ -34,7 +34,9 @@ func _refresh_continue_button() -> void:
 		continue_button.visible = GameState.has_saved_game()
 
 func on_new_game_pressed() -> void:
-	GameState.delete_save_game()
+	if not GameState.delete_save_game():
+		push_warning("Unable to clear the saved game")
+		return
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 func on_quit_pressed() -> void:

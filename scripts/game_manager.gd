@@ -37,6 +37,7 @@ var is_game_over: bool = false
 
 var score: int = 0
 var is_new_best: bool = false
+var is_quitting: bool = false
 var player: Player
 
 @onready var camera: GameCamera = $GameplayContainer/Camera3D
@@ -300,7 +301,9 @@ func _on_resume_requested() -> void:
 	toggle_pause()
 
 func _on_retry_requested() -> void:
-	GameState.delete_save_game()
+	if not GameState.delete_save_game():
+		push_warning("Unable to clear the saved game for retry")
+		return
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	get_tree().reload_current_scene()
@@ -336,6 +339,9 @@ func return_to_main_menu():
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 func save_and_quit():
+	if is_quitting:
+		return
+	is_quitting = true
 	save_game_state()
 	Engine.time_scale = 1.0
 	get_tree().paused = false
@@ -511,5 +517,8 @@ func spawn_initial_food() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if is_quitting:
+			return
+		is_quitting = true
 		save_game_state()
 		get_tree().quit()
