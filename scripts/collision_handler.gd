@@ -10,7 +10,9 @@ func _ready() -> void:
 	# cache, which may not exist on a clean headless run.
 	spatial_grid = SPATIAL_GRID_SCRIPT.new()
 	add_child(spatial_grid)
-	process_priority = 1
+	# Refresh before gameplay nodes query the index so they see the positions
+	# produced by the previous physics tick.
+	process_priority = -1
 
 func _physics_process(_delta: float) -> void:
 	spatial_grid.clear()
@@ -20,7 +22,7 @@ func _physics_process(_delta: float) -> void:
 
 func get_nearby_bodies(pos: Vector3, radius: float = PROXIMITY_RADIUS) -> Array:
 	var nearby = spatial_grid.get_nearby(pos, radius, -1)
-	return nearby.filter(func(obj): return is_instance_valid(obj) and obj.is_inside_tree())
+	return nearby.filter(func(obj): return is_instance_valid(obj) and obj.is_inside_tree() and not obj.is_queued_for_deletion())
 
 func get_object_layer(obj: Node3D) -> int:
 	if obj.is_in_group("segment"):

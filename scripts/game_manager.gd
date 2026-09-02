@@ -188,6 +188,11 @@ func spawn_food_relaxed() -> bool:
 			if not node.is_queued_for_deletion() and _horizontal_distance(node.global_position, pos) < 1.0:
 				valid = false
 				break
+		if valid:
+			for rock in get_tree().get_nodes_in_group("rock"):
+				if not rock.is_queued_for_deletion() and _horizontal_distance(rock.global_position, pos) < MIN_FOOD_ROCK_DISTANCE:
+					valid = false
+					break
 		
 		if valid:
 			food.position = pos
@@ -294,7 +299,7 @@ func _on_retry_requested() -> void:
 
 func update_score(points: int) -> void:
 	var previous_best = GameState.get_best_score()
-	score = max(score + points, 0)
+	score = clampi(score + points, 0, MAX_SCORE)
 	if score > previous_best:
 		is_new_best = true
 		if not GameState.save_best_score(score):
@@ -422,11 +427,7 @@ func _is_valid_save_data(data: Dictionary) -> bool:
 	if not GameState.is_supported_save_version(version):
 		return false
 
-	var score_type := typeof(data.get("score"))
-	if score_type not in [TYPE_INT, TYPE_FLOAT]:
-		return false
-	var saved_score := float(data.get("score", 0))
-	if is_nan(saved_score) or is_inf(saved_score) or saved_score < 0.0 or saved_score > MAX_SCORE:
+	if not GameState.is_valid_saved_score(data.get("score")):
 		return false
 
 	var player_state: Variant = data.get("player_state")
@@ -434,6 +435,9 @@ func _is_valid_save_data(data: Dictionary) -> bool:
 		return false
 	if not _is_valid_vector_data(player_state.get("position")):
 		return false
+	for key in ["physics_pos", "visual_pos", "velocity", "facing_direction"]:
+		if player_state.has(key) and not _is_valid_vector_data(player_state.get(key)):
+			return false
 
 	var segments: Variant = player_state.get("segments", [])
 	if not segments is Array or segments.size() > MAX_SAVED_SEGMENTS:
@@ -441,6 +445,9 @@ func _is_valid_save_data(data: Dictionary) -> bool:
 	for segment_data in segments:
 		if not segment_data is Dictionary or not _is_valid_vector_data(segment_data.get("position")):
 			return false
+		for key in ["physics_pos", "visual_pos", "velocity"]:
+			if segment_data.has(key) and not _is_valid_vector_data(segment_data.get(key)):
+				return false
 
 	var food_positions: Variant = data.get("food_positions", [])
 	if not food_positions is Array or food_positions.size() > MAX_SAVED_FOOD:
@@ -455,10 +462,15 @@ func _is_valid_save_data(data: Dictionary) -> bool:
 	for rock_data in rocks:
 		if not rock_data is Dictionary or not _is_valid_vector_data(rock_data.get("position")):
 			return false
+		for key in ["physics_pos", "visual_pos", "velocity", "rotation", "angular_velocity"]:
+			if rock_data.has(key) and not _is_valid_vector_data(rock_data.get(key)):
+				return false
 	return true
 
 func _is_valid_vector_data(data: Variant) -> bool:
 	if not data is Dictionary or not data.has("x") or not data.has("y") or not data.has("z"):
+		return false
+	if not _is_valid_number(data.x) or not _is_valid_number(data.y) or not _is_valid_number(data.z):
 		return false
 	var value = Vector3(
 		float(data.x),
@@ -466,6 +478,12 @@ func _is_valid_vector_data(data: Variant) -> bool:
 		float(data.z)
 	)
 	return value.is_finite() and value.length() <= MAX_SAVE_POSITION
+
+func _is_valid_number(value: Variant) -> bool:
+	if typeof(value) not in [TYPE_INT, TYPE_FLOAT]:
+		return false
+	var numeric_value := float(value)
+	return not is_nan(numeric_value) and not is_inf(numeric_value)
 
 func _horizontal_distance(first: Vector3, second: Vector3) -> float:
 	return Vector2(first.x, first.z).distance_to(Vector2(second.x, second.z))

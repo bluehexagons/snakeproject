@@ -3,6 +3,7 @@ extends Node
 const SAVE_FILE = "user://save_game.dat"
 const BEST_SCORE_FILE = "user://best_score.dat"
 const SAVE_VERSION = 1
+const MAX_SAVED_SCORE = 2147483647
 
 func is_supported_save_version(version: Variant) -> bool:
 	var version_type := typeof(version)
@@ -10,6 +11,13 @@ func is_supported_save_version(version: Variant) -> bool:
 		return false
 	var numeric_version := float(version)
 	return not is_nan(numeric_version) and not is_inf(numeric_version) and numeric_version == floor(numeric_version) and numeric_version >= 1.0 and numeric_version <= SAVE_VERSION
+
+func is_valid_saved_score(score: Variant) -> bool:
+	var score_type := typeof(score)
+	if score_type not in [TYPE_INT, TYPE_FLOAT]:
+		return false
+	var numeric_score := float(score)
+	return not is_nan(numeric_score) and not is_inf(numeric_score) and numeric_score == floor(numeric_score) and numeric_score >= 0.0 and numeric_score <= MAX_SAVED_SCORE
 
 func _write_text_atomically(path: String, contents: String) -> bool:
 	var temporary_path = path + ".tmp"

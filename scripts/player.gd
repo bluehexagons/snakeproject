@@ -239,15 +239,6 @@ func _physics_process(delta: float) -> void:
 		input_smoothed = input_smoothed.lerp(input_dir, INPUT_SMOOTHING)
 		
 		movement_ramp = min(movement_ramp + delta / MOVEMENT_RAMP_TIME, 1.0)
-		
-		var base_force = input_smoothed * DIRECT_ACCELERATION * movement_ramp
-		
-		var boost_force = base_force * lerp(1.0, current_speed_boost / SPEED_BOOST_BASE, movement_ramp)
-		
-		if is_dead:
-			boost_force *= 1.0 / max(pow(dead_time * 0.5, 1.5), 1.0)
-		
-		add_physics_force(boost_force)
 	else:
 		movement_ramp = 0.0
 		input_smoothed = Vector3.ZERO
@@ -460,6 +451,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 	
 	if not has_lost and input_smoothed != Vector3.ZERO:
 		has_started_moving = true
+		# Steering is applied here, alongside the physics state, exactly once
+		# per tick. Input smoothing and movement_ramp are prepared in _physics_process.
 		
 		var current_vel = state.linear_velocity
 		var movement = input_smoothed * DIRECT_ACCELERATION * movement_ramp

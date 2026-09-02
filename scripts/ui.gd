@@ -1,6 +1,8 @@
 extends Control
 class_name GameUI
 
+const VIEWPORT_MARGIN = 16.0
+
 signal resume_requested
 signal quit_requested
 signal retry_requested
@@ -17,6 +19,7 @@ var hint_elapsed: float = 0.0
 var player: Player
 
 func _ready() -> void:
+	get_viewport().size_changed.connect(_on_viewport_size_changed)
 	gameplay_pause_label.visible = false
 	hint_label.visible = true
 	$PauseMenu/VBoxContainer/ResumeButton.pressed.connect(on_resume_pressed)
@@ -24,6 +27,30 @@ func _ready() -> void:
 	$PauseMenu/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
 	$GameOverMenu/VBoxContainer/RetryButton.pressed.connect(on_retry_pressed)
 	$GameOverMenu/VBoxContainer/MainMenuButton.pressed.connect(on_main_menu_pressed)
+	call_deferred("_fit_overlay_to_viewport")
+
+func _on_viewport_size_changed() -> void:
+	_fit_overlay_to_viewport()
+
+func _fit_overlay_to_viewport() -> void:
+	_fit_panel_to_viewport(pause_menu)
+	_fit_panel_to_viewport(game_over_menu)
+	_fit_label_to_viewport(hint_label)
+	_fit_label_to_viewport($ControlHintLabel, 520.0)
+
+func _fit_panel_to_viewport(panel: Control) -> void:
+	if not is_instance_valid(panel) or panel.size.x <= 0.0 or panel.size.y <= 0.0:
+		return
+	panel.pivot_offset = panel.size * 0.5
+	var available_size = get_viewport_rect().size - Vector2.ONE * VIEWPORT_MARGIN * 2.0
+	var scale_factor = minf(1.0, minf(available_size.x / panel.size.x, available_size.y / panel.size.y))
+	panel.scale = Vector2.ONE * maxf(scale_factor, 0.01)
+
+func _fit_label_to_viewport(label: Control, base_width: float = 360.0) -> void:
+	if not is_instance_valid(label):
+		return
+	label.pivot_offset = label.size * 0.5
+	label.scale = Vector2.ONE * minf(1.0, get_viewport_rect().size.x / base_width)
 
 func _process(delta: float) -> void:
 	if not is_instance_valid(player):
