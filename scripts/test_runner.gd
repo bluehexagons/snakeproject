@@ -64,6 +64,11 @@ func run() -> void:
 	if grid.get_nearby(Vector3.ZERO, 1.0, 1).size() != 1:
 		push_error("Spatial grid did not filter by layer")
 		failed = true
+	segment.position = Vector3(1.5, 0, 0)
+	grid.update_position(segment, 1)
+	if not grid.get_nearby(Vector3.ZERO, 1.0, 1).is_empty():
+		push_error("Spatial grid returned an object outside the requested radius")
+		failed = true
 	segment.position = Vector3(4, 0, 0)
 	grid.update_position(segment, 1)
 	if grid.get_nearby(Vector3.ZERO, 1.0, 1).size() != 0:

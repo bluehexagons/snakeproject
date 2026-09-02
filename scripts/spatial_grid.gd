@@ -46,6 +46,9 @@ func update_position(obj: Node3D, layer: int = 0) -> void:
 		insert(obj, layer)
 
 func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = -1) -> Array[Node3D]:
+	if not pos.is_finite() or is_nan(radius) or is_inf(radius) or radius < 0.0:
+		return []
+
 	var cells_to_check = ceili(maxf(radius, 0.0) / CELL_SIZE)
 	var pos_coords = get_cell_coords(pos)
 	var nearby: Array[Node3D] = []
@@ -56,7 +59,9 @@ func get_nearby(pos: Vector3, radius: float = CELL_SIZE, layer: int = -1) -> Arr
 			for current_layer in layers:
 				var key = _cell_key(Vector2i(x, y), current_layer)
 				if grid.has(key):
-					nearby.append_array(grid[key])
+					for obj in grid[key]:
+						if is_instance_valid(obj) and obj.global_position.distance_to(pos) <= radius:
+							nearby.append(obj)
 
 	return nearby
 
