@@ -4,6 +4,7 @@ const SAVE_FILE = "user://save_game.dat"
 const BEST_SCORE_FILE = "user://best_score.dat"
 const SAVE_VERSION = 1
 const MAX_SAVED_SCORE = 2147483647
+const MAX_SAVED_POSITION = 1000.0
 
 func is_supported_save_version(version: Variant) -> bool:
 	var version_type := typeof(version)
@@ -18,6 +19,20 @@ func is_valid_saved_score(score: Variant) -> bool:
 		return false
 	var numeric_score := float(score)
 	return not is_nan(numeric_score) and not is_inf(numeric_score) and numeric_score == floor(numeric_score) and numeric_score >= 0.0 and numeric_score <= MAX_SAVED_SCORE
+
+func is_valid_saved_vector(data: Variant) -> bool:
+	if not data is Dictionary or not data.has("x") or not data.has("y") or not data.has("z"):
+		return false
+	if not _is_finite_number(data.x) or not _is_finite_number(data.y) or not _is_finite_number(data.z):
+		return false
+	var value = Vector3(float(data.x), float(data.y), float(data.z))
+	return value.is_finite() and value.length() <= MAX_SAVED_POSITION
+
+func _is_finite_number(value: Variant) -> bool:
+	if typeof(value) not in [TYPE_INT, TYPE_FLOAT]:
+		return false
+	var numeric_value := float(value)
+	return not is_nan(numeric_value) and not is_inf(numeric_value)
 
 func _write_text_atomically(path: String, contents: String) -> bool:
 	var temporary_path = path + ".tmp"
@@ -97,7 +112,8 @@ func has_saved_game() -> bool:
 	if not data is Dictionary:
 		return false
 	var version = data.get("version", SAVE_VERSION)
-	var valid = is_supported_save_version(version) and data.has("score") and typeof(data.get("score")) in [TYPE_INT, TYPE_FLOAT] and data.get("player_state") is Dictionary and data.player_state.has("position")
+	var player_state: Variant = data.get("player_state")
+	var valid = is_supported_save_version(version) and is_valid_saved_score(data.get("score")) and player_state is Dictionary and is_valid_saved_vector(player_state.get("position"))
 	return valid
 
 func delete_save_game() -> bool:

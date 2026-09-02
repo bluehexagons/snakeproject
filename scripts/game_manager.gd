@@ -26,7 +26,6 @@ const MIN_ROCK_PLAYER_DISTANCE = 2.5
 const MAX_FOOD_SPAWN_ATTEMPTS = 30
 const MAX_RELAXED_FOOD_SPAWN_ATTEMPTS = 10
 const MAX_ROCK_SPAWN_ATTEMPTS = 30
-const MAX_SAVE_POSITION = 1000.0
 const MAX_SAVED_SEGMENTS = 1000
 const MAX_SAVED_FOOD = 100
 const MAX_SAVED_ROCKS = 1000
@@ -478,22 +477,7 @@ func _is_valid_save_data(data: Dictionary) -> bool:
 	return true
 
 func _is_valid_vector_data(data: Variant) -> bool:
-	if not data is Dictionary or not data.has("x") or not data.has("y") or not data.has("z"):
-		return false
-	if not _is_valid_number(data.x) or not _is_valid_number(data.y) or not _is_valid_number(data.z):
-		return false
-	var value = Vector3(
-		float(data.x),
-		float(data.y),
-		float(data.z)
-	)
-	return value.is_finite() and value.length() <= MAX_SAVE_POSITION
-
-func _is_valid_number(value: Variant) -> bool:
-	if typeof(value) not in [TYPE_INT, TYPE_FLOAT]:
-		return false
-	var numeric_value := float(value)
-	return not is_nan(numeric_value) and not is_inf(numeric_value)
+	return GameState.is_valid_saved_vector(data)
 
 func _horizontal_distance(first: Vector3, second: Vector3) -> float:
 	return Vector2(first.x, first.z).distance_to(Vector2(second.x, second.z))

@@ -42,6 +42,12 @@ func run() -> void:
 	if GameState.is_valid_saved_score(-1) or GameState.is_valid_saved_score(1.5) or GameState.is_valid_saved_score("1"):
 		push_error("Save score validation accepted an invalid score")
 		failed = true
+	if not GameState.is_valid_saved_vector({"x": 1, "y": 2.0, "z": -3}):
+		push_error("Save vector validation rejected a supported vector")
+		failed = true
+	if GameState.is_valid_saved_vector({"x": 1001, "y": 0, "z": 0}) or GameState.is_valid_saved_vector({"x": "1", "y": 0, "z": 0}):
+		push_error("Save vector validation accepted an invalid vector")
+		failed = true
 
 	for path in LOAD_TARGETS:
 		var resource := load(path)
