@@ -122,9 +122,11 @@ func get_best_score() -> int:
 
 	var value = file.get_as_text().to_int()
 	file.close()
-	return max(value, 0)
+	return clampi(value, 0, MAX_SAVED_SCORE)
 
 func save_best_score(score: int) -> bool:
+	if score < 0 or score > MAX_SAVED_SCORE:
+		return false
 	if score <= get_best_score():
 		return true
 

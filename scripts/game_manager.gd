@@ -177,11 +177,15 @@ func spawn_food(force_spawn: bool = false) -> bool:
 func spawn_food_relaxed() -> bool:
 	var food = FOOD_SCENE.instantiate()
 	gameplay_container.add_child(food)
+	var current_player: Player = player if is_instance_valid(player) else null
+	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f != food and not f.is_queued_for_deletion() and f.is_available())
 	
 	for _attempt in range(MAX_RELAXED_FOOD_SPAWN_ATTEMPTS):
 		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.8, SPAWN_AREA_SIZE.x * 0.8)
 		var random_z = randf_range(-SPAWN_AREA_SIZE.y * 0.8, SPAWN_AREA_SIZE.y * 0.8)
 		var pos = Vector3(random_x, 0, random_z)
+		if current_player and _horizontal_distance(current_player.global_position, pos) < MIN_PLAYER_DISTANCE:
+			continue
 		
 		var valid = true
 		for node in get_tree().get_nodes_in_group("dangerous"):
@@ -191,6 +195,11 @@ func spawn_food_relaxed() -> bool:
 		if valid:
 			for rock in get_tree().get_nodes_in_group("rock"):
 				if not rock.is_queued_for_deletion() and _horizontal_distance(rock.global_position, pos) < MIN_FOOD_ROCK_DISTANCE:
+					valid = false
+					break
+		if valid:
+			for other_food in available_food:
+				if _horizontal_distance(other_food.global_position, pos) < MIN_FOOD_DISTANCE * 0.5:
 					valid = false
 					break
 		
@@ -313,7 +322,8 @@ func game_over():
 
 	is_game_over = true
 	GameState.delete_save_game()
-	GameState.save_best_score(score)
+	if not GameState.save_best_score(score):
+		push_warning("Unable to save the best score")
 	Engine.time_scale = 0.5
 	is_gameplay_paused = false
 	update_pause_state()

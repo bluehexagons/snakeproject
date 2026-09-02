@@ -1,6 +1,11 @@
 extends Node
 
 const LOAD_TARGETS = [
+	"res://scripts/collision_handler.gd",
+	"res://scripts/game_camera.gd",
+	"res://scripts/game_manager.gd",
+	"res://scripts/game_state.gd",
+	"res://scripts/food.gd",
 	"res://scripts/physics_object.gd",
 	"res://scripts/physics_constants.gd",
 	"res://scripts/segment_constants.gd",
@@ -67,6 +72,15 @@ func run() -> void:
 	segment.free()
 	rock.free()
 	grid.free()
+
+	var queued_body := Node3D.new()
+	add_child(queued_body)
+	CollisionHandler.spatial_grid.insert(queued_body)
+	queued_body.queue_free()
+	if CollisionHandler.get_nearby_bodies(Vector3.ZERO, 1.0).has(queued_body):
+		push_error("Collision handler returned a body queued for deletion")
+		failed = true
+	await get_tree().process_frame
 
 	var detector = STUCK_DETECTOR.new()
 	for _frame in range(40):
