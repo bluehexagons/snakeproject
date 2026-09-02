@@ -117,14 +117,22 @@ func has_saved_game() -> bool:
 	return valid
 
 func delete_save_game() -> bool:
+	# Probe with a direct open instead of FileAccess.file_exists(), whose
+	# result can lag behind the Web virtual filesystem state.
+	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
+	if not file:
+		if FileAccess.get_open_error() == ERR_FILE_NOT_FOUND:
+			return true
+		push_error("Failed to inspect save file: ", FileAccess.get_open_error())
+		return false
+	file.close()
+
 	var dir = DirAccess.open("user://")
 	if not dir:
 		push_error("Failed to open user directory: ", DirAccess.get_open_error())
 		return false
 	
 	var result = dir.remove(SAVE_FILE.get_file())
-	if result == ERR_FILE_NOT_FOUND:
-		return true
 	if result != OK:
 		push_error("Failed to delete save file: ", result)
 		return false
