@@ -1,11 +1,14 @@
 extends Node
 
 const PROXIMITY_RADIUS = 1.0
+const SPATIAL_GRID_SCRIPT = preload("res://scripts/spatial_grid.gd")
 
-var spatial_grid: SpatialGrid
+var spatial_grid
 
 func _ready() -> void:
-	spatial_grid = SpatialGrid.new()
+	# Preloading keeps this autoload independent from the editor's global class
+	# cache, which may not exist on a clean headless run.
+	spatial_grid = SPATIAL_GRID_SCRIPT.new()
 	add_child(spatial_grid)
 	process_priority = 1
 

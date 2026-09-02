@@ -30,11 +30,13 @@ func _process(delta: float) -> void:
 			queue_free()
 			return
 			
-		if consuming_target:
+		if is_instance_valid(consuming_target):
 			var t = ease(progress, 0.7)
 			global_position = global_position.lerp(consuming_target.global_position, t)
 			mesh.scale = Vector3.ONE * lerp(1.0, CONSUME_SCALE_END, t)
 			mesh.rotate_y(ROTATION_SPEED * (1.0 + progress * 2.0) * delta)
+		else:
+			queue_free()
 		return
 		
 	time += delta

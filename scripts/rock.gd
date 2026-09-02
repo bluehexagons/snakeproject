@@ -24,6 +24,7 @@ var spawn_progress: float = 0.0
 func _ready() -> void:
 	super()
 	material_type = PhysicsConstants.MATERIAL_ROCK
+	add_to_group("physics_object")
 	
 	var settings = PhysicsConstants.RIGID_BODY_SETTINGS.rock
 	linear_damp = settings.linear_damp
@@ -83,15 +84,13 @@ func _physics_process(delta: float) -> void:
 				var settle = ease((spawn_progress - GROWTH_PEAK) / (1.0 - GROWTH_PEAK), 0.6)
 				target_scale = lerp(SCALE_OVERSHOOT, 1.0, settle)
 		
-		mesh.scale = Vector3.ONE * target_scale
-		apply_physics_scale(target_scale)
+		apply_physics_scale(target_scale, true)
 		gravity_scale = spawn_progress * spawn_progress
 		
 		if spawn_timer >= SPAWN_DURATION:
 			finish_spawn()
 	
-	physics_pos = global_position
-	visual_pos = physics_pos
+	_update_base_physics(delta)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if is_spawning:
@@ -113,7 +112,28 @@ func _process(delta: float) -> void:
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
 	base_data["is_dangerous"] = is_dangerous
+	base_data["rotation"] = {
+		"x": rotation.x,
+		"y": rotation.y,
+		"z": rotation.z
+	}
+	base_data["angular_velocity"] = {
+		"x": angular_velocity.x,
+		"y": angular_velocity.y,
+		"z": angular_velocity.z
+	}
 	return base_data
+
+func restore_from_save_data(data: Dictionary) -> void:
+	super.restore_from_save_data(data)
+	rotation = _vector_from_data(data.get("rotation"), rotation)
+	angular_velocity = _vector_from_data(data.get("angular_velocity"), angular_velocity)
+	is_initialized = true
+	spawn_timer = SPAWN_DURATION
+	spawn_progress = 1.0
+	finish_spawn()
+	if data.get("is_dangerous", false):
+		make_dangerous()
 
 func make_dangerous() -> void:
 	is_dangerous = true

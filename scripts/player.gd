@@ -117,8 +117,9 @@ func _ready() -> void:
 	
 	apply_color(BASE_COLOR, BASE_EMISSION, BASE_EMISSION_ENERGY)
 	
-	digestion_flash_material = current_material.duplicate()
-	digestion_flash_material.emission_enabled = true
+	if current_material:
+		digestion_flash_material = current_material.duplicate()
+		digestion_flash_material.emission_enabled = true
 
 	current_scale = 1.0
 	target_scale = 1.0
@@ -256,7 +257,7 @@ func _physics_process(delta: float) -> void:
 	
 	var nearby_segments = CollisionHandler.get_nearby_bodies(global_position)
 	for segment in nearby_segments:
-		if segment == self or not segment is PhysicsObject:
+		if segment == self or not segment is Segment:
 			continue
 		
 		var to_segment = segment.global_position - global_position
@@ -448,6 +449,10 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 		other.apply_force(-repulsion + velocity_correction)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
+	if not is_dead and not unkillable and _has_dangerous_contact(state):
+		die()
+		lose()
+
 	if is_dead:
 		state.linear_velocity *= 0.98
 		super._integrate_forces(state)
@@ -483,3 +488,10 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 		facing_direction = state.linear_velocity.normalized()
 	
 	super._integrate_forces(state)
+
+func _has_dangerous_contact(state: PhysicsDirectBodyState3D) -> bool:
+	for index in range(state.get_contact_count()):
+		var collider = state.get_contact_collider_object(index)
+		if collider is Node and collider.is_in_group("dangerous"):
+			return true
+	return false

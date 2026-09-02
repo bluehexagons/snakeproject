@@ -14,6 +14,13 @@ const TARGET_DISTANCE = 1.4
 const FOLLOW_ACCELERATION = 140.0
 const MIN_FORCE_THRESHOLD = 0.1
 
+# Local separation keeps neighboring body segments from collapsing into one
+# another while the spring chain catches up.
+const SEGMENT_PROXIMITY_RADIUS = 1.2
+const PROXIMITY_FORCE = 150.0
+const PROXIMITY_FALLOFF = 1.5
+const PROXIMITY_VELOCITY_MATCH = 0.2
+
 # Visual
 const SAFE_COLOR = Color(0.3, 0.8, 1.0, 0.9)
 const DANGER_COLOR = Color(0.9, 0.2, 0.2, 0.9)

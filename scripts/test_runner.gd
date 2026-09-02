@@ -16,6 +16,9 @@ const LOAD_TARGETS = [
 ]
 
 const SPATIAL_GRID = preload("res://scripts/spatial_grid.gd")
+const STUCK_DETECTOR = preload("res://scripts/stuck_detector.gd")
+const CHAIN_PHYSICS = preload("res://scripts/chain_physics.gd")
+const ROCK_SCENE = preload("res://scenes/rock.tscn")
 
 func _ready() -> void:
 	call_deferred("run")
@@ -28,7 +31,7 @@ func run() -> void:
 			push_error("Failed to load %s" % path)
 			failed = true
 
-	var grid: SpatialGrid = SPATIAL_GRID.new()
+	var grid = SPATIAL_GRID.new()
 	var segment := Node3D.new()
 	segment.position = Vector3.ZERO
 	var rock := Node3D.new()
@@ -51,6 +54,42 @@ func run() -> void:
 	segment.free()
 	rock.free()
 	grid.free()
+
+	var detector = STUCK_DETECTOR.new()
+	for _frame in range(40):
+		detector.update(Vector3.ZERO, 1.0 / 60.0)
+	if not detector.is_stuck or detector.get_stuck_duration() <= 0.0:
+		push_error("Stuck detector did not identify a stationary object")
+		failed = true
+	for frame in range(30):
+		detector.update(Vector3(frame * 0.2, 0, 0), 1.0 / 60.0)
+	if detector.is_stuck:
+		push_error("Stuck detector did not recover after movement")
+		failed = true
+
+	var chain_data = CHAIN_PHYSICS.calculate_chain_forces(
+		Vector3.ZERO,
+		Vector3(3, 0, 0),
+		0,
+		2,
+		1.4,
+		1.0
+	)
+	if chain_data.spring_force.length() <= 0.0:
+		push_error("Chain physics did not produce a spring force for a stretched link")
+		failed = true
+
+	var test_rock = ROCK_SCENE.instantiate()
+	add_child(test_rock)
+	test_rock.setup_rock(Vector3(2, 0, 3))
+	var saved_rock_data = test_rock.get_save_data()
+	test_rock.position = Vector3.ZERO
+	test_rock.restore_from_save_data(saved_rock_data)
+	if test_rock.global_position.distance_to(Vector3(2, 15, 3)) > 0.001:
+		push_error("Rock restore did not preserve the saved transform")
+		failed = true
+	test_rock.queue_free()
+	await get_tree().process_frame
 
 	var main_scene := load("res://scenes/main.tscn")
 	if main_scene and main_scene is PackedScene:

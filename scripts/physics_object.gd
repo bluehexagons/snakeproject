@@ -5,6 +5,7 @@ var physics_pos: Vector3
 var visual_pos: Vector3
 
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
+@onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var current_material: StandardMaterial3D = _duplicate_mesh_material()
 
 const IMPACT_FLASH_DURATION = 0.15
@@ -77,6 +78,10 @@ func _duplicate_mesh_material() -> StandardMaterial3D:
 func _ready():
 	physics_pos = global_position
 	visual_pos = global_position
+	# Each instance owns its mesh resource so changing a material on one rock,
+	# segment, or player cannot change every other instance in the scene.
+	if mesh_instance and mesh_instance.mesh:
+		mesh_instance.mesh = mesh_instance.mesh.duplicate()
 	if mesh_instance and current_material:
 		mesh_instance.mesh.surface_set_material(0, current_material)
 		base_emission = current_material.emission
@@ -102,6 +107,8 @@ func update_physical_properties() -> void:
 	set_effective_mass(base_mass * current_scale * current_scale)
 	if mesh_instance:
 		mesh_instance.scale = Vector3.ONE * current_scale
+	if collision_shape:
+		collision_shape.scale = Vector3.ONE * current_scale
 
 func apply_physics_scale(new_scale: float, immediate: bool = false) -> void:
 	target_scale = clamp(new_scale, MIN_SCALE, MAX_SCALE)
@@ -154,13 +161,16 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 	physics_pos = state.transform.origin
 
 func _physics_process(delta: float):
+	_update_base_physics(delta)
+
+func _update_base_physics(delta: float) -> void:
 	var scale_error = target_scale - current_scale
 	var spring_force = scale_error * SCALE_SPRING_STIFFNESS
 	var damping_force = -scale_velocity * SCALE_DAMPING
 	var scale_acceleration = spring_force + damping_force
 	
 	scale_velocity += scale_acceleration * delta
-	current_scale += scale_velocity * delta
+	current_scale = clampf(current_scale + scale_velocity * delta, MIN_SCALE, MAX_SCALE)
 	
 	if abs(scale_error) > 0.001 or abs(scale_velocity) > 0.001:
 		update_physical_properties()
@@ -210,28 +220,32 @@ func get_save_data() -> Dictionary:
 			"x": cached_velocity.x,
 			"y": cached_velocity.y,
 			"z": cached_velocity.z
-		}
+		},
+		"current_scale": current_scale
 	}
 	base_data["is_grounded"] = is_grounded
 	base_data["ground_contact_timer"] = ground_contact_timer
 	return base_data
 
 func restore_from_save_data(data: Dictionary) -> void:
-	position = _vector_from_data(data.get("position"), position)
+	global_position = _vector_from_data(data.get("position"), global_position)
 	physics_pos = _vector_from_data(data.get("physics_pos"), physics_pos)
 	visual_pos = _vector_from_data(data.get("visual_pos"), visual_pos)
 	cached_velocity = _vector_from_data(data.get("velocity"), cached_velocity)
+	if data.has("current_scale"):
+		apply_physics_scale(float(data.get("current_scale", current_scale)), true)
 	is_grounded = bool(data.get("is_grounded", false))
 	ground_contact_timer = maxf(float(data.get("ground_contact_timer", 0.0)), 0.0)
 
 func _vector_from_data(data: Variant, fallback: Vector3) -> Vector3:
 	if not data is Dictionary:
 		return fallback
-	return Vector3(
+	var value = Vector3(
 		float(data.get("x", fallback.x)),
 		float(data.get("y", fallback.y)),
 		float(data.get("z", fallback.z))
 	)
+	return value if value.is_finite() and value.length() <= 1000.0 else fallback
 
 func handle_impact(force: float) -> void:
 	if !current_material or !mesh_instance:

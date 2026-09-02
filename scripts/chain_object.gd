@@ -8,8 +8,8 @@ var target: Node3D
 var collision_recovery_timer: float = 0.0
 
 func _physics_process(delta: float) -> void:
-	if not _handle_chain_physics(delta):
-		return
+	_handle_chain_physics(delta)
+	_update_base_physics(delta)
 
 func _handle_chain_physics(delta: float) -> bool:
 	if not is_instance_valid(target):
@@ -28,6 +28,13 @@ func _handle_chain_physics(delta: float) -> bool:
 	return true
 
 func get_chain_data() -> Dictionary:
+	if not is_instance_valid(target):
+		return {
+			"follow_distance": 0.0,
+			"follow_direction": Vector3.ZERO,
+			"tension": chain_tension
+		}
+
 	var target_offset = target.global_position - global_position
 	var distance = target_offset.length()
 	
@@ -45,6 +52,6 @@ func get_save_data() -> Dictionary:
 	return data
 
 func load_chain_data(data: Dictionary) -> void:
-	chain_index = data.get("chain_index", 0)
-	chain_length = data.get("chain_length", 1)
-	chain_tension = data.get("chain_tension", 0.0)
+	chain_index = max(int(data.get("chain_index", 0)), 0)
+	chain_length = max(int(data.get("chain_length", 1)), 1)
+	chain_tension = clampf(float(data.get("chain_tension", 0.0)), 0.0, 1.0)

@@ -29,7 +29,12 @@ func _ready():
 	physics_material_override.rough = true
 	
 	apply_physics_scale(segment_config.INITIAL_SCALE, true)
+	target_color = segment_config.SAFE_COLOR
+	state_color = segment_config.SAFE_COLOR
 	apply_color(segment_config.SAFE_COLOR, segment_config.SAFE_COLOR)
+	# Growing segments should not affect the chain until they are fully spawned.
+	collision_mask = 0
+	collision_layer = 0
 
 func init_with_growth(initial_growth: float) -> void:
 	initial_growth = clampf(initial_growth, 0.0, 1.0)
@@ -38,6 +43,7 @@ func init_with_growth(initial_growth: float) -> void:
 	apply_physics_scale(lerp(segment_config.INITIAL_SCALE, 1.0, growth), true)
 	is_growing = initial_growth < 1.0
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
+	_enable_spawn_collisions_if_ready()
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
@@ -54,6 +60,7 @@ func get_save_data() -> Dictionary:
 
 func init_from_save_data(data: Dictionary) -> void:
 	restore_from_save_data(data)
+	load_chain_data(data)
 	
 	current_scale = float(data.get("current_scale", 1.0))
 	var growth = clampf(float(data.get("growth", 1.0)), 0.0, 1.0)
@@ -63,6 +70,7 @@ func init_from_save_data(data: Dictionary) -> void:
 	apply_physics_scale(current_scale, true)
 	
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
+	_enable_spawn_collisions_if_ready()
 	
 	if data.get("is_dangerous", false):
 		is_dangerous = true
@@ -83,12 +91,15 @@ func init_from_save_data(data: Dictionary) -> void:
 	
 
 func _physics_process(delta):
-	if not _handle_base_physics(delta) or not is_instance_valid(target):
+	if not _handle_chain_physics(delta):
+		_update_base_physics(delta)
 		return
 
 	_chain_data_cache = _calculate_chain_data(delta)
+	_apply_neighbor_separation()
 
 	_update_visuals(delta)
+	_update_base_physics(delta)
 
 func _calculate_chain_data(_delta: float) -> Dictionary:
 	var target_offset = target.global_position - global_position
@@ -131,6 +142,20 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 	apply_force(repulsion - velocity_correction)
 	if other is PhysicsObject:
 		other.apply_force(-repulsion + velocity_correction)
+
+func _apply_neighbor_separation() -> void:
+	for nearby_body in CollisionHandler.get_nearby_bodies(global_position, segment_config.SEGMENT_PROXIMITY_RADIUS):
+		if not nearby_body is Segment or nearby_body == self:
+			continue
+		# Apply each pair once because handle_proximity applies equal and
+		# opposite forces to both segments.
+		if get_instance_id() > nearby_body.get_instance_id():
+			continue
+
+		var offset = nearby_body.global_position - global_position
+		var distance = offset.length()
+		if distance > 0.0 and distance < segment_config.SEGMENT_PROXIMITY_RADIUS:
+			handle_proximity(nearby_body, distance, offset / distance)
 
 func _process(_delta):
 	var fraction = Engine.get_physics_interpolation_fraction()
@@ -188,7 +213,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 			add_physics_force(walk_force.clamped(chain_data.chain_data.spring_force.length() * 0.5))
 
 	if is_growing:
-		growth_timer += get_physics_process_delta_time()
+		growth_timer += state.step
 		var t = growth_timer / segment_config.GROWTH_DURATION
 		if t <= 1.0:
 			var growth = ease(t, segment_config.GROWTH_CURVE)
@@ -203,26 +228,27 @@ func _update_spawn_timer(delta: float) -> void:
 	if spawn_timer > 0:
 		spawn_timer = max(0.0, spawn_timer - delta)
 		if spawn_timer <= 0:
-			collision_mask = PhysicsConstants.MASK_PHYSICAL
-			collision_layer = PhysicsConstants.LAYER_PHYSICAL
+			_enable_spawn_collisions_if_ready()
+
+func _enable_spawn_collisions_if_ready() -> void:
+	if spawn_timer <= 0:
+		collision_mask = PhysicsConstants.MASK_PHYSICAL
+		collision_layer = PhysicsConstants.LAYER_PHYSICAL
 
 func _update_visuals(delta: float) -> void:
 	physics_pos = global_position
+	target_color = segment_config.DANGER_COLOR if is_dangerous else segment_config.SAFE_COLOR
+	state_color = target_color
+	state_emission = segment_config.DANGER_EMISSION if is_dangerous else segment_config.SAFE_COLOR
+	state_emission_energy = base_emission_energy
 
 	if current_material:
 		if is_dangerous:
 			current_color = segment_config.DANGER_COLOR
-			apply_color(current_color, segment_config.DANGER_EMISSION)
+			apply_color(current_color, state_emission, state_emission_energy)
 		else:
 			current_color = current_color.lerp(target_color, delta * segment_config.COLOR_CHANGE_SPEED)
-			apply_color(current_color, segment_config.SAFE_COLOR)
-	
-	if is_dangerous:
-		target_color = segment_config.DANGER_COLOR
-		base_emission = segment_config.DANGER_EMISSION
-	else:
-		target_color = segment_config.SAFE_COLOR
-		base_emission = segment_config.SAFE_COLOR
+			apply_color(current_color, state_emission, state_emission_energy)
 
 func init_with_scale_and_velocity(initial_scale: float, initial_velocity: Vector3) -> void:
 	apply_physics_scale(initial_scale, true)
@@ -231,6 +257,7 @@ func init_with_scale_and_velocity(initial_scale: float, initial_velocity: Vector
 	
 	cached_velocity = initial_velocity
 	spawn_timer = segment_config.GROWTH_DURATION if is_growing else 0.0
+	_enable_spawn_collisions_if_ready()
 	
 	chain_tension = 0.0
 	collision_recovery_timer = 0.0

@@ -2,16 +2,48 @@ extends Node
 
 const SAVE_FILE = "user://save_game.dat"
 const BEST_SCORE_FILE = "user://best_score.dat"
+const SAVE_VERSION = 1
+
+func _write_text_atomically(path: String, contents: String) -> bool:
+	var temporary_path = path + ".tmp"
+	var file = FileAccess.open(temporary_path, FileAccess.WRITE)
+	if not file:
+		push_error("Failed to open temporary save file for writing: ", FileAccess.get_open_error())
+		return false
+
+	file.store_string(contents)
+	file.flush()
+	file.close()
+
+	var directory = DirAccess.open("user://")
+	if not directory:
+		push_error("Failed to open user directory: ", DirAccess.get_open_error())
+		return false
+
+	var rename_result = directory.rename(temporary_path.get_file(), path.get_file())
+	if rename_result == OK:
+		return true
+
+	# Some platforms do not replace an existing file during rename. The fully
+	# written temporary file is safe to promote after removing the old copy.
+	if FileAccess.file_exists(path):
+		var remove_result = directory.remove(path.get_file())
+		if remove_result != OK:
+			push_error("Failed to replace save file: ", remove_result)
+			return false
+		rename_result = directory.rename(temporary_path.get_file(), path.get_file())
+
+	if rename_result != OK:
+		push_error("Failed to commit save file: ", rename_result)
+		if FileAccess.file_exists(temporary_path):
+			directory.remove(temporary_path.get_file())
+		return false
+	return true
 
 func save_game_state(data: Dictionary) -> bool:
-	var file = FileAccess.open(SAVE_FILE, FileAccess.WRITE)
-	if not file:
-		push_error("Failed to open save file for writing: ", FileAccess.get_open_error())
-		return false
-	var json_string = JSON.stringify(data)
-	file.store_string(json_string)
-	file.close()
-	return true
+	var save_data = data.duplicate(true)
+	save_data["version"] = SAVE_VERSION
+	return _write_text_atomically(SAVE_FILE, JSON.stringify(save_data))
 
 func load_game_state() -> Dictionary:
 	if not FileAccess.file_exists(SAVE_FILE):
@@ -39,7 +71,23 @@ func load_game_state() -> Dictionary:
 	return data
 
 func has_saved_game() -> bool:
-	return FileAccess.file_exists(SAVE_FILE)
+	if not FileAccess.file_exists(SAVE_FILE):
+		return false
+
+	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
+	if not file:
+		return false
+	var json_string = file.get_as_text()
+	file.close()
+
+	var json = JSON.new()
+	if json.parse(json_string) != OK:
+		return false
+	var data = json.get_data()
+	if not data is Dictionary:
+		return false
+	var version = data.get("version", SAVE_VERSION)
+	return typeof(version) == TYPE_INT and version >= 1 and version <= SAVE_VERSION and data.has("score") and typeof(data.get("score")) in [TYPE_INT, TYPE_FLOAT] and data.get("player_state") is Dictionary and data.player_state.has("position")
 
 func delete_save_game() -> bool:
 	if not FileAccess.file_exists(SAVE_FILE):
@@ -72,11 +120,4 @@ func save_best_score(score: int) -> bool:
 	if score <= get_best_score():
 		return true
 
-	var file = FileAccess.open(BEST_SCORE_FILE, FileAccess.WRITE)
-	if not file:
-		push_error("Failed to open best score file for writing: ", FileAccess.get_open_error())
-		return false
-
-	file.store_string(str(score))
-	file.close()
-	return true
+	return _write_text_atomically(BEST_SCORE_FILE, str(score))
