@@ -30,6 +30,7 @@ const MAX_SAVED_SEGMENTS = 1000
 const MAX_SAVED_FOOD = 100
 const MAX_SAVED_ROCKS = 1000
 const MAX_SCORE = 2147483647
+const AUTOSAVE_INTERVAL = 5.0
 
 var is_paused: bool = false
 var is_gameplay_paused: bool = false
@@ -38,6 +39,7 @@ var is_game_over: bool = false
 var score: int = 0
 var is_new_best: bool = false
 var is_quitting: bool = false
+var autosave_elapsed: float = 0.0
 var player: Player
 
 @onready var camera: GameCamera = $GameplayContainer/Camera3D
@@ -55,6 +57,19 @@ func _connect_ui() -> void:
 	ui.quit_requested.connect(save_and_quit)
 	ui.retry_requested.connect(_on_retry_requested)
 	ui.main_menu_requested.connect(return_to_main_menu)
+
+func _process(delta: float) -> void:
+	if is_game_over or not is_instance_valid(player):
+		return
+
+	autosave_elapsed += maxf(delta, 0.0)
+	if autosave_elapsed < AUTOSAVE_INTERVAL:
+		return
+
+	autosave_elapsed = fmod(autosave_elapsed, AUTOSAVE_INTERVAL)
+	# Browser tabs can be refreshed or closed without sending a reliable close
+	# notification, so keep the resumable session reasonably current.
+	save_game_state()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_camera_angle"):

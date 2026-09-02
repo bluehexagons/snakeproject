@@ -13,7 +13,8 @@ its consuming target explicitly, and the UI communicates through signals.
 `GameState` and `CollisionHandler` are the only runtime autoload services.
 `PhysicsConstants`, `SegmentConstants`, and `ChainPhysics` are pure script
 classes, so constants and force calculations do not require hidden scene-node
-lifecycle state.
+lifecycle state. Active sessions are also autosaved periodically so a browser
+refresh does not discard all progress.
 
 ## Running
 
