@@ -5,14 +5,17 @@ class_name ChainPhysics
 const SPRING_FORCE_DELAY = 0.1
 const COLLISION_RECOVERY_DELAY = 0.1
 # Chain behavior
-const TENSION_BUILD_RATE = 0.8
+const TENSION_BUILD_RATE = 4.0
 const MIN_TENSION = 0.2
-const TENSION_DAMPING = 0.85
+const TENSION_RELEASE_RATE = 6.0
 
 # Movement constants and thresholds
-const SPRING_STIFFNESS = 40.0
-const STIFFNESS_SCALE = 10.4
-const SNAP_THRESHOLD = 0.1
+const SPRING_STIFFNESS = 34.0
+const STRETCH_STIFFNESS_SCALE = 1.75
+const MAX_STRETCH_RATIO = 1.5
+const SPRING_DAMPING = 9.0
+const MAX_SPRING_FORCE = 180.0
+const SPRING_SLACK_RATIO = 0.03
 
 # Force scaling
 const MIN_STIFFNESS = 0.15
@@ -29,7 +32,9 @@ static func calculate_chain_forces(
 		chain_length: int,
 		target_distance: float,
 		current_tension: float,
-		collision_recovery: float = 1.0
+		collision_recovery: float = 1.0,
+		current_velocity: Vector3 = Vector3.ZERO,
+		target_velocity: Vector3 = Vector3.ZERO
 	) -> Dictionary:
 	
 	var chain_factor = chain_index / float(max(chain_length, 1))
@@ -47,14 +52,21 @@ static func calculate_chain_forces(
 			"chain_factor": chain_factor,
 		}
 	
-	var stiffness = SPRING_STIFFNESS
-	if current_distance > target_distance:
-		var stretch = (current_distance - target_distance) / target_distance
-		if stretch > SNAP_THRESHOLD:
-			stiffness *= 1.0 + (stretch * STIFFNESS_SCALE)
-	
 	var direction = to_target / current_distance
-	var spring_force = direction * (current_distance - target_distance) * stiffness
+	var extension = current_distance - target_distance
+	var slack_distance = target_distance * SPRING_SLACK_RATIO
+	if extension <= slack_distance:
+		return {
+			"spring_force": Vector3.ZERO,
+			"chain_factor": chain_factor,
+		}
+
+	var stretch_ratio = minf(extension / target_distance, MAX_STRETCH_RATIO)
+	var stiffness = SPRING_STIFFNESS * (1.0 + stretch_ratio * STRETCH_STIFFNESS_SCALE)
+	var separation_speed = (target_velocity - current_velocity).dot(direction)
+	var spring_strength = extension * stiffness + separation_speed * SPRING_DAMPING
+	spring_strength = clampf(spring_strength, 0.0, MAX_SPRING_FORCE)
+	var spring_force = direction * spring_strength
 	
 	spring_force *= force_scale * position_scale * length_factor * current_tension * collision_recovery
 	
@@ -69,21 +81,23 @@ static func calculate_walk_force(
 		current_vel: Vector3,
 		target_vel: Vector3,
 		chain_factor: float,
-		base_acceleration: float
+		base_acceleration: float,
+		target_distance: float
 	) -> Vector3:
 	
 	var to_target = target_pos - current_pos
 	var distance = to_target.length()
 	
-	if distance <= 0.001:
+	if distance <= target_distance or target_distance <= 0.0:
 		return Vector3.ZERO
 	
 	var walk_direction = to_target / distance
-	var force = walk_direction * base_acceleration * chain_factor
+	var distance_engagement = clampf((distance - target_distance) / target_distance, 0.0, 1.0)
+	var follow_strength = lerpf(1.0, 0.35, clampf(chain_factor, 0.0, 1.0))
+	var force = walk_direction * base_acceleration * follow_strength * distance_engagement
 	
-	var relative_velocity = target_vel - current_vel
-	var approaching_speed = relative_velocity.dot(walk_direction)
-	if approaching_speed > 0:
-		force *= (1.0 - clamp(approaching_speed / MAX_WALK_SPEED, 0.0, 1.0))
+	var closing_speed = (current_vel - target_vel).dot(walk_direction)
+	if closing_speed > 0:
+		force *= (1.0 - clamp(closing_speed / MAX_WALK_SPEED, 0.0, 1.0))
 	
 	return force

@@ -22,7 +22,7 @@ func _handle_chain_physics(delta: float) -> bool:
 	if distance > desired_distance:
 		chain_tension = move_toward(chain_tension, 1.0, ChainPhysics.TENSION_BUILD_RATE * delta)
 	else:
-		chain_tension *= ChainPhysics.TENSION_DAMPING
+		chain_tension = move_toward(chain_tension, ChainPhysics.MIN_TENSION, ChainPhysics.TENSION_RELEASE_RATE * delta)
 
 	collision_recovery_timer = min(collision_recovery_timer + delta, ChainPhysics.COLLISION_RECOVERY_DELAY)
 	return true

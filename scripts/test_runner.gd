@@ -116,6 +116,33 @@ func run() -> void:
 	if chain_data.spring_force.length() <= 0.0:
 		push_error("Chain physics did not produce a spring force for a stretched link")
 		failed = true
+	var separating_chain = CHAIN_PHYSICS.calculate_chain_forces(
+		Vector3.ZERO, Vector3(3, 0, 0), 0, 2, 1.4, 1.0, 1.0,
+		Vector3.ZERO, Vector3(4, 0, 0)
+	)
+	var closing_chain = CHAIN_PHYSICS.calculate_chain_forces(
+		Vector3.ZERO, Vector3(3, 0, 0), 0, 2, 1.4, 1.0, 1.0,
+		Vector3(4, 0, 0), Vector3.ZERO
+	)
+	if separating_chain.spring_force.length() <= closing_chain.spring_force.length():
+		push_error("Chain damping did not resist links moving apart")
+		failed = true
+	if separating_chain.spring_force.length() > CHAIN_PHYSICS.MAX_SPRING_FORCE:
+		push_error("Chain spring exceeded its force cap")
+		failed = true
+	var slack_chain = CHAIN_PHYSICS.calculate_chain_forces(
+		Vector3.ZERO, Vector3(1.0, 0, 0), 0, 2, 1.4, 1.0
+	)
+	if not slack_chain.spring_force.is_zero_approx():
+		push_error("Chain spring pushed apart a slack link")
+		failed = true
+	var slack_walk = CHAIN_PHYSICS.calculate_walk_force(
+		Vector3.ZERO, Vector3(1.0, 0, 0), Vector3.ZERO, Vector3.ZERO,
+		0.0, SegmentConstants.FOLLOW_ACCELERATION, SegmentConstants.TARGET_DISTANCE
+	)
+	if not slack_walk.is_zero_approx():
+		push_error("Chain follow force pulled a link that was already within spacing")
+		failed = true
 
 	var turn_velocity = Player.calculate_steered_velocity(
 		Vector3(4, 2, 10),

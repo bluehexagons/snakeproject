@@ -105,6 +105,7 @@ func _calculate_chain_data(_delta: float) -> Dictionary:
 	var target_offset = target.global_position - global_position
 	var follow_distance = target_offset.length()
 	var follow_direction = target_offset / follow_distance if follow_distance > 0 else Vector3.ZERO
+	var target_velocity = _get_target_velocity()
 	
 	var chain_forces = ChainPhysics.calculate_chain_forces(
 		global_position,
@@ -113,7 +114,9 @@ func _calculate_chain_data(_delta: float) -> Dictionary:
 		chain_length,
 		segment_config.TARGET_DISTANCE,
 		chain_tension,
-		min(collision_recovery_timer / ChainPhysics.SPRING_FORCE_DELAY, 1.0)
+		min(collision_recovery_timer / ChainPhysics.SPRING_FORCE_DELAY, 1.0),
+		cached_velocity,
+		target_velocity
 	)
 	
 	return {
@@ -207,7 +210,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 			cached_velocity,
 			target_velocity,
 			chain_data.chain_data.chain_factor,
-			segment_config.FOLLOW_ACCELERATION
+			segment_config.FOLLOW_ACCELERATION,
+			segment_config.TARGET_DISTANCE
 		)
 		if walk_force.length_squared() > segment_config.MIN_FORCE_THRESHOLD:
 			add_physics_force(walk_force.clamped(chain_data.chain_data.spring_force.length() * 0.5))
