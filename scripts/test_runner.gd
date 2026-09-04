@@ -117,6 +117,22 @@ func run() -> void:
 		push_error("Chain physics did not produce a spring force for a stretched link")
 		failed = true
 
+	var turn_velocity = Player.calculate_steered_velocity(
+		Vector3(4, 2, 10),
+		Vector3.RIGHT,
+		Player.TURN_RESPONSIVENESS,
+		1.0 / 60.0
+	)
+	if not is_equal_approx(turn_velocity.x, 4.0) or not is_equal_approx(turn_velocity.y, 2.0) or turn_velocity.z >= 10.0:
+		push_error("Player steering did not preserve aligned/vertical momentum while damping sideways momentum")
+		failed = true
+	var full_turn = Player.calculate_steered_velocity(Vector3(0, 0, 10), Vector3.RIGHT, 8.0, 1.0 / 30.0)
+	var half_turn = Player.calculate_steered_velocity(Vector3(0, 0, 10), Vector3.RIGHT, 8.0, 1.0 / 60.0)
+	half_turn = Player.calculate_steered_velocity(half_turn, Vector3.RIGHT, 8.0, 1.0 / 60.0)
+	if not full_turn.is_equal_approx(half_turn):
+		push_error("Player steering changed with equivalent physics timesteps")
+		failed = true
+
 	var test_rock = ROCK_SCENE.instantiate()
 	add_child(test_rock)
 	test_rock.setup_rock(Vector3(2, 0, 3))

@@ -52,8 +52,7 @@ const PROXIMITY_FALLOFF = 1.5
 const PROXIMITY_VELOCITY_MATCH = 0.2
 
 const DIRECT_ACCELERATION = 90.0
-const MOMENTUM_RETENTION = 0.85
-const TURN_RESPONSIVENESS = 0.65
+const TURN_RESPONSIVENESS = 10.0
 const MOVEMENT_RAMP_TIME = 0.2
 const MOVEMENT_DECAY = 0.95
 const INPUT_SMOOTHING = 0.25
@@ -439,6 +438,23 @@ func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3)
 	if other is PhysicsObject:
 		other.apply_force(-repulsion + velocity_correction)
 
+static func calculate_steered_velocity(
+		current_velocity: Vector3,
+		desired_direction: Vector3,
+		responsiveness: float,
+		delta: float
+	) -> Vector3:
+	var desired_horizontal = Vector3(desired_direction.x, 0.0, desired_direction.z)
+	if desired_horizontal.length_squared() <= 0.0001:
+		return current_velocity
+
+	desired_horizontal = desired_horizontal.normalized()
+	var horizontal_velocity = Vector3(current_velocity.x, 0.0, current_velocity.z)
+	var sideways_velocity = horizontal_velocity - horizontal_velocity.project(desired_horizontal)
+	var steering_blend = 1.0 - exp(-maxf(responsiveness, 0.0) * maxf(delta, 0.0))
+	var steered_horizontal = horizontal_velocity - sideways_velocity * steering_blend
+	return Vector3(steered_horizontal.x, current_velocity.y, steered_horizontal.z)
+
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if not is_dead and not unkillable and _has_dangerous_contact(state):
 		die()
@@ -462,13 +478,11 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 		if is_dead:
 			movement *= 1.0 / max(pow(dead_time * 0.5, 1.5), 1.0)
 		
-		var current_dir = current_vel.normalized() if current_vel.length_squared() > 0.1 else input_smoothed
-		var aligned_velocity = current_vel.project(current_dir)
-		var perpendicular_velocity = current_vel - aligned_velocity
-		
-		state.linear_velocity = (
-			aligned_velocity * MOMENTUM_RETENTION + 
-			perpendicular_velocity * (MOMENTUM_RETENTION * TURN_RESPONSIVENESS)
+		state.linear_velocity = calculate_steered_velocity(
+			current_vel,
+			input_smoothed,
+			TURN_RESPONSIVENESS,
+			state.step
 		)
 		
 		state.apply_central_force(movement * get_effective_mass())
