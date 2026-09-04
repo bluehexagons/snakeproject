@@ -47,9 +47,9 @@ const UNKILLABLE_EMISSION = Color(0.4, 0.6, 1.0)
 const UNKILLABLE_EMISSION_ENERGY = 1.2
 
 const SEGMENT_PROXIMITY_RADIUS = 1.2
-const PROXIMITY_FORCE = 150.0
-const PROXIMITY_FALLOFF = 1.5
-const PROXIMITY_VELOCITY_MATCH = 0.2
+const PROXIMITY_FORCE = 110.0
+const PROXIMITY_FALLOFF = 2.0
+const PROXIMITY_VELOCITY_DAMPING = 6.0
 
 const DIRECT_ACCELERATION = 90.0
 const TURN_RESPONSIVENESS = 10.0
@@ -245,7 +245,7 @@ func _physics_process(delta: float) -> void:
 	if cached_velocity.length_squared() > 0.1:
 		facing_direction = cached_velocity.normalized()
 	
-	var nearby_segments = CollisionHandler.get_nearby_bodies(global_position)
+	var nearby_segments = CollisionHandler.get_nearby_bodies(global_position, SEGMENT_PROXIMITY_RADIUS)
 	for segment in nearby_segments:
 		if segment == self or not segment is Segment:
 			continue
@@ -427,16 +427,21 @@ func finish_digestion():
 func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3) -> void:
 	if distance <= 0:
 		return
-		
-	var force_scale = (1.0 - distance / SEGMENT_PROXIMITY_RADIUS)
-	var repulsion = -direction * PROXIMITY_FORCE * pow(force_scale, PROXIMITY_FALLOFF)
-	
+
 	var relative_velocity = other.cached_velocity - cached_velocity
-	var velocity_correction = relative_velocity * PROXIMITY_VELOCITY_MATCH
-	
-	apply_force(repulsion - velocity_correction)
+	var separation_force = calculate_proximity_force(
+		direction,
+		distance,
+		SEGMENT_PROXIMITY_RADIUS,
+		PROXIMITY_FORCE,
+		PROXIMITY_FALLOFF,
+		relative_velocity,
+		PROXIMITY_VELOCITY_DAMPING
+	)
+
+	apply_force(separation_force)
 	if other is PhysicsObject:
-		other.apply_force(-repulsion + velocity_correction)
+		other.apply_force(-separation_force)
 
 static func calculate_steered_velocity(
 		current_velocity: Vector3,

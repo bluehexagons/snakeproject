@@ -160,6 +160,24 @@ func run() -> void:
 		push_error("Player steering changed with equivalent physics timesteps")
 		failed = true
 
+	var rotated_ground_basis = Basis(Vector3.FORWARD, PI * 0.5)
+	var local_ground_normal = rotated_ground_basis.inverse() * Vector3.UP
+	if not PhysicsObject.is_ground_contact(local_ground_normal, rotated_ground_basis):
+		push_error("Ground contact detection did not transform a rotating body's local normal")
+		failed = true
+	var stationary_separation = PhysicsObject.calculate_proximity_force(
+		Vector3.RIGHT, 0.6, 1.2, 110.0, 2.0, Vector3.ZERO, 6.0
+	)
+	var approaching_separation = PhysicsObject.calculate_proximity_force(
+		Vector3.RIGHT, 0.6, 1.2, 110.0, 2.0, Vector3.LEFT, 6.0
+	)
+	var departing_separation = PhysicsObject.calculate_proximity_force(
+		Vector3.RIGHT, 0.6, 1.2, 110.0, 2.0, Vector3.RIGHT, 6.0
+	)
+	if approaching_separation.x >= stationary_separation.x or departing_separation.x <= stationary_separation.x or departing_separation.x > 0.0:
+		push_error("Proximity damping did not resist closing motion and release separating bodies")
+		failed = true
+
 	var test_rock = ROCK_SCENE.instantiate()
 	add_child(test_rock)
 	test_rock.setup_rock(Vector3(2, 0, 3))

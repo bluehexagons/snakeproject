@@ -135,16 +135,21 @@ func _get_target_velocity() -> Vector3:
 func handle_proximity(other: PhysicsObject, distance: float, direction: Vector3) -> void:
 	if distance <= 0:
 		return
-		
-	var force_scale = (1.0 - distance / segment_config.SEGMENT_PROXIMITY_RADIUS)
-	var repulsion = -direction * segment_config.PROXIMITY_FORCE * pow(force_scale, segment_config.PROXIMITY_FALLOFF)
-	
+
 	var relative_velocity = other.linear_velocity - cached_velocity
-	var velocity_correction = relative_velocity * segment_config.PROXIMITY_VELOCITY_MATCH
-	
-	apply_force(repulsion - velocity_correction)
+	var separation_force = calculate_proximity_force(
+		direction,
+		distance,
+		segment_config.SEGMENT_PROXIMITY_RADIUS,
+		segment_config.PROXIMITY_FORCE,
+		segment_config.PROXIMITY_FALLOFF,
+		relative_velocity,
+		segment_config.PROXIMITY_VELOCITY_DAMPING
+	)
+
+	apply_force(separation_force)
 	if other is PhysicsObject:
-		other.apply_force(-repulsion + velocity_correction)
+		other.apply_force(-separation_force)
 
 func _apply_neighbor_separation() -> void:
 	for nearby_body in CollisionHandler.get_nearby_bodies(global_position, segment_config.SEGMENT_PROXIMITY_RADIUS):

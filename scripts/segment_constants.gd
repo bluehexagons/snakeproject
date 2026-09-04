@@ -17,9 +17,9 @@ const MIN_FORCE_THRESHOLD = 0.1
 # Local separation keeps neighboring body segments from collapsing into one
 # another while the spring chain catches up.
 const SEGMENT_PROXIMITY_RADIUS = 1.2
-const PROXIMITY_FORCE = 150.0
-const PROXIMITY_FALLOFF = 1.5
-const PROXIMITY_VELOCITY_MATCH = 0.2
+const PROXIMITY_FORCE = 110.0
+const PROXIMITY_FALLOFF = 2.0
+const PROXIMITY_VELOCITY_DAMPING = 6.0
 
 # Visual
 const SAFE_COLOR = Color(0.3, 0.8, 1.0, 0.9)

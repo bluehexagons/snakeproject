@@ -120,11 +120,37 @@ func apply_physics_scale(new_scale: float, immediate: bool = false) -> void:
 func is_valid_vector(v: Vector3) -> bool:
 	return v.is_finite() and v.length_squared() < 10000000.0
 
+static func is_ground_contact(local_normal: Vector3, body_basis: Basis) -> bool:
+	var world_normal = (body_basis * local_normal).normalized()
+	return world_normal.dot(Vector3.UP) > 0.7
+
+static func calculate_proximity_force(
+		direction_to_other: Vector3,
+		distance: float,
+		radius: float,
+		strength: float,
+		falloff: float,
+		relative_velocity: Vector3,
+		velocity_damping: float
+	) -> Vector3:
+	if distance <= 0.0 or distance >= radius or radius <= 0.0:
+		return Vector3.ZERO
+
+	var direction = direction_to_other.normalized()
+	var force_scale = 1.0 - distance / radius
+	var repulsion = -direction * strength * pow(force_scale, falloff)
+	# Matching relative velocity damps closing motion and releases bodies that
+	# are already separating instead of making close contacts oscillate.
+	var damped_force = repulsion + relative_velocity * velocity_damping
+	var radial_force = minf(damped_force.dot(direction), 0.0)
+	var tangential_force = damped_force - direction * damped_force.dot(direction)
+	return direction * radial_force + tangential_force
+
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	var is_on_ground = false
 	for i in range(state.get_contact_count()):
 		var contact_normal = state.get_contact_local_normal(i)
-		if contact_normal.dot(Vector3.UP) > 0.7:
+		if is_ground_contact(contact_normal, state.transform.basis):
 			is_on_ground = true
 
 	is_grounded = is_on_ground
@@ -139,7 +165,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 		var drag_force = -horizontal_velocity.normalized() * horizontal_velocity.length_squared() * drag_coefficient
 		state.apply_central_force(drag_force)
 
-		if is_grounded:
+		if ground_contact_timer > 0.0:
 			var friction_coeffs = PhysicsConstants.get_ground_friction_coefficients(material_type)
 			var friction = friction_coeffs[1]
 			if horizontal_velocity.length() < PhysicsConstants.ROLLING_THRESHOLD:
