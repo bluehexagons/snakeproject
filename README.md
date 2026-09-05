@@ -43,3 +43,7 @@ infra-web doctor snake3d
 Use the HTTPS URL returned by `infra-web` with the managed infra-tools
 Playwright workflow for visual, input, network, and console checks; do not
 substitute a local port.
+
+For physics tuning, publish a separate debug build and use Space to end each
+bounded trace. Debug web builds expose up to 120 samples on
+`window.__godotPhysicsTrace`; release builds do not collect or expose telemetry.

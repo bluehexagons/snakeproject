@@ -147,6 +147,9 @@ static func calculate_proximity_force(
 	return direction * radial_force + tangential_force
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
+	if DebugTelemetry.enabled:
+		DebugTelemetry.record_contacts(self, state)
+
 	var is_on_ground = false
 	for i in range(state.get_contact_count()):
 		var contact_normal = state.get_contact_local_normal(i)

@@ -2,6 +2,7 @@ extends Node
 
 const LOAD_TARGETS = [
 	"res://scripts/collision_handler.gd",
+	"res://scripts/debug_telemetry.gd",
 	"res://scripts/game_camera.gd",
 	"res://scripts/game_manager.gd",
 	"res://scripts/game_state.gd",
@@ -24,6 +25,8 @@ const SPATIAL_GRID = preload("res://scripts/spatial_grid.gd")
 const STUCK_DETECTOR = preload("res://scripts/stuck_detector.gd")
 const CHAIN_PHYSICS = preload("res://scripts/chain_physics.gd")
 const ROCK_SCENE = preload("res://scenes/rock.tscn")
+const PLAYER_SCENE = preload("res://scenes/player.tscn")
+const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 
 func _ready() -> void:
 	call_deferred("run")
@@ -143,6 +146,25 @@ func run() -> void:
 	if not slack_walk.is_zero_approx():
 		push_error("Chain follow force pulled a link that was already within spacing")
 		failed = true
+
+	var physics_player = PLAYER_SCENE.instantiate()
+	add_child(physics_player)
+	physics_player.freeze = true
+	physics_player.global_position = Vector3.ZERO
+	var linked_segment = SEGMENT_SCENE.instantiate()
+	add_child(linked_segment)
+	linked_segment.gravity_scale = 0.0
+	linked_segment.init_with_growth(1.0)
+	linked_segment.global_position = Vector3(3.0, 0.0, 0.0)
+	linked_segment.target = physics_player
+	for _frame in 10:
+		await get_tree().physics_frame
+	if linked_segment.linear_velocity.x >= 0.0:
+		push_error("Linked segment did not accelerate toward its target")
+		failed = true
+	linked_segment.queue_free()
+	physics_player.queue_free()
+	await get_tree().process_frame
 
 	var turn_velocity = Player.calculate_steered_velocity(
 		Vector3(4, 2, 10),

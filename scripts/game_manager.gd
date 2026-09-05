@@ -31,6 +31,7 @@ const MAX_SAVED_FOOD = 100
 const MAX_SAVED_ROCKS = 1000
 const MAX_SCORE = 2147483647
 const AUTOSAVE_INTERVAL = 5.0
+const DEBUG_TRACE_SAMPLE_INTERVAL = 0.1
 
 var is_paused: bool = false
 var is_gameplay_paused: bool = false
@@ -40,17 +41,26 @@ var score: int = 0
 var is_new_best: bool = false
 var is_quitting: bool = false
 var autosave_elapsed: float = 0.0
+var debug_trace_elapsed: float = 0.0
+var debug_trace_time: float = 0.0
 var player: Player
 
 @onready var camera: GameCamera = $GameplayContainer/Camera3D
 @onready var ui: GameUI = $UI
 @onready var gameplay_container: Node3D = $GameplayContainer
+@onready var world_environment: WorldEnvironment = $WorldEnvironment
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
+	_configure_renderer_features()
 	_connect_ui()
 	load_game_state()
 	update_score(0)
+	_start_debug_trace()
+
+func _configure_renderer_features() -> void:
+	if world_environment and world_environment.environment:
+		world_environment.environment.volumetric_fog_enabled = RenderingServer.get_current_rendering_method() == "forward_plus"
 
 func _connect_ui() -> void:
 	ui.resume_requested.connect(_on_resume_requested)
@@ -71,6 +81,18 @@ func _process(delta: float) -> void:
 	# notification, so keep the resumable session reasonably current.
 	save_game_state()
 
+func _physics_process(delta: float) -> void:
+	if not DebugTelemetry.enabled or is_paused or is_gameplay_paused or is_game_over:
+		return
+
+	debug_trace_elapsed += maxf(delta, 0.0)
+	debug_trace_time += maxf(delta, 0.0)
+	if debug_trace_elapsed < DEBUG_TRACE_SAMPLE_INTERVAL:
+		return
+
+	debug_trace_elapsed = fmod(debug_trace_elapsed, DEBUG_TRACE_SAMPLE_INTERVAL)
+	DebugTelemetry.record_sample(_build_debug_trace_sample())
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_camera_angle"):
 		camera.toggle_view()
@@ -87,6 +109,10 @@ func toggle_gameplay_pause() -> void:
 	update_pause_state()
 	if ui:
 		ui.set_gameplay_paused(is_gameplay_paused)
+	if is_gameplay_paused:
+		DebugTelemetry.publish_trace()
+	else:
+		_start_debug_trace()
 
 func toggle_pause() -> void:
 	if is_game_over:
@@ -101,6 +127,75 @@ func toggle_pause() -> void:
 
 func update_pause_state() -> void:
 	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if (is_paused or is_gameplay_paused) else Node.PROCESS_MODE_INHERIT
+
+func _start_debug_trace() -> void:
+	if not DebugTelemetry.can_capture():
+		return
+
+	debug_trace_elapsed = 0.0
+	debug_trace_time = 0.0
+	var run_id = "%d-%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_msec()]
+	DebugTelemetry.start_capture(run_id, {
+		"project_version": ProjectSettings.get_setting("application/config/version", "unversioned"),
+		"godot": Engine.get_version_info().get("string", "unknown"),
+		"physics_backend": ProjectSettings.get_setting("physics/3d/physics_engine", "unknown"),
+		"physics_ticks_per_second": Engine.physics_ticks_per_second,
+		"debug_build": OS.is_debug_build(),
+		"max_bodies": DebugTelemetry.MAX_BODIES,
+		"max_contacts_reported": PhysicsObject.MAX_CONTACTS,
+	})
+
+func _build_debug_trace_sample() -> Dictionary:
+	var bodies: Array[Dictionary] = []
+	var physics_objects = get_tree().get_nodes_in_group("physics_object")
+	physics_objects.sort_custom(func(first, second): return first.get_instance_id() < second.get_instance_id())
+	for body in physics_objects.slice(0, DebugTelemetry.MAX_BODIES):
+		if not body is PhysicsObject or not is_instance_valid(body):
+			continue
+		bodies.append({
+			"id": str(body.get_instance_id()),
+			"kind": _debug_body_kind(body),
+			"position": DebugTelemetry.encode_vector(body.global_position, "bodies.%s.position" % body.get_instance_id()),
+			"linear_velocity": DebugTelemetry.encode_vector(body.linear_velocity, "bodies.%s.linear_velocity" % body.get_instance_id()),
+			"angular_velocity": DebugTelemetry.encode_vector(body.angular_velocity, "bodies.%s.angular_velocity" % body.get_instance_id()),
+		})
+
+	var links: Array[Dictionary] = []
+	if is_instance_valid(player):
+		for segment in player.segments:
+			if not is_instance_valid(segment) or not is_instance_valid(segment.target):
+				continue
+			var distance = segment.global_position.distance_to(segment.target.global_position)
+			links.append({
+				"segment_id": str(segment.get_instance_id()),
+				"target_id": str(segment.target.get_instance_id()),
+				"distance": DebugTelemetry.encode_number(distance, "links.%s.distance" % segment.get_instance_id()),
+				"rest_length": SegmentConstants.TARGET_DISTANCE,
+				"error": DebugTelemetry.encode_number(distance - SegmentConstants.TARGET_DISTANCE, "links.%s.error" % segment.get_instance_id()),
+			})
+
+	return {
+		"physics_tick": Engine.get_physics_frames(),
+		"capture_time": debug_trace_time,
+		"bodies": bodies,
+		"links": links,
+		"gameplay": {
+			"score": score,
+			"paused": is_paused or is_gameplay_paused,
+			"lost": is_game_over,
+			"active_input": Input.get_vector("move_left", "move_right", "move_up", "move_down").length_squared() > 0.0,
+			"inactivity": DebugTelemetry.encode_number(player.stuck_detector.get_stuck_duration(), "gameplay.inactivity") if is_instance_valid(player) and player.stuck_detector else 0.0,
+		},
+	}
+
+func _debug_body_kind(body: PhysicsObject) -> String:
+	if body.is_in_group("player"):
+		return "player"
+	if body.is_in_group("segment"):
+		return "segment"
+	if body.is_in_group("rock"):
+		return "rock"
+	return "physics_object"
 
 func spawn_player() -> Player:
 	player = PLAYER_SCENE.instantiate()
