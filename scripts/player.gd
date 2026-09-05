@@ -51,9 +51,10 @@ const PROXIMITY_FORCE = 110.0
 const PROXIMITY_FALLOFF = 2.0
 const PROXIMITY_VELOCITY_DAMPING = 6.0
 
-const DIRECT_ACCELERATION = 90.0
+const DIRECT_ACCELERATION = 65.0
+const BASE_MAX_SPEED = 18.0
 const TURN_RESPONSIVENESS = 10.0
-const MOVEMENT_RAMP_TIME = 0.2
+const MOVEMENT_RAMP_TIME = 0.25
 const MOVEMENT_DECAY = 0.95
 const INPUT_SMOOTHING = 0.25
 
@@ -100,7 +101,7 @@ func _ready() -> void:
 	add_to_group("physics_object")
 	
 	drag_coefficient = PhysicsConstants.PLAYER_DRAG
-	max_speed = PhysicsConstants.PLAYER_MAX_SPEED
+	max_speed = calculate_max_speed(current_speed_boost)
 	dynamic_friction = 0.005
 	base_emission = BASE_EMISSION
 	base_emission_energy = BASE_EMISSION_ENERGY
@@ -282,6 +283,7 @@ func _physics_process(delta: float) -> void:
 				SPEED_BOOST_BASE + (food_eaten * BONUS_SPEED_PER_FEED),
 				MAX_SPEED_BOOST
 			)
+			max_speed = calculate_max_speed(current_speed_boost)
 
 			apply_impulse(facing_direction * LUNGE_FORCE)
 			food_collected.emit(food_eaten)
@@ -377,6 +379,7 @@ func restore_from_save(data: Dictionary) -> void:
 			facing_direction = restored_direction.normalized()
 	food_eaten = max(int(state.get("food_eaten", 0)), 0)
 	current_speed_boost = clampf(float(state.get("current_speed_boost", SPEED_BOOST_BASE)), SPEED_BOOST_BASE, MAX_SPEED_BOOST)
+	max_speed = calculate_max_speed(current_speed_boost)
 
 func _vector_from_save(data: Variant, fallback: Vector3) -> Vector3:
 	if not data is Dictionary:
@@ -459,6 +462,9 @@ static func calculate_steered_velocity(
 	var steering_blend = 1.0 - exp(-maxf(responsiveness, 0.0) * maxf(delta, 0.0))
 	var steered_horizontal = horizontal_velocity - sideways_velocity * steering_blend
 	return Vector3(steered_horizontal.x, current_velocity.y, steered_horizontal.z)
+
+static func calculate_max_speed(speed_boost: float) -> float:
+	return minf(BASE_MAX_SPEED * maxf(speed_boost, SPEED_BOOST_BASE), PhysicsConstants.PLAYER_MAX_SPEED)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if not is_dead and not unkillable and _has_dangerous_contact(state):

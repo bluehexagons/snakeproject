@@ -219,7 +219,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 			segment_config.TARGET_DISTANCE
 		)
 		if walk_force.length_squared() > segment_config.MIN_FORCE_THRESHOLD:
-			add_physics_force(walk_force.limit_length(chain_data.chain_data.spring_force.length() * 0.5))
+			add_physics_force(walk_force.limit_length(
+				chain_data.chain_data.spring_force.length() * segment_config.FOLLOW_FORCE_SPRING_RATIO
+			))
 
 	if is_growing:
 		growth_timer += state.step

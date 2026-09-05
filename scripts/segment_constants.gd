@@ -12,6 +12,7 @@ const TARGET_DISTANCE = 1.4
 
 # Movement and Following
 const FOLLOW_ACCELERATION = 110.0
+const FOLLOW_FORCE_SPRING_RATIO = 1.0
 const MIN_FORCE_THRESHOLD = 0.1
 
 # Local separation keeps neighboring body segments from collapsing into one

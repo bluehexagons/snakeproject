@@ -5,6 +5,7 @@ const FOOD_SCENE = preload("res://scenes/food.tscn")
 const ROCK_SCENE = preload("res://scenes/rock.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
 const SPAWN_AREA_SIZE = Vector2(8, 8)
+const PLAYER_SPAWN_HEIGHT = 0.5
 
 const INITIAL_ROCKS = 10
 const ROCKS_SPAWN_INTERVAL = 2
@@ -32,6 +33,7 @@ const MAX_SAVED_ROCKS = 1000
 const MAX_SCORE = 2147483647
 const AUTOSAVE_INTERVAL = 5.0
 const DEBUG_TRACE_SAMPLE_INTERVAL = 0.1
+const DEBUG_RANDOM_SEED = 1337
 
 var is_paused: bool = false
 var is_gameplay_paused: bool = false
@@ -52,6 +54,8 @@ var player: Player
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
+	if DebugTelemetry.can_capture():
+		seed(DEBUG_RANDOM_SEED)
 	_configure_renderer_features()
 	_connect_ui()
 	load_game_state()
@@ -143,6 +147,7 @@ func _start_debug_trace() -> void:
 		"debug_build": OS.is_debug_build(),
 		"max_bodies": DebugTelemetry.MAX_BODIES,
 		"max_contacts_reported": PhysicsObject.MAX_CONTACTS,
+		"random_seed": DEBUG_RANDOM_SEED,
 	})
 
 func _build_debug_trace_sample() -> Dictionary:
@@ -174,11 +179,21 @@ func _build_debug_trace_sample() -> Dictionary:
 				"error": DebugTelemetry.encode_number(distance - SegmentConstants.TARGET_DISTANCE, "links.%s.error" % segment.get_instance_id()),
 			})
 
+	var foods: Array[Dictionary] = []
+	for food in get_tree().get_nodes_in_group("food"):
+		if not is_instance_valid(food) or food.is_queued_for_deletion() or not food.is_available():
+			continue
+		foods.append({
+			"id": str(food.get_instance_id()),
+			"position": DebugTelemetry.encode_vector(food.global_position, "foods.%s.position" % food.get_instance_id()),
+		})
+
 	return {
 		"physics_tick": Engine.get_physics_frames(),
 		"capture_time": debug_trace_time,
 		"bodies": bodies,
 		"links": links,
+		"foods": foods,
 		"gameplay": {
 			"score": score,
 			"paused": is_paused or is_gameplay_paused,
@@ -204,7 +219,9 @@ func spawn_player() -> Player:
 	
 	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
 	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-	player.position = Vector3(random_x, 0, random_z)
+	# Start the sphere clear of the floor instead of half-embedded, which can
+	# make the solver resolve the initial overlap through the ground.
+	player.position = Vector3(random_x, PLAYER_SPAWN_HEIGHT, random_z)
 	return player
 
 func _bind_player(new_player: Player) -> void:

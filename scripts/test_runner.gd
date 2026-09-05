@@ -181,6 +181,12 @@ func run() -> void:
 	if not full_turn.is_equal_approx(half_turn):
 		push_error("Player steering changed with equivalent physics timesteps")
 		failed = true
+	if not is_equal_approx(Player.calculate_max_speed(1.0), Player.BASE_MAX_SPEED):
+		push_error("Player base speed limit did not use the unboosted cap")
+		failed = true
+	if not is_equal_approx(Player.calculate_max_speed(2.0), PhysicsConstants.PLAYER_MAX_SPEED):
+		push_error("Player boosted speed limit did not respect the absolute cap")
+		failed = true
 
 	var rotated_ground_basis = Basis(Vector3.FORWARD, PI * 0.5)
 	var local_ground_normal = rotated_ground_basis.inverse() * Vector3.UP
@@ -218,6 +224,9 @@ func run() -> void:
 		add_child(main)
 		for i in 5:
 			await get_tree().physics_frame
+		if not is_instance_valid(main.player) or main.player.global_position.y < 0.2:
+			push_error("Fresh player spawn intersected or fell through the ground")
+			failed = true
 		main.queue_free()
 		await get_tree().process_frame
 
