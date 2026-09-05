@@ -1,8 +1,11 @@
-extends "res://scripts/chain_object.gd"
+extends "res://scripts/physics_object.gd"
 class_name Segment
 
 # Body pieces are path followers. They never participate in the rigid-body
 # solver, so growth cannot fall through the floor or kick the head around.
+var target: Node3D
+var chain_index: int = 0
+var chain_length: int = 1
 var growth_timer: float = 0.0
 var is_growing: bool = true
 var is_dangerous: bool = false

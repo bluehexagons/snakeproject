@@ -14,7 +14,6 @@ const SPEED_BOOST_BASE = 1.0
 const BONUS_SPEED_PER_FEED = 0.025
 const MAX_SPEED_BOOST = 1.5
 const DIRECT_ACCELERATION = 40.0
-const TURN_RESPONSIVENESS = 16.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
 const PICKUP_RADIUS = 0.8
@@ -36,8 +35,6 @@ var digestion_timer: float = 0.0
 var input_dir: Vector3 = Vector3.ZERO
 var pending_pickup_impulse: float = 0.0
 var pickup_speed_bonus: float = 0.0
-# Kept for the bounded debug trace; stopping intentionally is allowed.
-var stuck_detector: StuckDetector
 var previous_pickup_position: Vector3
 var pickup_position_initialized: bool = false
 
@@ -52,7 +49,6 @@ func _ready() -> void:
 	physics_material_override.friction = 0.0
 	physics_material_override.bounce = 0.0
 	max_speed = calculate_max_speed(current_speed_boost)
-	stuck_detector = StuckDetector.new()
 	apply_color(BASE_COLOR, BASE_EMISSION, 0.6)
 
 func _physics_process(delta: float) -> void:
@@ -234,23 +230,6 @@ func finish_digestion() -> void:
 	is_digesting = false
 	digestion_timer = 0.0
 	mesh_instance.scale = Vector3.ONE
-
-static func calculate_steered_velocity(
-		current_velocity: Vector3,
-		desired_direction: Vector3,
-		responsiveness: float,
-		delta: float
-	) -> Vector3:
-	var desired_horizontal = Vector3(desired_direction.x, 0.0, desired_direction.z)
-	if desired_horizontal.length_squared() <= 0.0001:
-		return current_velocity
-
-	desired_horizontal = desired_horizontal.normalized()
-	var horizontal_velocity = Vector3(current_velocity.x, 0.0, current_velocity.z)
-	var sideways_velocity = horizontal_velocity - horizontal_velocity.project(desired_horizontal)
-	var steering_blend = 1.0 - exp(-maxf(responsiveness, 0.0) * maxf(delta, 0.0))
-	var steered_horizontal = horizontal_velocity - sideways_velocity * steering_blend
-	return Vector3(steered_horizontal.x, current_velocity.y, steered_horizontal.z)
 
 static func calculate_max_speed(speed_boost: float) -> float:
 	return minf(BASE_MAX_SPEED * maxf(speed_boost, SPEED_BOOST_BASE), PhysicsConstants.PLAYER_MAX_SPEED)

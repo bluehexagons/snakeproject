@@ -1,7 +1,6 @@
 extends Node
 
 const LOAD_TARGETS = [
-	"res://scripts/collision_handler.gd",
 	"res://scripts/debug_telemetry.gd",
 	"res://scripts/game_camera.gd",
 	"res://scripts/game_manager.gd",
@@ -10,7 +9,6 @@ const LOAD_TARGETS = [
 	"res://scripts/physics_object.gd",
 	"res://scripts/physics_constants.gd",
 	"res://scripts/segment_constants.gd",
-	"res://scripts/chain_physics.gd",
 	"res://scripts/player.gd",
 	"res://scripts/segment.gd",
 	"res://scripts/rock.gd",
@@ -21,9 +19,6 @@ const LOAD_TARGETS = [
 	"res://scenes/main_menu.tscn",
 ]
 
-const SPATIAL_GRID = preload("res://scripts/spatial_grid.gd")
-const STUCK_DETECTOR = preload("res://scripts/stuck_detector.gd")
-const CHAIN_PHYSICS = preload("res://scripts/chain_physics.gd")
 const ROCK_SCENE = preload("res://scenes/rock.tscn")
 const PLAYER_SCENE = preload("res://scenes/player.tscn")
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
@@ -58,110 +53,6 @@ func run() -> void:
 			push_error("Failed to load %s" % path)
 			failed = true
 
-	var grid = SPATIAL_GRID.new()
-	var segment := Node3D.new()
-	segment.position = Vector3.ZERO
-	var rock := Node3D.new()
-	rock.position = Vector3.ZERO
-	add_child(segment)
-	add_child(rock)
-	grid.insert(segment, 1)
-	grid.insert(rock, 2)
-	if grid.get_nearby(Vector3.ZERO, 1.0).size() != 2:
-		push_error("Spatial grid did not query all layers")
-		failed = true
-	if grid.get_nearby(Vector3.ZERO, 1.0, 1).size() != 1:
-		push_error("Spatial grid did not filter by layer")
-		failed = true
-	segment.position = Vector3(1.5, 0, 0)
-	grid.update_position(segment, 1)
-	if not grid.get_nearby(Vector3.ZERO, 1.0, 1).is_empty():
-		push_error("Spatial grid returned an object outside the requested radius")
-		failed = true
-	segment.position = Vector3(4, 0, 0)
-	grid.update_position(segment, 1)
-	if grid.get_nearby(Vector3.ZERO, 1.0, 1).size() != 0:
-		push_error("Spatial grid left an object in its old cell")
-		failed = true
-	segment.free()
-	rock.free()
-	grid.free()
-
-	var queued_body := Node3D.new()
-	add_child(queued_body)
-	CollisionHandler.spatial_grid.insert(queued_body)
-	queued_body.queue_free()
-	if CollisionHandler.get_nearby_bodies(Vector3.ZERO, 1.0).has(queued_body):
-		push_error("Collision handler returned a body queued for deletion")
-		failed = true
-	await get_tree().process_frame
-
-	var detector = STUCK_DETECTOR.new()
-	for _frame in range(40):
-		detector.update(Vector3.ZERO, 1.0 / 60.0)
-	if not detector.is_stuck or detector.get_stuck_duration() <= 0.0:
-		push_error("Stuck detector did not identify a stationary object")
-		failed = true
-	for frame in range(30):
-		detector.update(Vector3(frame * 0.2, 0, 0), 1.0 / 60.0)
-	if detector.is_stuck:
-		push_error("Stuck detector did not recover after movement")
-		failed = true
-
-	var chain_data = CHAIN_PHYSICS.calculate_chain_forces(
-		Vector3.ZERO,
-		Vector3(3, 0, 0),
-		0,
-		2,
-		1.4,
-		1.0
-	)
-	if chain_data.spring_force.length() <= 0.0:
-		push_error("Chain physics did not produce a spring force for a stretched link")
-		failed = true
-	var separating_chain = CHAIN_PHYSICS.calculate_chain_forces(
-		Vector3.ZERO, Vector3(3, 0, 0), 0, 2, 1.4, 1.0, 1.0,
-		Vector3.ZERO, Vector3(4, 0, 0)
-	)
-	var closing_chain = CHAIN_PHYSICS.calculate_chain_forces(
-		Vector3.ZERO, Vector3(3, 0, 0), 0, 2, 1.4, 1.0, 1.0,
-		Vector3(4, 0, 0), Vector3.ZERO
-	)
-	if separating_chain.spring_force.length() <= closing_chain.spring_force.length():
-		push_error("Chain damping did not resist links moving apart")
-		failed = true
-	if separating_chain.spring_force.length() > CHAIN_PHYSICS.MAX_SPRING_FORCE:
-		push_error("Chain spring exceeded its force cap")
-		failed = true
-	var slack_chain = CHAIN_PHYSICS.calculate_chain_forces(
-		Vector3.ZERO, Vector3(1.0, 0, 0), 0, 2, 1.4, 1.0
-	)
-	if not slack_chain.spring_force.is_zero_approx():
-		push_error("Chain spring pushed apart a slack link")
-		failed = true
-	var slack_walk = CHAIN_PHYSICS.calculate_walk_force(
-		Vector3.ZERO, Vector3(1.0, 0, 0), Vector3.ZERO, Vector3.ZERO,
-		0.0, SegmentConstants.FOLLOW_ACCELERATION, 1.4
-	)
-	if not slack_walk.is_zero_approx():
-		push_error("Chain follow force pulled a link that was already within spacing")
-		failed = true
-
-	var turn_velocity = Player.calculate_steered_velocity(
-		Vector3(4, 2, 10),
-		Vector3.RIGHT,
-		Player.TURN_RESPONSIVENESS,
-		1.0 / 60.0
-	)
-	if not is_equal_approx(turn_velocity.x, 4.0) or not is_equal_approx(turn_velocity.y, 2.0) or turn_velocity.z >= 10.0:
-		push_error("Player steering did not preserve aligned/vertical momentum while damping sideways momentum")
-		failed = true
-	var full_turn = Player.calculate_steered_velocity(Vector3(0, 0, 10), Vector3.RIGHT, 8.0, 1.0 / 30.0)
-	var half_turn = Player.calculate_steered_velocity(Vector3(0, 0, 10), Vector3.RIGHT, 8.0, 1.0 / 60.0)
-	half_turn = Player.calculate_steered_velocity(half_turn, Vector3.RIGHT, 8.0, 1.0 / 60.0)
-	if not full_turn.is_equal_approx(half_turn):
-		push_error("Player steering changed with equivalent physics timesteps")
-		failed = true
 	if not is_equal_approx(Player.calculate_max_speed(1.0), Player.BASE_MAX_SPEED):
 		push_error("Player base speed limit did not use the unboosted cap")
 		failed = true

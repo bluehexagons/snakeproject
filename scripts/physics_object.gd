@@ -85,6 +85,10 @@ func _ready():
 	if mesh_instance and current_material:
 		mesh_instance.mesh.surface_set_material(0, current_material)
 		base_emission = current_material.emission
+		state_color = current_material.albedo_color
+		current_color = state_color
+		state_emission = base_emission
+		state_emission_energy = base_emission_energy
 		mesh_instance.global_position = global_position
 
 	mass = base_mass
