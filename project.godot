@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="snake3d"
-config/version="0.2.0"
+config/version="0.3.0"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="res://icon.svg"
@@ -69,15 +69,16 @@ toggle_unkillable={
 
 3d/run_on_separate_thread=false
 common/physics_ticks_per_second=60
-common/physics_jitter_fix=0.5
+common/physics_interpolation=true
+common/physics_jitter_fix=0.0
 3d/physics_engine="JoltPhysics3D"
 3d/default_gravity=25.0
 3d/solver/solver_iterations=12
 
 [rendering]
 
-renderer/rendering_method="forward_plus"
+renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
-lights_and_shadows/directional_shadow/size=8192
-lights_and_shadows/directional_shadow/size.mobile=4096
+lights_and_shadows/directional_shadow/size=1024
+lights_and_shadows/directional_shadow/size.mobile=1024

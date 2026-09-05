@@ -102,13 +102,6 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 
 	super._integrate_forces(state)
 
-func _process(delta: float) -> void:
-	if not is_initialized or is_spawning:
-		mesh.global_position = position
-		return
-	
-	super._process(delta)
-
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
 	base_data["is_dangerous"] = is_dangerous

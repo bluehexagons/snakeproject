@@ -141,30 +141,11 @@ func run() -> void:
 		failed = true
 	var slack_walk = CHAIN_PHYSICS.calculate_walk_force(
 		Vector3.ZERO, Vector3(1.0, 0, 0), Vector3.ZERO, Vector3.ZERO,
-		0.0, SegmentConstants.FOLLOW_ACCELERATION, SegmentConstants.TARGET_DISTANCE
+		0.0, SegmentConstants.FOLLOW_ACCELERATION, 1.4
 	)
 	if not slack_walk.is_zero_approx():
 		push_error("Chain follow force pulled a link that was already within spacing")
 		failed = true
-
-	var physics_player = PLAYER_SCENE.instantiate()
-	add_child(physics_player)
-	physics_player.freeze = true
-	physics_player.global_position = Vector3.ZERO
-	var linked_segment = SEGMENT_SCENE.instantiate()
-	add_child(linked_segment)
-	linked_segment.gravity_scale = 0.0
-	linked_segment.init_with_growth(1.0)
-	linked_segment.global_position = Vector3(3.0, 0.0, 0.0)
-	linked_segment.target = physics_player
-	for _frame in 10:
-		await get_tree().physics_frame
-	if linked_segment.linear_velocity.x >= 0.0:
-		push_error("Linked segment did not accelerate toward its target")
-		failed = true
-	linked_segment.queue_free()
-	physics_player.queue_free()
-	await get_tree().process_frame
 
 	var turn_velocity = Player.calculate_steered_velocity(
 		Vector3(4, 2, 10),

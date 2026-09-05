@@ -223,10 +223,7 @@ func _update_base_physics(delta: float) -> void:
 		apply_color(current_color, state_emission, state_emission_energy)
 
 func _process(_delta):
-	if mesh_instance:
-		var fraction = Engine.get_physics_interpolation_fraction()
-		visual_pos = physics_pos.lerp(global_position, fraction)
-		mesh_instance.global_position = visual_pos
+	pass
 
 func get_save_data() -> Dictionary:
 	var base_data = {

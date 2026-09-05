@@ -8,7 +8,7 @@ const SPAWN_DURATION = 0.5
 # Chain configuration
 const INITIAL_SCALE = 0.4
 const GROWTH_CURVE = 0.5
-const TARGET_DISTANCE = 1.4
+const TARGET_DISTANCE = 0.8
 
 # Movement and Following
 const FOLLOW_ACCELERATION = 110.0

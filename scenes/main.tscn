@@ -22,9 +22,9 @@ ambient_light_color = Color(0.4, 0.5, 0.6, 1)
 ambient_light_sky_contribution = 0.2
 ambient_light_energy = 0.3
 tonemap_mode = 2
-ssao_enabled = true
+ssao_enabled = false
 ssao_power = 3.0
-glow_enabled = true
+glow_enabled = false
 glow_levels/1 = 1.0
 glow_levels/2 = 0.8
 glow_levels/4 = 0.5
@@ -156,21 +156,21 @@ sky_mode = 1
 [node name="OmniLight3D" type="OmniLight3D" parent="GameplayContainer"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.92457, 0)
 light_energy = 0.7
-shadow_enabled = true
+shadow_enabled = false
 omni_range = 12.989
 omni_attenuation = 1.5
 
 [node name="OmniLight3D2" type="OmniLight3D" parent="GameplayContainer/OmniLight3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.19446, 0.856061, -4.52936)
 light_energy = 0.7
-shadow_enabled = true
+shadow_enabled = false
 omni_range = 12.0
 omni_attenuation = 1.5
 
 [node name="OmniLight3D3" type="OmniLight3D" parent="GameplayContainer/OmniLight3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.23103, 5.46439, 4.53575)
 light_energy = 0.7
-shadow_enabled = true
+shadow_enabled = false
 omni_range = 26.498
 omni_attenuation = 1.5
 
@@ -198,24 +198,6 @@ transform = Transform3D(-9.61651e-08, 0, 1, 0, 1, 0, -22, 0, -4.37114e-08, -11, 
 transform = Transform3D(1.50912, 0, 0, 0, 1, 0, 0, 0, 1.3357, 0, -3, 0)
 mesh = SubResource("PlaneMesh_2")
 surface_material_override/0 = SubResource("ShaderMaterial_1")
-
-[node name="Particles2" type="GPUParticles3D" parent="GameplayContainer"]
-transform = Transform3D(1.83913, 0, 0, 0, 0.406822, 0, 0, 0, 1.622, 0, -5.26762, 0)
-amount = 100
-lifetime = 8.0
-preprocess = 4.0
-visibility_aabb = AABB(-12, -1, -12, 24, 12, 24)
-process_material = SubResource("ParticleProcessMaterial_1")
-draw_pass_1 = SubResource("SphereMesh_1")
-
-[node name="Particles" type="GPUParticles3D" parent="GameplayContainer"]
-transform = Transform3D(0.806092, 0, 0, 0, 0.209052, 0, 0, 0, 0.816343, 0, 0.959085, 0)
-amount = 100
-lifetime = 73.85
-preprocess = 4.0
-visibility_aabb = AABB(-12, -1, -12, 24, 12, 24)
-process_material = SubResource("ParticleProcessMaterial_1")
-draw_pass_1 = SubResource("SphereMesh_1")
 
 [node name="UI" parent="." instance=ExtResource("2_ui")]
 process_mode = 3

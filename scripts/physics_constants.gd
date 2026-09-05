@@ -5,7 +5,7 @@ const GRAVITY = 25.0
 const BASE_DRAG_COEFFICIENT = 0.3
 const PLAYER_DRAG = 0.4
 
-const PLAYER_MAX_SPEED = 30.0
+const PLAYER_MAX_SPEED = 12.0
 const ROCK_MAX_SPEED = 15.0
 const MAX_SPEED = 30.0
 

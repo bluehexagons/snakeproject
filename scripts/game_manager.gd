@@ -16,7 +16,7 @@ const MAX_DANGER_PROBABILITY = 0.8
 const SAFE_SPAWN_DISTANCE = 4.0
 const SAFE_FORWARD_ANGLE = 60.0
 
-const MIN_FOOD_COUNT = 1
+const MIN_FOOD_COUNT = 3
 const MAX_FOOD_COUNT = 5
 const MIN_FOOD_DISTANCE = 3.0
 const PREFERRED_PLAYER_DISTANCE = 8.0
@@ -73,7 +73,7 @@ func _connect_ui() -> void:
 	ui.main_menu_requested.connect(return_to_main_menu)
 
 func _process(delta: float) -> void:
-	if is_game_over or not is_instance_valid(player):
+	if is_game_over or is_paused or is_gameplay_paused or not is_instance_valid(player):
 		return
 
 	autosave_elapsed += maxf(delta, 0.0)
@@ -222,11 +222,12 @@ func spawn_player() -> Player:
 	# Start the sphere clear of the floor instead of half-embedded, which can
 	# make the solver resolve the initial overlap through the ground.
 	player.position = Vector3(random_x, PLAYER_SPAWN_HEIGHT, random_z)
+	player.rebuild_trail()
 	return player
 
 func _bind_player(new_player: Player) -> void:
 	player = new_player
-	player.food_collected.connect(_on_player_food_collected)
+	player.food_collected.connect(_on_player_food_collected, CONNECT_DEFERRED)
 	player.score_earned.connect(_on_player_score_earned)
 	player.player_lost.connect(_on_player_lost)
 	ui.set_player(player)
@@ -352,6 +353,21 @@ func spawn_rock(force_safe: bool = false) -> bool:
 		if current_player and _horizontal_distance(current_player.global_position, spawn_pos) < MIN_ROCK_PLAYER_DISTANCE:
 			continue
 
+		var overlaps_rock = false
+		for other_rock in get_tree().get_nodes_in_group("rock"):
+			if not other_rock.is_queued_for_deletion() and _horizontal_distance(other_rock.position, spawn_pos) < 2.0:
+				overlaps_rock = true
+				break
+		if overlaps_rock:
+			continue
+		var overlaps_food = false
+		for food in get_tree().get_nodes_in_group("food"):
+			if food.is_available() and _horizontal_distance(food.position, spawn_pos) < MIN_FOOD_ROCK_DISTANCE:
+				overlaps_food = true
+				break
+		if overlaps_food:
+			continue
+
 		var rock = ROCK_SCENE.instantiate()
 		gameplay_container.add_child(rock)
 		rock.setup_rock(spawn_pos)
@@ -380,14 +396,7 @@ func spawn_rock(force_safe: bool = false) -> bool:
 		if should_be_dangerous:
 			rock.make_dangerous()
 
-		var overlaps_rock = false
-		for other_rock in get_tree().get_nodes_in_group("rock"):
-			if other_rock != rock and not other_rock.is_queued_for_deletion() and _horizontal_distance(other_rock.position, spawn_pos) < 2.0:
-				overlaps_rock = true
-				break
-		if not overlaps_rock:
-			return true
-		rock.queue_free()
+		return true
 
 	push_warning("Failed to spawn a rock after %d attempts" % MAX_ROCK_SPAWN_ATTEMPTS)
 	return false
@@ -408,8 +417,10 @@ func _on_player_food_collected(total_food_eaten: int) -> void:
 	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return not f.is_queued_for_deletion() and f.is_available())
 	var current_food_count = available_food.size()
 	
-	if current_food_count < MIN_FOOD_COUNT:
-		spawn_food()
+	while current_food_count < MIN_FOOD_COUNT:
+		if not spawn_food(true):
+			break
+		current_food_count += 1
 
 func _on_player_score_earned(points: int, popup_position: Vector3) -> void:
 	if is_game_over:
@@ -491,7 +502,7 @@ func save_game_state() -> void:
 			continue
 		food_positions.append({
 			"x": food.position.x,
-			"y": food.position.y,
+			"y": 0.0,
 			"z": food.position.z
 		})
 	
@@ -533,13 +544,18 @@ func load_game_state() -> bool:
 	var player_state: Dictionary = save_data["player_state"]
 	if player_state.has("segments") and player_state["segments"] is Array:
 		var segments: Array = player_state["segments"]
-		for i in range(segments.size() - 1, -1, -1):
+		for i in range(segments.size()):
 			var segment_data: Dictionary = segments[i] if segments[i] is Dictionary else {}
 			var segment = player.add_segment(0.0, _vector_from_data(segment_data.get("position")), true)
 			if not segment:
 				continue
 			segment.init_from_save_data(segment_data)
 	
+	player.rebuild_trail()
+	if player_state.has("trail"):
+		player.trail.clear()
+		for point in player_state.trail:
+			player.trail.append(_vector_from_data(point))
 	var saved_food_positions: Variant = save_data.get("food_positions", [])
 	if saved_food_positions is Array and not saved_food_positions.is_empty():
 		for food_pos in saved_food_positions:
@@ -548,6 +564,7 @@ func load_game_state() -> bool:
 			var food = FOOD_SCENE.instantiate()
 			gameplay_container.add_child(food)
 			food.position = _vector_from_data(food_pos)
+			food.position.y = 0.0
 	else:
 		spawn_initial_food()
 	
@@ -590,6 +607,13 @@ func _is_valid_save_data(data: Dictionary) -> bool:
 		for key in ["physics_pos", "visual_pos", "velocity"]:
 			if segment_data.has(key) and not _is_valid_vector_data(segment_data.get(key)):
 				return false
+
+	var trail: Variant = player_state.get("trail", [])
+	if not trail is Array or trail.size() > 20000:
+		return false
+	for point in trail:
+		if not _is_valid_vector_data(point):
+			return false
 
 	var food_positions: Variant = data.get("food_positions", [])
 	if not food_positions is Array or food_positions.size() > MAX_SAVED_FOOD:
