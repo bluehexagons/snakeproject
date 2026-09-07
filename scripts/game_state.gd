@@ -5,6 +5,9 @@ const BEST_SCORE_FILE = "user://best_score.dat"
 const SAVE_VERSION = 1
 const MAX_SAVED_SCORE = 2147483647
 const MAX_SAVED_POSITION = 1000.0
+const MAX_SAVED_SEGMENTS = 1000
+const MAX_SAVED_FOOD = 100
+const MAX_SAVED_ROCKS = 1000
 
 func is_supported_save_version(version: Variant) -> bool:
 	var version_type := typeof(version)
@@ -98,6 +101,79 @@ func load_game_state() -> Dictionary:
 		
 	return data
 
+func is_valid_save_data(data: Dictionary) -> bool:
+	var version = data.get("version", SAVE_VERSION)
+	if not is_supported_save_version(version):
+		return false
+
+	if not is_valid_saved_score(data.get("score")):
+		return false
+
+	var player_state: Variant = data.get("player_state")
+	if not player_state is Dictionary:
+		return false
+	if not is_valid_saved_vector(player_state.get("position")):
+		return false
+	for key in ["physics_pos", "visual_pos", "velocity", "facing_direction"]:
+		if player_state.has(key) and not is_valid_saved_vector(player_state.get(key)):
+			return false
+
+	if not _has_valid_physics_scalars(player_state):
+		return false
+	if player_state.has("food_eaten") and not is_valid_saved_score(player_state.food_eaten):
+		return false
+	if player_state.has("current_speed_boost") and not _is_finite_number(player_state.current_speed_boost):
+		return false
+
+	var segments: Variant = player_state.get("segments", [])
+	if not segments is Array or segments.size() > MAX_SAVED_SEGMENTS:
+		return false
+	for segment_data in segments:
+		if not segment_data is Dictionary or not is_valid_saved_vector(segment_data.get("position")):
+			return false
+		if not _has_valid_physics_scalars(segment_data):
+			return false
+		if segment_data.has("growth") and not _is_finite_number(segment_data.growth):
+			return false
+		for key in ["physics_pos", "visual_pos", "velocity"]:
+			if segment_data.has(key) and not is_valid_saved_vector(segment_data.get(key)):
+				return false
+
+	var trail: Variant = player_state.get("trail", [])
+	if not trail is Array or trail.size() > 20000:
+		return false
+	for point in trail:
+		if not is_valid_saved_vector(point):
+			return false
+
+	var food_positions: Variant = data.get("food_positions", [])
+	if not food_positions is Array or food_positions.size() > MAX_SAVED_FOOD:
+		return false
+	for food_data in food_positions:
+		if not food_data is Dictionary or not is_valid_saved_vector(food_data):
+			return false
+
+	var rocks: Variant = data.get("rocks", [])
+	if not rocks is Array or rocks.size() > MAX_SAVED_ROCKS:
+		return false
+	for rock_data in rocks:
+		if not rock_data is Dictionary or not is_valid_saved_vector(rock_data.get("position")):
+			return false
+		if not _has_valid_physics_scalars(rock_data):
+			return false
+		if rock_data.has("is_dangerous") and not rock_data.is_dangerous is bool:
+			return false
+		for key in ["physics_pos", "visual_pos", "velocity", "rotation", "angular_velocity"]:
+			if rock_data.has(key) and not is_valid_saved_vector(rock_data.get(key)):
+				return false
+	return true
+
+func _has_valid_physics_scalars(data: Dictionary) -> bool:
+	for key in ["current_scale", "ground_contact_timer"]:
+		if data.has(key) and not _is_finite_number(data[key]):
+			return false
+	return not data.has("is_grounded") or data.is_grounded is bool
+
 func has_saved_game() -> bool:
 	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
 	if not file:
@@ -111,10 +187,7 @@ func has_saved_game() -> bool:
 	var data = json.get_data()
 	if not data is Dictionary:
 		return false
-	var version = data.get("version", SAVE_VERSION)
-	var player_state: Variant = data.get("player_state")
-	var valid = is_supported_save_version(version) and is_valid_saved_score(data.get("score")) and player_state is Dictionary and is_valid_saved_vector(player_state.get("position"))
-	return valid
+	return is_valid_save_data(data)
 
 func delete_save_game() -> bool:
 	# Probe with a direct open instead of FileAccess.file_exists(), whose

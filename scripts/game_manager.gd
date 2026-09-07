@@ -27,9 +27,6 @@ const MIN_ROCK_PLAYER_DISTANCE = 2.5
 const MAX_FOOD_SPAWN_ATTEMPTS = 30
 const MAX_RELAXED_FOOD_SPAWN_ATTEMPTS = 10
 const MAX_ROCK_SPAWN_ATTEMPTS = 30
-const MAX_SAVED_SEGMENTS = 1000
-const MAX_SAVED_FOOD = 100
-const MAX_SAVED_ROCKS = 1000
 const MAX_SCORE = 2147483647
 const AUTOSAVE_INTERVAL = 5.0
 const DEBUG_TRACE_SAMPLE_INTERVAL = 0.1
@@ -527,7 +524,7 @@ func load_game_state() -> bool:
 		food.queue_free()
 	
 	var save_data = GameState.load_game_state()
-	if save_data.is_empty() or not _is_valid_save_data(save_data):
+	if save_data.is_empty() or not GameState.is_valid_save_data(save_data):
 		if not save_data.is_empty():
 			push_warning("Ignoring invalid save data and starting a new game")
 			GameState.delete_save_game()
@@ -580,61 +577,6 @@ func load_game_state() -> bool:
 	score = max(int(save_data.get("score", 0)), 0)
 	update_score(0)
 	return true
-
-func _is_valid_save_data(data: Dictionary) -> bool:
-	var version = data.get("version", GameState.SAVE_VERSION)
-	if not GameState.is_supported_save_version(version):
-		return false
-
-	if not GameState.is_valid_saved_score(data.get("score")):
-		return false
-
-	var player_state: Variant = data.get("player_state")
-	if not player_state is Dictionary:
-		return false
-	if not _is_valid_vector_data(player_state.get("position")):
-		return false
-	for key in ["physics_pos", "visual_pos", "velocity", "facing_direction"]:
-		if player_state.has(key) and not _is_valid_vector_data(player_state.get(key)):
-			return false
-
-	var segments: Variant = player_state.get("segments", [])
-	if not segments is Array or segments.size() > MAX_SAVED_SEGMENTS:
-		return false
-	for segment_data in segments:
-		if not segment_data is Dictionary or not _is_valid_vector_data(segment_data.get("position")):
-			return false
-		for key in ["physics_pos", "visual_pos", "velocity"]:
-			if segment_data.has(key) and not _is_valid_vector_data(segment_data.get(key)):
-				return false
-
-	var trail: Variant = player_state.get("trail", [])
-	if not trail is Array or trail.size() > 20000:
-		return false
-	for point in trail:
-		if not _is_valid_vector_data(point):
-			return false
-
-	var food_positions: Variant = data.get("food_positions", [])
-	if not food_positions is Array or food_positions.size() > MAX_SAVED_FOOD:
-		return false
-	for food_data in food_positions:
-		if not food_data is Dictionary or not _is_valid_vector_data(food_data):
-			return false
-
-	var rocks: Variant = data.get("rocks", [])
-	if not rocks is Array or rocks.size() > MAX_SAVED_ROCKS:
-		return false
-	for rock_data in rocks:
-		if not rock_data is Dictionary or not _is_valid_vector_data(rock_data.get("position")):
-			return false
-		for key in ["physics_pos", "visual_pos", "velocity", "rotation", "angular_velocity"]:
-			if rock_data.has(key) and not _is_valid_vector_data(rock_data.get(key)):
-				return false
-	return true
-
-func _is_valid_vector_data(data: Variant) -> bool:
-	return GameState.is_valid_saved_vector(data)
 
 func _horizontal_distance(first: Vector3, second: Vector3) -> float:
 	return Vector2(first.x, first.z).distance_to(Vector2(second.x, second.z))

@@ -47,6 +47,9 @@ func run() -> void:
 		push_error("Save vector validation accepted an invalid vector")
 		failed = true
 
+	if not _check_save_validation():
+		failed = true
+
 	for path in LOAD_TARGETS:
 		var resource := load(path)
 		if resource == null:
@@ -108,3 +111,54 @@ func run() -> void:
 
 	print("Smoke test passed")
 	get_tree().quit(0)
+
+
+func _check_save_validation() -> bool:
+	var valid = {
+		"score": 10,
+		"player_state": {"position": {"x": 0, "y": 0.5, "z": 0}},
+	}
+	if not GameState.is_valid_save_data(valid):
+		push_error("Minimal legacy save was rejected")
+		return false
+	var cases: Array[Dictionary] = []
+	for field in ["food_eaten", "current_speed_boost", "current_scale", "ground_contact_timer", "is_grounded"]:
+		var malformed = valid.duplicate(true)
+		malformed.player_state[field] = {}
+		cases.append(malformed)
+	for count in [-1, 1.5, 2147483648]:
+		var malformed = valid.duplicate(true)
+		malformed.player_state.food_eaten = count
+		cases.append(malformed)
+	for value in [NAN, INF]:
+		var malformed = valid.duplicate(true)
+		malformed.player_state.current_speed_boost = value
+		if GameState.is_valid_save_data(malformed):
+			push_error("Non-finite speed boost was accepted")
+			return false
+	for entry in [
+		{"segments": [{"position": {"x": 0, "y": 0.35, "z": 0}, "growth": []}]},
+		{"trail": [{"x": "bad", "y": 0, "z": 0}]},
+	]:
+		var malformed = valid.duplicate(true)
+		malformed.player_state.merge(entry)
+		cases.append(malformed)
+	for entry in [
+		{"rocks": [{"position": {"x": 0, "y": 1, "z": 0}, "current_scale": {}}]},
+		{"rocks": [{"position": {"x": 0, "y": 1, "z": 0}, "is_dangerous": "false"}]},
+		{"food_positions": [null]},
+	]:
+		var malformed = valid.duplicate(true)
+		malformed.merge(entry)
+		cases.append(malformed)
+	for malformed in cases:
+		if not GameState.save_game_state(malformed):
+			push_error("Failed to write malformed-save fixture")
+			return false
+		if GameState.is_valid_save_data(malformed) or GameState.has_saved_game():
+			push_error("Malformed save was accepted by validation or Continue")
+			return false
+	if not GameState.save_game_state(valid) or not GameState.has_saved_game():
+		push_error("Continue rejected a valid legacy save")
+		return false
+	return GameState.delete_save_game()
