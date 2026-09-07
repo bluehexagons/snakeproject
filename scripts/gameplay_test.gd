@@ -74,6 +74,13 @@ func run() -> void:
 	main.toggle_gameplay_pause()
 	main.save_game_state()
 	var saved_positions = player.get_segment_positions()
+	# Legacy recovery must repair the recorded path as well as each piece.
+	var fallen_save = GameState.load_game_state()
+	for segment_data in fallen_save.player_state.segments:
+		segment_data.position.y = -3.0
+	for point in fallen_save.player_state.trail:
+		point.y = -3.0
+	check(GameState.save_game_state(fallen_save), "Failed to write fallen-body fixture")
 	main.free()
 	main = MAIN.instantiate()
 	add_child(main)
@@ -82,8 +89,12 @@ func run() -> void:
 	for index in player.segments.size():
 		var saved = saved_positions[index].position
 		check(player.segments[index].position.distance_to(Vector3(saved.x, saved.y, saved.z)) < 0.01, "Save/resume reversed the body order")
+	var stayed_grounded = true
 	for frame in 240:
 		await get_tree().physics_frame
+		for segment in player.segments:
+			stayed_grounded = stayed_grounded and absf(segment.position.y - 0.35) < 0.01
+	check(stayed_grounded, "Saved trail pulled a recovered body off the ground")
 	check(not player.has_lost, "Intentional inactivity killed the player")
 	for segment in player.segments:
 		check(segment.position.y > 0.3 and is_equal_approx(segment.current_scale, 1.0), "Resumed body disappeared or failed to finish growth")

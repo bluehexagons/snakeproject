@@ -549,10 +549,14 @@ func load_game_state() -> bool:
 			segment.init_from_save_data(segment_data)
 	
 	player.rebuild_trail()
-	if player_state.has("trail"):
+	if player_state.has("trail") and not player_state.trail.is_empty():
 		player.trail.clear()
 		for point in player_state.trail:
-			player.trail.append(_vector_from_data(point))
+			var restored_point = _vector_from_data(point)
+			# Segment restore repairs fallen pieces; repair their path too so
+			# the next physics tick cannot send them underground again.
+			restored_point.y = 0.35
+			player.trail.append(restored_point)
 	var saved_food_positions: Variant = save_data.get("food_positions", [])
 	if saved_food_positions is Array and not saved_food_positions.is_empty():
 		for food_pos in saved_food_positions:

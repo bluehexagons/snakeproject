@@ -38,7 +38,9 @@ Open the project in Godot 4.7 and run the main scene. Run automated checks with:
 The script imports resources and runs smoke and gameplay regression scenes in a
 temporary user-data directory, leaving real saves untouched. Gameplay coverage
 includes rapid pickups, forward impulses and their speed cap, turning, grounded
-body persistence, braking, pause, save/resume ordering, inactivity, and wall death.
+body persistence, recovery of fallen saved paths, braking, pause, save/resume
+ordering, inactivity, and wall death. Smoke checks also reject malformed save
+fields consistently in both the Continue menu and gameplay loader.
 
 On an infra-tools VM, export and publish for browser testing:
 
