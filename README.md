@@ -42,15 +42,26 @@ body persistence, recovery of fallen saved paths, braking, pause, save/resume
 ordering, inactivity, and wall death. Smoke checks also reject malformed save
 fields consistently in both the Continue menu and gameplay loader.
 
-On an infra-tools VM, export and publish for browser testing:
+Basaltwater on Debian is the reference development environment, following the
+[shared project standards](https://github.com/bluehexagons/basaltwater/blob/main/docs/agents/project-standards.md).
+The editor also supports native development on CachyOS and Windows 11 without
+Basaltwater. Run the verification script with Bash and Linux `godot` on PATH
+(including inside WSL); its temporary `XDG_DATA_HOME` isolates Linux saves.
+Native Windows editor and export testing is a separate manual check. Use matching
+export templates for the selected Godot version.
+
+On a Basaltwater host with the Godot web bundle, optionally export and publish
+for browser testing:
 
 ```sh
-infra-tools agent doctor --capability development --json
-infra-web publish godot --preset Web --json
-infra-web doctor snake3d
+basaltw agent doctor --capability development --json
+basaltwater-web publish godot snake3d --preset Web --json
+basaltwater-web doctor snake3d
 ```
 
-Use the returned HTTPS URL with managed Playwright. A separate `--debug` export
+Use the returned HTTPS URL with the session's configured browser tools, following
+the shared `basaltwater-godot-web` skill. Native exports through Godot's Export
+dialog remain available without the gateway. A separate `--debug` export
 exposes bounded physics samples in `window.__godotPhysicsTrace` when Space pauses
 a capture. Release builds do not collect or expose telemetry. For exact physics
 regressions, use the project test scenes; browser screenshots establish appearance
