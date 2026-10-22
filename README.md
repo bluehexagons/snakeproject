@@ -1,6 +1,6 @@
 # Snake 3D
 
-A 3D survival game built with Godot 4.7.
+A 3D survival game built with Godot 4.7.2.
 
 Move with **WASD or arrow keys**, collect glowing food, and avoid red walls and
 red rocks. Each pickup adds a body piece, awards 10 points, increases cruising
@@ -29,7 +29,7 @@ from segment positions and restore fallen segments to the playing surface.
 
 ## Verification
 
-Open the project in Godot 4.7 and run the main scene. Run automated checks with:
+Open the project in Godot 4.7.2 with matching export templates and run the main scene. Run automated checks with:
 
 ```sh
 ./scripts/verify_project.sh
