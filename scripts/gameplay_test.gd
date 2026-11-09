@@ -77,8 +77,16 @@ func run() -> void:
 	check(main.is_paused, "Returning to the window resumed gameplay without consent")
 	main.toggle_pause()
 	main.toggle_gameplay_pause()
+	check(GameState.delete_save_game(), "Failed to clear focus-loss fixture")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
 	check(main.is_gameplay_paused and not main.is_paused, "Focus loss changed an existing Space pause")
+	check(GameState.has_saved_game(), "Focus loss while already paused did not save")
+	var repeated_pause = InputEventKey.new()
+	repeated_pause.keycode = KEY_ESCAPE
+	repeated_pause.pressed = true
+	repeated_pause.echo = true
+	main._unhandled_input(repeated_pause)
+	check(main.is_gameplay_paused and not main.is_paused, "Key repeat changed the pause state")
 	var paused_position = player.global_position
 	var paused_growth = player.segments[0].growth_timer
 	for frame in 30:
@@ -120,7 +128,7 @@ func run() -> void:
 			break
 	Input.action_release("move_right")
 	check(main.is_game_over and player.has_lost, "Wall collision failed to end the run")
-	check(not FileAccess.file_exists(GameState.save_file_path), "Game over retained a resumable dead session")
+	check(not GameState.has_saved_game() and not FileAccess.file_exists(GameState.save_file_path + ".bak"), "Game over retained a resumable dead session")
 	main.free()
 	Engine.time_scale = 1.0
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])

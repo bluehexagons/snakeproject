@@ -6,7 +6,9 @@ param(
     [switch]$Rendered
 )
 
+$ErrorActionPreference = 'Stop'
+$pythonCommand = Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1
 $runnerArguments = @("$PSScriptRoot/verify_project.py", '--godot', $Godot, '--timeout', $Timeout)
 if ($Rendered) { $runnerArguments += '--rendered' }
-& python @runnerArguments
+& $pythonCommand.Source @runnerArguments
 exit $LASTEXITCODE

@@ -23,6 +23,14 @@ const ROCK_SCENE = preload("res://scenes/rock.tscn")
 const PLAYER_SCENE = preload("res://scenes/player.tscn")
 const SEGMENT_SCENE = preload("res://scenes/segment.tscn")
 
+class FailingSave:
+	extends "res://scripts/game_state.gd"
+	var fail_promotion = false
+	func _promote_save(directory: DirAccess, source: String, destination: String) -> Error:
+		if fail_promotion:
+			return ERR_CANT_CREATE
+		return super(directory, source, destination)
+
 func _ready() -> void:
 	call_deferred("run")
 
@@ -52,6 +60,8 @@ func run() -> void:
 		failed = true
 
 	if not _check_save_validation():
+		failed = true
+	if not _check_interrupted_save():
 		failed = true
 
 	for path in LOAD_TARGETS:
@@ -166,3 +176,29 @@ func _check_save_validation() -> bool:
 		push_error("Continue rejected a valid legacy save")
 		return false
 	return GameState.delete_save_game()
+
+func _check_interrupted_save() -> bool:
+	var storage = FailingSave.new()
+	storage.save_file_path = GameState.save_file_path.get_base_dir().path_join("failure-save.dat")
+	storage.best_score_file_path = GameState.save_file_path.get_base_dir().path_join("failure-best.dat")
+	var original = {"score": 10, "player_state": {"position": {"x": 0, "y": 0.5, "z": 0}}}
+	var passed = storage.save_game_state(original) and storage.save_best_score(10)
+	storage.fail_promotion = true
+	passed = not storage.save_game_state({"score": 20}) and passed
+	passed = not storage.save_best_score(20) and passed
+	# A missing primary after failed promotion must be recoverable by both
+	# Continue and the gameplay loader, including after restarting the process.
+	var recovered = load("res://scripts/game_state.gd").new()
+	recovered.save_file_path = storage.save_file_path
+	recovered.best_score_file_path = storage.best_score_file_path
+	passed = recovered.has_saved_game() and recovered.load_game_state().get("score") == 10 and recovered.get_best_score() == 10 and passed
+	passed = recovered.delete_save_game() and not recovered.has_saved_game() and passed
+	passed = not FileAccess.file_exists(storage.save_file_path + ".tmp") and not FileAccess.file_exists(storage.save_file_path + ".bak") and passed
+	storage.fail_promotion = false
+	passed = storage.save_game_state(original) and storage.save_best_score(30) and passed
+	passed = storage.get_best_score() == 30 and storage.delete_save_game() and passed
+	storage.free()
+	recovered.free()
+	if not passed:
+		push_error("Interrupted save recovery, cleanup, or subsequent write failed")
+	return passed

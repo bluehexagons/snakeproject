@@ -49,7 +49,7 @@ func _is_finite_number(value: Variant) -> bool:
 	var numeric_value := float(value)
 	return not is_nan(numeric_value) and not is_inf(numeric_value)
 
-func _write_text_atomically(path: String, contents: String) -> bool:
+func _write_text_safely(path: String, contents: String) -> bool:
 	var temporary_path = path + ".tmp"
 	var file = FileAccess.open(temporary_path, FileAccess.WRITE)
 	if not file:
@@ -69,27 +69,36 @@ func _write_text_atomically(path: String, contents: String) -> bool:
 		push_error("Failed to open user directory: ", DirAccess.get_open_error())
 		return false
 
-	var rename_result = directory.rename(temporary_path.get_file(), path.get_file())
-	if rename_result == OK:
-		return true
-
-	# Preserve the previous save if Windows denies replacement (for example,
-	# while another process locks it). Never delete it to retry a failed rename.
-
+	# Godot's Windows rename removes an existing destination before moving.
+	# Move the old save aside first so a failed promotion or interrupted write
+	# leaves a recoverable copy. Readers use it only when the primary is absent.
+	if FileAccess.file_exists(path):
+		var backup_result = directory.rename(path.get_file(), path.get_file() + ".bak")
+		if backup_result != OK:
+			push_warning("Failed to back up save file: %s" % backup_result)
+			return false
+	var rename_result = _promote_save(directory, temporary_path.get_file(), path.get_file())
 	if rename_result != OK:
-		push_error("Failed to commit save file: ", rename_result)
-		if FileAccess.file_exists(temporary_path):
-			directory.remove(temporary_path.get_file())
+		push_warning("Failed to commit save file; previous save retained: %s" % rename_result)
 		return false
 	return true
+
+func _promote_save(directory: DirAccess, source: String, destination: String) -> Error:
+	return directory.rename(source, destination)
+
+func _open_saved_file(path: String) -> FileAccess:
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file and FileAccess.get_open_error() == ERR_FILE_NOT_FOUND:
+		return FileAccess.open(path + ".bak", FileAccess.READ)
+	return file
 
 func save_game_state(data: Dictionary) -> bool:
 	var save_data = data.duplicate(true)
 	save_data["version"] = SAVE_VERSION
-	return _write_text_atomically(save_file_path, JSON.stringify(save_data))
+	return _write_text_safely(save_file_path, JSON.stringify(save_data))
 
 func load_game_state() -> Dictionary:
-	var file = FileAccess.open(save_file_path, FileAccess.READ)
+	var file = _open_saved_file(save_file_path)
 	if not file:
 		if FileAccess.get_open_error() != ERR_FILE_NOT_FOUND:
 			push_error("Failed to open save file for reading: ", FileAccess.get_open_error())
@@ -185,7 +194,7 @@ func _has_valid_physics_scalars(data: Dictionary) -> bool:
 	return not data.has("is_grounded") or data.is_grounded is bool
 
 func has_saved_game() -> bool:
-	var file = FileAccess.open(save_file_path, FileAccess.READ)
+	var file = _open_saved_file(save_file_path)
 	if not file:
 		return false
 	var json_string = file.get_as_text()
@@ -200,29 +209,29 @@ func has_saved_game() -> bool:
 	return is_valid_save_data(data)
 
 func delete_save_game() -> bool:
-	# Probe with a direct open instead of FileAccess.file_exists(), whose
-	# result can lag behind the Web virtual filesystem state.
-	var file = FileAccess.open(save_file_path, FileAccess.READ)
-	if not file:
-		if FileAccess.get_open_error() == ERR_FILE_NOT_FOUND:
-			return true
-		push_error("Failed to inspect save file: ", FileAccess.get_open_error())
-		return false
-	file.close()
-
-	var dir = DirAccess.open(save_file_path.get_base_dir())
-	if not dir:
+	var directory = DirAccess.open(save_file_path.get_base_dir())
+	if not directory:
 		push_error("Failed to open user directory: ", DirAccess.get_open_error())
 		return false
-	
-	var result = dir.remove(save_file_path.get_file())
-	if result != OK:
-		push_error("Failed to delete save file: ", result)
-		return false
+	# Remove recovery files before the primary, so New Game or death cannot
+	# resurrect an earlier session after a successful deletion.
+	for suffix in [".bak", ".tmp", ""]:
+		var path = save_file_path + suffix
+		var file = FileAccess.open(path, FileAccess.READ)
+		if not file:
+			if FileAccess.get_open_error() == ERR_FILE_NOT_FOUND:
+				continue
+			push_error("Failed to inspect save file: ", FileAccess.get_open_error())
+			return false
+		file.close()
+		var result = directory.remove(path.get_file())
+		if result != OK:
+			push_error("Failed to delete save file: ", result)
+			return false
 	return true
 
 func get_best_score() -> int:
-	var file = FileAccess.open(best_score_file_path, FileAccess.READ)
+	var file = _open_saved_file(best_score_file_path)
 	if not file:
 		return 0
 
@@ -236,4 +245,4 @@ func save_best_score(score: int) -> bool:
 	if score <= get_best_score():
 		return true
 
-	return _write_text_atomically(best_score_file_path, str(score))
+	return _write_text_safely(best_score_file_path, str(score))

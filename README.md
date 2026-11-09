@@ -13,7 +13,8 @@ between overhead and angled arena views. Retry starts a fresh run after death.
 Switching away from the window pauses and saves the run; resume explicitly when you return.
 Menus support keyboard navigation with arrow keys, Tab, and Enter.
 The pause menu returns to the main menu with a resumable save. Active games also
-autosave every five seconds; best scores persist across runs.
+autosave every five seconds; best scores persist across runs. Focus loss also saves
+when already paused. Holding a pause or camera key does not repeatedly toggle it.
 
 ## Gameplay systems
 
@@ -70,12 +71,17 @@ directory is removed after verification; no APPDATA or XDG overrides are needed.
 Test scenes refuse to run against player saves. Release builds ignore this
 override. Normal Windows saves remain in
 `%APPDATA%\Godot\app_userdata\snake3d`; the project name stays stable to preserve
-existing saves.
+existing saves. Save replacement retains a `.bak` recovery copy before promoting
+the new file. If an interrupted write leaves the primary missing, Continue,
+gameplay loading, and best-score loading read the backup. Starting a new run or
+ending a run clears the session's backup and temporary files as well, preventing
+an old session from reappearing.
 
 Coverage includes rapid pickups, forward impulses and their speed cap, turning,
 grounded body persistence, recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, inactivity, wall
-death, and malformed save validation. Headless tests do not establish GPU, sound,
+death, failed-save recovery, recovery-file cleanup, key-repeat handling, and
+malformed save validation. Headless tests do not establish GPU, sound,
 or display scaling behavior; also check the native window on target hardware.
 
 ## Exporting

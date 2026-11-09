@@ -95,6 +95,8 @@ func _physics_process(delta: float) -> void:
 	DebugTelemetry.record_sample(_build_debug_trace_sample())
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_echo():
+		return
 	if event.is_action_pressed("toggle_camera_angle"):
 		camera.toggle_view()
 	if event.is_action_pressed("ui_cancel"):
@@ -616,8 +618,9 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		# Alt-Tab and minimizing must not leave a live snake in danger. Resume
 		# remains an explicit choice when the player returns to the window.
-		if is_node_ready() and not is_game_over and not is_paused and not is_gameplay_paused:
-			toggle_pause()
+		if is_node_ready() and not is_game_over:
+			if not is_paused and not is_gameplay_paused:
+				toggle_pause()
 			save_game_state()
 	elif what == NOTIFICATION_WM_CLOSE_REQUEST:
 		if is_quitting:

@@ -24,12 +24,21 @@ def run(engine, project, environment, arguments, timeout, marker=None, rendered=
         # A Windows .cmd launcher owns a child engine process; killing only
         # the wrapper would leave Godot running and the test files locked.
         if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            cleanup = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     timeout=10)
+            if cleanup.returncode and process.poll() is None:
+                raise RuntimeError(f"Could not stop Godot process tree {process.pid}")
         else:
             import signal
-            os.killpg(process.pid, signal.SIGKILL)
-        output, _ = process.communicate()
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass  # The process group exited while the timeout was handled.
+        try:
+            output, _ = process.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Godot cleanup did not finish for process tree {process.pid}")
         print(output, end="", flush=True)
         raise
     if process.returncode or "ERROR:" in output:
