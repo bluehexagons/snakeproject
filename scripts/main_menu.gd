@@ -17,6 +17,13 @@ func _ready() -> void:
 	# Web storage commits asynchronously. Refresh once after the scene enters
 	# the tree so a save made immediately before returning here is discoverable.
 	call_deferred("_refresh_continue_button")
+	call_deferred("_focus_default_button")
+
+func _focus_default_button() -> void:
+	if continue_button.visible:
+		continue_button.grab_focus()
+	else:
+		$Panel/VBoxContainer/NewGameButton.grab_focus()
 
 func _on_viewport_size_changed() -> void:
 	_fit_panel_to_viewport()

@@ -1,13 +1,25 @@
 extends Node
 
-const SAVE_FILE = "user://save_game.dat"
-const BEST_SCORE_FILE = "user://best_score.dat"
+var save_file_path = "user://save_game.dat"
+var best_score_file_path = "user://best_score.dat"
 const SAVE_VERSION = 1
 const MAX_SAVED_SCORE = 2147483647
 const MAX_SAVED_POSITION = 1000.0
 const MAX_SAVED_SEGMENTS = 1000
 const MAX_SAVED_FOOD = 100
 const MAX_SAVED_ROCKS = 1000
+
+# Verification explicitly redirects both files on every native platform. Release
+# builds always use user://, even if the environment contains a test override.
+func _init() -> void:
+	var test_directory = OS.get_environment("SNAKE3D_TEST_DATA_DIR")
+	if OS.is_debug_build() and not test_directory.is_empty():
+		save_file_path = test_directory.path_join("save_game.dat")
+		best_score_file_path = test_directory.path_join("best_score.dat")
+		if not test_directory.is_absolute_path() or not DirAccess.dir_exists_absolute(test_directory):
+			push_error("Test data directory must be an existing absolute path")
+			Engine.get_main_loop().quit(1)
+			return
 
 func is_supported_save_version(version: Variant) -> bool:
 	var version_type := typeof(version)
@@ -46,9 +58,13 @@ func _write_text_atomically(path: String, contents: String) -> bool:
 
 	file.store_string(contents)
 	file.flush()
+	var write_result = file.get_error()
 	file.close()
+	if write_result != OK:
+		push_error("Failed to write save file: ", write_result)
+		return false
 
-	var directory = DirAccess.open("user://")
+	var directory = DirAccess.open(path.get_base_dir())
 	if not directory:
 		push_error("Failed to open user directory: ", DirAccess.get_open_error())
 		return false
@@ -57,14 +73,8 @@ func _write_text_atomically(path: String, contents: String) -> bool:
 	if rename_result == OK:
 		return true
 
-	# Some platforms do not replace an existing file during rename. The fully
-	# written temporary file is safe to promote after removing the old copy.
-	if FileAccess.file_exists(path):
-		var remove_result = directory.remove(path.get_file())
-		if remove_result != OK:
-			push_error("Failed to replace save file: ", remove_result)
-			return false
-		rename_result = directory.rename(temporary_path.get_file(), path.get_file())
+	# Preserve the previous save if Windows denies replacement (for example,
+	# while another process locks it). Never delete it to retry a failed rename.
 
 	if rename_result != OK:
 		push_error("Failed to commit save file: ", rename_result)
@@ -76,10 +86,10 @@ func _write_text_atomically(path: String, contents: String) -> bool:
 func save_game_state(data: Dictionary) -> bool:
 	var save_data = data.duplicate(true)
 	save_data["version"] = SAVE_VERSION
-	return _write_text_atomically(SAVE_FILE, JSON.stringify(save_data))
+	return _write_text_atomically(save_file_path, JSON.stringify(save_data))
 
 func load_game_state() -> Dictionary:
-	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
+	var file = FileAccess.open(save_file_path, FileAccess.READ)
 	if not file:
 		if FileAccess.get_open_error() != ERR_FILE_NOT_FOUND:
 			push_error("Failed to open save file for reading: ", FileAccess.get_open_error())
@@ -175,7 +185,7 @@ func _has_valid_physics_scalars(data: Dictionary) -> bool:
 	return not data.has("is_grounded") or data.is_grounded is bool
 
 func has_saved_game() -> bool:
-	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
+	var file = FileAccess.open(save_file_path, FileAccess.READ)
 	if not file:
 		return false
 	var json_string = file.get_as_text()
@@ -192,7 +202,7 @@ func has_saved_game() -> bool:
 func delete_save_game() -> bool:
 	# Probe with a direct open instead of FileAccess.file_exists(), whose
 	# result can lag behind the Web virtual filesystem state.
-	var file = FileAccess.open(SAVE_FILE, FileAccess.READ)
+	var file = FileAccess.open(save_file_path, FileAccess.READ)
 	if not file:
 		if FileAccess.get_open_error() == ERR_FILE_NOT_FOUND:
 			return true
@@ -200,19 +210,19 @@ func delete_save_game() -> bool:
 		return false
 	file.close()
 
-	var dir = DirAccess.open("user://")
+	var dir = DirAccess.open(save_file_path.get_base_dir())
 	if not dir:
 		push_error("Failed to open user directory: ", DirAccess.get_open_error())
 		return false
 	
-	var result = dir.remove(SAVE_FILE.get_file())
+	var result = dir.remove(save_file_path.get_file())
 	if result != OK:
 		push_error("Failed to delete save file: ", result)
 		return false
 	return true
 
 func get_best_score() -> int:
-	var file = FileAccess.open(BEST_SCORE_FILE, FileAccess.READ)
+	var file = FileAccess.open(best_score_file_path, FileAccess.READ)
 	if not file:
 		return 0
 
@@ -226,4 +236,4 @@ func save_best_score(score: int) -> bool:
 	if score <= get_best_score():
 		return true
 
-	return _write_text_atomically(BEST_SCORE_FILE, str(score))
+	return _write_text_atomically(best_score_file_path, str(score))

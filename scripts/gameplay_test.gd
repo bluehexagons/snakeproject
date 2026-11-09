@@ -13,6 +13,10 @@ func _ready() -> void:
 	call_deferred("run")
 
 func run() -> void:
+	if GameState.save_file_path.begins_with("user://"):
+		push_error("Run tests using scripts/verify_project.py to isolate player saves")
+		get_tree().quit(1)
+		return
 	GameState.delete_save_game()
 	var main = MAIN.instantiate()
 	add_child(main)
@@ -64,7 +68,17 @@ func run() -> void:
 	for frame in 60:
 		await get_tree().physics_frame
 	check(player.linear_velocity.length() < 0.2, "Player did not stop after releasing input")
+	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	check(main.is_paused and GameState.has_saved_game(), "Focus loss did not pause and save the run")
+	check(main.ui.get_node("PauseMenu/VBoxContainer/ResumeButton").has_focus(), "Pause menu has no keyboard focus")
+	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	check(main.is_paused, "Repeated focus loss resumed gameplay")
+	main.notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	check(main.is_paused, "Returning to the window resumed gameplay without consent")
+	main.toggle_pause()
 	main.toggle_gameplay_pause()
+	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	check(main.is_gameplay_paused and not main.is_paused, "Focus loss changed an existing Space pause")
 	var paused_position = player.global_position
 	var paused_growth = player.segments[0].growth_timer
 	for frame in 30:
@@ -106,7 +120,7 @@ func run() -> void:
 			break
 	Input.action_release("move_right")
 	check(main.is_game_over and player.has_lost, "Wall collision failed to end the run")
-	check(not FileAccess.file_exists(GameState.SAVE_FILE), "Game over retained a resumable dead session")
+	check(not FileAccess.file_exists(GameState.save_file_path), "Game over retained a resumable dead session")
 	main.free()
 	Engine.time_scale = 1.0
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])

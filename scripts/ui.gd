@@ -75,9 +75,12 @@ func set_gameplay_paused(is_paused: bool) -> void:
 
 func toggle_pause_menu(is_paused: bool) -> void:
 	pause_menu.visible = is_paused
+	if is_paused:
+		$PauseMenu/VBoxContainer/ResumeButton.grab_focus()
 
 func show_game_over(final_score: int, best_score: int, is_new_best: bool) -> void:
 	game_over_menu.visible = true
+	$GameOverMenu/VBoxContainer/RetryButton.grab_focus()
 	$GameOverMenu/VBoxContainer/ScoreLabel.text = "Final Score: %d" % final_score
 	$GameOverMenu/VBoxContainer/SummaryLabel.text = "NEW BEST SCORE!" if is_new_best else "Best Score: %d" % best_score
 

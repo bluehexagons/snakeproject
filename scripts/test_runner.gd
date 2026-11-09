@@ -27,6 +27,10 @@ func _ready() -> void:
 	call_deferred("run")
 
 func run() -> void:
+	if GameState.save_file_path.begins_with("user://"):
+		push_error("Run tests using scripts/verify_project.py to isolate player saves")
+		get_tree().quit(1)
+		return
 	var failed := false
 	if not GameState.is_supported_save_version(1) or not GameState.is_supported_save_version(1.0):
 		push_error("Save version validation rejected a supported numeric version")

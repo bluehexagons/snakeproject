@@ -10,6 +10,8 @@ without losing the run.
 
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
 between overhead and angled arena views. Retry starts a fresh run after death.
+Switching away from the window pauses and saves the run; resume explicitly when you return.
+Menus support keyboard navigation with arrow keys, Tab, and Enter.
 The pause menu returns to the main menu with a resumable save. Active games also
 autosave every five seconds; best scores persist across runs.
 
@@ -29,26 +31,70 @@ from segment positions and restore fallen segments to the playing surface.
 
 ## Verification
 
-Open the project in Godot 4.7.2 with matching export templates and run the main scene. Run automated checks with:
+Use the standard (non-.NET) Godot **4.7.2** editor. The project uses the
+Compatibility renderer and Jolt physics on Windows and Linux. No Basaltwater
+installation is required. Open `project.godot` and run the main scene.
+
+Automated verification requires **Python 3.10+** and Godot on PATH. On native
+Windows, use PowerShell:
+
+```powershell
+.\scripts\verify_project.ps1
+.\scripts\verify_project.ps1 -Rendered
+# If Godot is not on PATH, select the console executable explicitly:
+.\scripts\verify_project.ps1 -Godot 'C:\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe'
+```
+
+On Linux or macOS:
 
 ```sh
 ./scripts/verify_project.sh
 ```
 
-The script imports resources and runs smoke and gameplay regression scenes in a
-temporary user-data directory, leaving real saves untouched. Gameplay coverage
-includes rapid pickups, forward impulses and their speed cap, turning, grounded
-body persistence, recovery of fallen saved paths, braking, pause, save/resume
-ordering, inactivity, and wall death. Smoke checks also reject malformed save
-fields consistently in both the Continue menu and gameplay loader.
+You can also invoke the shared runner directly from the project root:
 
-Basaltwater on Debian is the reference development environment, following the
-[shared project standards](https://github.com/bluehexagons/basaltwater/blob/main/docs/agents/project-standards.md).
-The editor also supports native development on CachyOS and Windows 11 without
-Basaltwater. Run the verification script with Bash and Linux `godot` on PATH
-(including inside WSL); its temporary `XDG_DATA_HOME` isolates Linux saves.
-Native Windows editor and export testing is a separate manual check. Use matching
-export templates for the selected Godot version.
+```sh
+python scripts/verify_project.py --godot godot --timeout 120
+```
+
+Use `python3` on systems where Python is installed under that name. `GODOT`
+also selects the engine executable. The runner imports resources, then requires
+successful completion of both smoke and gameplay regression scenes. Engine
+errors, missing success markers, nonzero exits, and per-check timeouts fail
+verification. On Windows, timeout cleanup includes the launcher's child engine.
+Use `--rendered` (PowerShell: `-Rendered`) to run both scenes with native graphics.
+
+Both saves and best scores go to a temporary directory through the debug-only
+`SNAKE3D_TEST_DATA_DIR` override, which must be an existing absolute path. The
+directory is removed after verification; no APPDATA or XDG overrides are needed.
+Test scenes refuse to run against player saves. Release builds ignore this
+override. Normal Windows saves remain in
+`%APPDATA%\Godot\app_userdata\snake3d`; the project name stays stable to preserve
+existing saves.
+
+Coverage includes rapid pickups, forward impulses and their speed cap, turning,
+grounded body persistence, recovery of fallen saved paths, braking, pause,
+focus-loss save/pause, keyboard focus, save/resume ordering, inactivity, wall
+death, and malformed save validation. Headless tests do not establish GPU, sound,
+or display scaling behavior; also check the native window on target hardware.
+
+## Exporting
+
+Install **4.7.2 export templates** from Godot's **Editor → Manage Export
+Templates** before exporting. Create output folders first:
+
+```powershell
+New-Item -ItemType Directory -Force build/windows | Out-Null
+godot --headless --path . --export-release 'Windows Desktop'
+```
+
+The x86-64 Windows preset writes `build/windows/snake3d.exe` and its companion
+`.pck`; distribute them together. Test the release on Windows, including resizing,
+Alt-Tab, keyboard menu navigation, pause/resume, and closing a live run. No signing
+credentials are configured. The Web preset writes `build/web/index.html` (create
+`build/web` first). Serve the generated web files through an HTTP server rather
+than opening the HTML file directly. Build outputs are ignored by Git, and test
+scenes and verification tools are excluded from both export presets.
 
 On a Basaltwater host with the Godot web bundle, optionally export and publish
 for browser testing:

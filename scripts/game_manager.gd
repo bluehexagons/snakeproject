@@ -613,7 +613,13 @@ func spawn_initial_food() -> void:
 		print("Emergency food spawn at fixed position")
 
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		# Alt-Tab and minimizing must not leave a live snake in danger. Resume
+		# remains an explicit choice when the player returns to the window.
+		if is_node_ready() and not is_game_over and not is_paused and not is_gameplay_paused:
+			toggle_pause()
+			save_game_state()
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST:
 		if is_quitting:
 			return
 		is_quitting = true
