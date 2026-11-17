@@ -105,6 +105,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
 	base_data["is_dangerous"] = is_dangerous
+	base_data["is_spawning"] = is_spawning
+	base_data["spawn_timer"] = spawn_timer
 	base_data["rotation"] = {
 		"x": rotation.x,
 		"y": rotation.y,
@@ -122,9 +124,19 @@ func restore_from_save_data(data: Dictionary) -> void:
 	rotation = _vector_from_data(data.get("rotation"), rotation)
 	angular_velocity = _vector_from_data(data.get("angular_velocity"), angular_velocity)
 	is_initialized = true
-	spawn_timer = SPAWN_DURATION
-	spawn_progress = 1.0
-	finish_spawn()
+	# Legacy saves have no entrance state and retain their full-sized restore.
+	is_spawning = bool(data.get("is_spawning", false))
+	spawn_timer = clampf(float(data.get("spawn_timer", SPAWN_DURATION)), 0.0, SPAWN_DURATION)
+	spawn_progress = spawn_timer / SPAWN_DURATION
+	if is_spawning and spawn_timer < SPAWN_DURATION:
+		gravity_scale = spawn_progress * spawn_progress
+		axis_lock_angular_x = true
+		axis_lock_angular_z = true
+	else:
+		spawn_timer = SPAWN_DURATION
+		spawn_progress = 1.0
+		finish_spawn()
+	reset_physics_interpolation()
 	if data.get("is_dangerous", false):
 		make_dangerous()
 

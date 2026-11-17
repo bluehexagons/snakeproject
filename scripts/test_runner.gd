@@ -98,11 +98,28 @@ func run() -> void:
 	var test_rock = ROCK_SCENE.instantiate()
 	add_child(test_rock)
 	test_rock.setup_rock(Vector3(2, 0, 3))
+	test_rock._physics_process(0.25)
+	var saved_scale = test_rock.current_scale
+	var saved_gravity = test_rock.gravity_scale
 	var saved_rock_data = test_rock.get_save_data()
 	test_rock.position = Vector3.ZERO
 	test_rock.restore_from_save_data(saved_rock_data)
 	if test_rock.global_position.distance_to(Vector3(2, 15, 3)) > 0.001:
 		push_error("Rock restore did not preserve the saved transform")
+		failed = true
+	if not test_rock.is_spawning or not is_equal_approx(test_rock.spawn_timer, 0.25) or not is_equal_approx(test_rock.current_scale, saved_scale) or not is_equal_approx(test_rock.gravity_scale, saved_gravity) or not test_rock.axis_lock_angular_x or not test_rock.axis_lock_angular_z:
+		push_error("Rock restore skipped its saved entrance animation")
+		failed = true
+	test_rock._physics_process(Rock.SPAWN_DURATION)
+	if test_rock.is_spawning or not is_equal_approx(test_rock.current_scale, 1.0) or not is_equal_approx(test_rock.gravity_scale, 1.0) or test_rock.axis_lock_angular_x or test_rock.axis_lock_angular_z:
+		push_error("Restored rock did not finish its entrance animation")
+		failed = true
+	var legacy_rock_data = saved_rock_data.duplicate(true)
+	legacy_rock_data.erase("is_spawning")
+	legacy_rock_data.erase("spawn_timer")
+	test_rock.restore_from_save_data(legacy_rock_data)
+	if test_rock.is_spawning or not is_equal_approx(test_rock.current_scale, 1.0):
+		push_error("Legacy rock save did not restore as a full-sized rock")
 		failed = true
 	test_rock.queue_free()
 	await get_tree().process_frame
@@ -160,6 +177,8 @@ func _check_save_validation() -> bool:
 	for entry in [
 		{"rocks": [{"position": {"x": 0, "y": 1, "z": 0}, "current_scale": {}}]},
 		{"rocks": [{"position": {"x": 0, "y": 1, "z": 0}, "is_dangerous": "false"}]},
+		{"rocks": [{"position": {"x": 0, "y": 1, "z": 0}, "is_spawning": "false"}]},
+		{"rocks": [{"position": {"x": 0, "y": 1, "z": 0}, "spawn_timer": {}}]},
 		{"food_positions": [null]},
 	]:
 		var malformed = valid.duplicate(true)

@@ -180,7 +180,10 @@ func is_valid_save_data(data: Dictionary) -> bool:
 			return false
 		if not _has_valid_physics_scalars(rock_data):
 			return false
-		if rock_data.has("is_dangerous") and not rock_data.is_dangerous is bool:
+		for key in ["is_dangerous", "is_spawning"]:
+			if rock_data.has(key) and not rock_data[key] is bool:
+				return false
+		if rock_data.has("spawn_timer") and not _is_finite_number(rock_data.spawn_timer):
 			return false
 		for key in ["physics_pos", "visual_pos", "velocity", "rotation", "angular_velocity"]:
 			if rock_data.has(key) and not is_valid_saved_vector(rock_data.get(key)):
