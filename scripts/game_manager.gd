@@ -559,6 +559,17 @@ func load_game_state() -> bool:
 			# the next physics tick cannot send them underground again.
 			restored_point.y = 0.35
 			player.trail.append(restored_point)
+
+	var saved_rocks: Variant = save_data.get("rocks", [])
+	if saved_rocks is Array:
+		for rock_data in saved_rocks:
+			if not rock_data is Dictionary:
+				continue
+			var rock = ROCK_SCENE.instantiate()
+			gameplay_container.add_child(rock)
+			rock.restore_from_save_data(rock_data)
+
+	# Replacement food must account for every restored hazard and rock.
 	var saved_food_positions: Variant = save_data.get("food_positions", [])
 	if saved_food_positions is Array and not saved_food_positions.is_empty():
 		for food_pos in saved_food_positions:
@@ -571,15 +582,7 @@ func load_game_state() -> bool:
 	else:
 		spawn_initial_food()
 	
-	var saved_rocks: Variant = save_data.get("rocks", [])
-	if saved_rocks is Array:
-		for rock_data in saved_rocks:
-			if not rock_data is Dictionary:
-				continue
-			var rock = ROCK_SCENE.instantiate()
-			gameplay_container.add_child(rock)
-			rock.restore_from_save_data(rock_data)
-	
+
 	score = max(int(save_data.get("score", 0)), 0)
 	update_score(0)
 	return true

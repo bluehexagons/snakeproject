@@ -131,7 +131,45 @@ func run() -> void:
 	check(not GameState.has_saved_game() and not FileAccess.file_exists(GameState.save_file_path + ".bak"), "Game over retained a resumable dead session")
 	main.free()
 	Engine.time_scale = 1.0
+	_check_empty_food_resume()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
 	if not failed:
 		print("Gameplay regression passed")
 	get_tree().quit(1 if failed else 0)
+
+func _check_empty_food_resume() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.5, "z": 0}},
+		"food_positions": [],
+		"rocks": [],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write empty-food save fixture")
+	seed(42)
+	var main = MAIN.instantiate()
+	add_child(main)
+	# Place saved hazards at the exact locations the same random sequence
+	# chooses in an empty arena. Food generation must see the restored rocks.
+	for food in get_tree().get_nodes_in_group("food"):
+		if food.is_queued_for_deletion():
+			continue
+		fixture.rocks.append({
+			"position": {"x": food.position.x, "y": 0.5, "z": food.position.z},
+			"is_dangerous": true,
+		})
+	check(fixture.rocks.size() >= main.MIN_FOOD_COUNT, "Empty-food fixture failed to generate food")
+	main.free()
+	check(GameState.save_game_state(fixture), "Failed to write saved-hazard fixture")
+	seed(42)
+	main = MAIN.instantiate()
+	add_child(main)
+	var food_count = 0
+	for food in get_tree().get_nodes_in_group("food"):
+		if food.is_queued_for_deletion():
+			continue
+		food_count += 1
+		for rock in get_tree().get_nodes_in_group("rock"):
+			check(main._horizontal_distance(food.position, rock.position) >= 1.0, "Replacement food overlapped a restored hazard")
+	check(food_count >= main.MIN_FOOD_COUNT, "Resume did not replenish an empty food list")
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear saved-hazard fixture")
