@@ -132,6 +132,7 @@ func run() -> void:
 	main.free()
 	Engine.time_scale = 1.0
 	_check_empty_food_resume()
+	_check_crowded_food_refill()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
 	if not failed:
 		print("Gameplay regression passed")
@@ -173,3 +174,28 @@ func _check_empty_food_resume() -> void:
 	check(food_count >= main.MIN_FOOD_COUNT, "Resume did not replenish an empty food list")
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear saved-hazard fixture")
+
+func _check_crowded_food_refill() -> void:
+	var main = MAIN.instantiate()
+	add_child(main)
+	for group in ["rock", "food"]:
+		for node in get_tree().get_nodes_in_group(group):
+			node.queue_free()
+	# Cover the spawn area with hazard markers, then clear it without a pickup.
+	var hazards = Node3D.new()
+	main.gameplay_container.add_child(hazards)
+	for x in range(-8, 9):
+		for z in range(-8, 9):
+			var hazard = Node3D.new()
+			hazard.position = Vector3(x, 0, z)
+			hazard.add_to_group("dangerous")
+			hazards.add_child(hazard)
+	main._refill_food()
+	var food = get_tree().get_nodes_in_group("food").filter(func(item): return not item.is_queued_for_deletion())
+	check(food.is_empty(), "Crowded arena spawned food on a hazard")
+	hazards.free()
+	main._process(main.AUTOSAVE_INTERVAL)
+	food = get_tree().get_nodes_in_group("food").filter(func(item): return not item.is_queued_for_deletion())
+	check(food.size() == main.MIN_FOOD_COUNT, "Active game did not refill food after the spawn area opened up")
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear food refill fixture")

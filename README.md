@@ -31,6 +31,8 @@ builds. Saved paths preserve turns on resume; older saves reconstruct the path
 from segment positions and restore fallen segments to the playing surface.
 Rocks saved during their entrance animation resume at the same growth stage.
 If a save has no food, replacements are placed after its rocks are restored.
+When the arena is too crowded for safe placement, active play retries food
+spawns on the five-second autosave interval.
 
 ## Verification
 
@@ -83,8 +85,8 @@ Coverage includes rapid pickups, forward impulses and their speed cap, turning,
 grounded body persistence, recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, inactivity, wall
 death, failed-save recovery, recovery-file cleanup, key-repeat handling, and
-malformed save validation, rock entrance recovery, and replacement food spacing
-around restored hazards. Headless tests do not establish GPU, sound,
+malformed save validation, rock entrance recovery, and food placement around
+hazards and in crowded arenas. Headless tests do not establish GPU, sound,
 or display scaling behavior; also check the native window on target hardware.
 
 ## Exporting

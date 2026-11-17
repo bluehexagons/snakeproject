@@ -17,7 +17,6 @@ const SAFE_SPAWN_DISTANCE = 4.0
 const SAFE_FORWARD_ANGLE = 60.0
 
 const MIN_FOOD_COUNT = 3
-const MAX_FOOD_COUNT = 5
 const MIN_FOOD_DISTANCE = 3.0
 const PREFERRED_PLAYER_DISTANCE = 8.0
 const MIN_PLAYER_DISTANCE = 2.0
@@ -78,6 +77,8 @@ func _process(delta: float) -> void:
 		return
 
 	autosave_elapsed = fmod(autosave_elapsed, AUTOSAVE_INTERVAL)
+	# Crowded arenas can open up as rocks move, even without a pickup.
+	_refill_food()
 	# Browser tabs can be refreshed or closed without sending a reliable close
 	# notification, so keep the resumable session reasonably current.
 	save_game_state()
@@ -231,113 +232,63 @@ func _bind_player(new_player: Player) -> void:
 	player.player_lost.connect(_on_player_lost)
 	ui.set_player(player)
 
-func spawn_food(force_spawn: bool = false) -> bool:
-	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return not f.is_queued_for_deletion() and f.is_available())
-	var current_count = available_food.size()
-	
-	if current_count >= MAX_FOOD_COUNT:
-		return false
-	
-	if !force_spawn and current_count >= MIN_FOOD_COUNT:
-		return false
-	
-	var food = FOOD_SCENE.instantiate()
-	gameplay_container.add_child(food)
-	
-	var valid_position = false
-	var best_distance = 0.0
-	var best_position = Vector3.ZERO
-	var current_player: Player = player if is_instance_valid(player) else null
-	
-	for _attempt in range(MAX_FOOD_SPAWN_ATTEMPTS):
-		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.9, SPAWN_AREA_SIZE.x * 0.9)
-		var random_z = randf_range(-SPAWN_AREA_SIZE.y * 0.9, SPAWN_AREA_SIZE.y * 0.9)
-		var pos = Vector3(random_x, 0, random_z)
-		
-		var min_distance_to_danger = INF
-		var min_distance_to_rock = INF
-		var min_distance_to_food = INF
-		var distance_to_player = INF if not current_player else current_player.global_position.distance_to(pos)
-		
-		if current_player and distance_to_player < MIN_PLAYER_DISTANCE:
-			continue
-		
-		for node in get_tree().get_nodes_in_group("dangerous"):
-			if not node.is_queued_for_deletion():
-				min_distance_to_danger = min(min_distance_to_danger, _horizontal_distance(node.global_position, pos))
-		
-		for rock in get_tree().get_nodes_in_group("rock"):
-			if not rock.is_queued_for_deletion():
-				min_distance_to_rock = min(min_distance_to_rock, _horizontal_distance(rock.global_position, pos))
-		
-		for other_food in available_food:
-			if other_food != food:
-				min_distance_to_food = min(min_distance_to_food, _horizontal_distance(other_food.global_position, pos))
-		
-		if min_distance_to_danger > MIN_FOOD_DANGER_DISTANCE and min_distance_to_rock > MIN_FOOD_ROCK_DISTANCE and min_distance_to_food > MIN_FOOD_DISTANCE:
-			var base_spacing = min(min_distance_to_danger, min(min_distance_to_rock, min_distance_to_food))
-			
-			var position_score = base_spacing
-			if current_player:
-				var distance_factor = 1.0 - abs(distance_to_player - PREFERRED_PLAYER_DISTANCE) / PREFERRED_PLAYER_DISTANCE
-				position_score *= (1.0 + distance_factor)
-			
-			if position_score > best_distance:
-				best_distance = position_score
-				best_position = pos
-				valid_position = true
-	
-	if valid_position:
-		food.position = best_position
-		print("Food spawned at: ", best_position, " with score: ", best_distance)
-		return true
-	
-	print("Failed to spawn food after %d attempts" % MAX_FOOD_SPAWN_ATTEMPTS)
-	food.queue_free()
-	
-	if force_spawn:
-		push_warning("Retrying force spawn with relaxed constraints")
-		return spawn_food_relaxed()
-	
-	return false
+func _refill_food() -> void:
+	var available_food = get_tree().get_nodes_in_group("food").filter(
+		func(food): return not food.is_queued_for_deletion() and food.is_available()
+	)
+	if available_food.size() >= MIN_FOOD_COUNT:
+		return
 
-func spawn_food_relaxed() -> bool:
-	var food = FOOD_SCENE.instantiate()
-	gameplay_container.add_child(food)
-	var current_player: Player = player if is_instance_valid(player) else null
-	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return f != food and not f.is_queued_for_deletion() and f.is_available())
-	
-	for _attempt in range(MAX_RELAXED_FOOD_SPAWN_ATTEMPTS):
-		var random_x = randf_range(-SPAWN_AREA_SIZE.x * 0.8, SPAWN_AREA_SIZE.x * 0.8)
-		var random_z = randf_range(-SPAWN_AREA_SIZE.y * 0.8, SPAWN_AREA_SIZE.y * 0.8)
-		var pos = Vector3(random_x, 0, random_z)
-		if current_player and _horizontal_distance(current_player.global_position, pos) < MIN_PLAYER_DISTANCE:
+	var hazards = get_tree().get_nodes_in_group("dangerous").filter(
+		func(node): return not node.is_queued_for_deletion()
+	)
+	var rocks = get_tree().get_nodes_in_group("rock").filter(
+		func(rock): return not rock.is_queued_for_deletion()
+	)
+	while available_food.size() < MIN_FOOD_COUNT:
+		var spawn_position: Variant = _find_food_spawn_position(available_food, hazards, rocks)
+		if spawn_position == null:
+			break
+		var food = FOOD_SCENE.instantiate()
+		food.position = spawn_position
+		gameplay_container.add_child(food)
+		available_food.append(food)
+
+func _find_food_spawn_position(foods: Array, hazards: Array, rocks: Array) -> Variant:
+	var best_position: Variant = null
+	var best_score = 0.0
+	for attempt in range(MAX_FOOD_SPAWN_ATTEMPTS + MAX_RELAXED_FOOD_SPAWN_ATTEMPTS):
+		var relaxed = attempt >= MAX_FOOD_SPAWN_ATTEMPTS
+		if relaxed and best_position != null:
+			break
+		var area = SPAWN_AREA_SIZE * (0.8 if relaxed else 0.9)
+		var candidate = Vector3(randf_range(-area.x, area.x), 0, randf_range(-area.y, area.y))
+		var player_distance = _horizontal_distance(player.global_position, candidate)
+		if player_distance < MIN_PLAYER_DISTANCE:
 			continue
-		
-		var valid = true
-		for node in get_tree().get_nodes_in_group("dangerous"):
-			if not node.is_queued_for_deletion() and _horizontal_distance(node.global_position, pos) < 1.0:
-				valid = false
-				break
-		if valid:
-			for rock in get_tree().get_nodes_in_group("rock"):
-				if not rock.is_queued_for_deletion() and _horizontal_distance(rock.global_position, pos) < MIN_FOOD_ROCK_DISTANCE:
-					valid = false
-					break
-		if valid:
-			for other_food in available_food:
-				if _horizontal_distance(other_food.global_position, pos) < MIN_FOOD_DISTANCE * 0.5:
-					valid = false
-					break
-		
-		if valid:
-			food.position = pos
-			print("Food force spawned at: ", pos)
-			return true
-	
-	print("Failed to force spawn food even with relaxed constraints")
-	food.queue_free()
-	return false
+
+		var rock_distance = _nearest_horizontal_distance(candidate, rocks)
+		var hazard_distance = _nearest_horizontal_distance(candidate, hazards)
+		var food_distance = _nearest_horizontal_distance(candidate, foods)
+		var food_spacing = MIN_FOOD_DISTANCE * (0.5 if relaxed else 1.0)
+		if rock_distance <= MIN_FOOD_ROCK_DISTANCE or hazard_distance <= MIN_FOOD_DANGER_DISTANCE or food_distance <= food_spacing:
+			continue
+		if relaxed:
+			return candidate
+
+		var spacing = minf(hazard_distance, minf(rock_distance, food_distance))
+		var distance_factor = 1.0 - absf(player_distance - PREFERRED_PLAYER_DISTANCE) / PREFERRED_PLAYER_DISTANCE
+		var candidate_score = spacing * (1.0 + distance_factor)
+		if candidate_score > best_score:
+			best_score = candidate_score
+			best_position = candidate
+	return best_position
+
+func _nearest_horizontal_distance(position: Vector3, nodes: Array) -> float:
+	var nearest = INF
+	for node in nodes:
+		nearest = minf(nearest, _horizontal_distance(node.global_position, position))
+	return nearest
 
 func spawn_initial_rocks() -> void:
 	for i in range(INITIAL_ROCKS):
@@ -413,13 +364,7 @@ func _on_player_food_collected(total_food_eaten: int) -> void:
 	if total_food_eaten % ROCKS_SPAWN_INTERVAL == 0:
 		spawn_rock()
 	
-	var available_food = get_tree().get_nodes_in_group("food").filter(func(f): return not f.is_queued_for_deletion() and f.is_available())
-	var current_food_count = available_food.size()
-	
-	while current_food_count < MIN_FOOD_COUNT:
-		if not spawn_food(true):
-			break
-		current_food_count += 1
+	_refill_food()
 
 func _on_player_score_earned(points: int, popup_position: Vector3) -> void:
 	if is_game_over:
@@ -531,7 +476,7 @@ func load_game_state() -> bool:
 			push_warning("Ignoring invalid save data and starting a new game")
 			GameState.delete_save_game()
 		spawn_player()
-		spawn_initial_food()
+		_refill_food()
 		spawn_initial_rocks()
 		return false
 		
@@ -580,7 +525,7 @@ func load_game_state() -> bool:
 			food.position = _vector_from_data(food_pos)
 			food.position.y = 0.0
 	else:
-		spawn_initial_food()
+		_refill_food()
 	
 
 	score = max(int(save_data.get("score", 0)), 0)
@@ -598,24 +543,6 @@ func _vector_from_data(data: Variant) -> Vector3:
 		float(data.get("y", 0.0)),
 		float(data.get("z", 0.0))
 	)
-
-func spawn_initial_food() -> void:
-	for food in get_tree().get_nodes_in_group("food"):
-		food.queue_free()
-	
-	var success_count = 0
-	for i in range(MIN_FOOD_COUNT):
-		if spawn_food(true):
-			success_count += 1
-	
-	if success_count < MIN_FOOD_COUNT:
-		push_warning("Only spawned " + str(success_count) + " out of " + str(MIN_FOOD_COUNT) + " initial food items")
-	
-	if success_count == 0:
-		var food = FOOD_SCENE.instantiate()
-		gameplay_container.add_child(food)
-		food.position = Vector3(SPAWN_AREA_SIZE.x * 0.5, 0, SPAWN_AREA_SIZE.y * 0.5)
-		print("Emergency food spawn at fixed position")
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
