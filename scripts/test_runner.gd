@@ -63,6 +63,8 @@ func run() -> void:
 		failed = true
 	if not _check_interrupted_save():
 		failed = true
+	if not _check_corrupt_primary():
+		failed = true
 
 	for path in LOAD_TARGETS:
 		var resource := load(path)
@@ -185,7 +187,10 @@ func _check_save_validation() -> bool:
 		malformed.merge(entry)
 		cases.append(malformed)
 	for malformed in cases:
-		if not GameState.save_game_state(malformed):
+		if GameState.save_game_state(malformed):
+			push_error("Save writer accepted invalid game data")
+			return false
+		if not _write_fixture(GameState.save_file_path, JSON.stringify(malformed)):
 			push_error("Failed to write malformed-save fixture")
 			return false
 		if GameState.is_valid_save_data(malformed) or GameState.has_saved_game():
@@ -201,9 +206,11 @@ func _check_interrupted_save() -> bool:
 	storage.save_file_path = GameState.save_file_path.get_base_dir().path_join("failure-save.dat")
 	storage.best_score_file_path = GameState.save_file_path.get_base_dir().path_join("failure-best.dat")
 	var original = {"score": 10, "player_state": {"position": {"x": 0, "y": 0.5, "z": 0}}}
+	var newer = original.duplicate()
+	newer.score = 20
 	var passed = storage.save_game_state(original) and storage.save_best_score(10)
 	storage.fail_promotion = true
-	passed = not storage.save_game_state({"score": 20}) and passed
+	passed = not storage.save_game_state(newer) and passed
 	passed = not storage.save_best_score(20) and passed
 	# A missing primary after failed promotion must be recoverable by both
 	# Continue and the gameplay loader, including after restarting the process.
@@ -221,3 +228,39 @@ func _check_interrupted_save() -> bool:
 	if not passed:
 		push_error("Interrupted save recovery, cleanup, or subsequent write failed")
 	return passed
+
+func _check_corrupt_primary() -> bool:
+	var storage = FailingSave.new()
+	var directory = GameState.save_file_path.get_base_dir()
+	storage.save_file_path = directory.path_join("corrupt-save.dat")
+	storage.best_score_file_path = directory.path_join("corrupt-best.dat")
+	var original = {"score": 10, "player_state": {"position": {"x": 0, "y": 0.5, "z": 0}}}
+	var newer = original.duplicate()
+	newer.score = 20
+	var passed = storage.save_game_state(original) and storage.save_game_state(newer)
+	passed = (storage.save_best_score(10) and storage.save_best_score(20)) and passed
+	passed = _write_fixture(storage.save_file_path, '{"score": 20}') and passed
+	passed = storage.has_saved_game() and storage.load_game_state().get("score") == 10 and passed
+	passed = _write_fixture(storage.save_file_path, "{") and passed
+	passed = _write_fixture(storage.best_score_file_path, "broken") and passed
+	passed = storage.has_saved_game() and storage.load_game_state().get("score") == 10 and passed
+	passed = storage.get_best_score() == 10 and passed
+	# A failed write after recovery must leave the last valid copy intact.
+	storage.fail_promotion = true
+	passed = not storage.save_game_state(newer) and not storage.save_best_score(20) and passed
+	passed = storage.load_game_state().get("score") == 10 and storage.get_best_score() == 10 and passed
+	storage.fail_promotion = false
+	passed = storage.save_game_state(newer) and storage.save_best_score(20) and passed
+	passed = storage.load_game_state().get("score") == 20 and storage.get_best_score() == 20 and passed
+	storage.free()
+	if not passed:
+		push_error("Corrupt primary hid a valid backup or a subsequent write lost recovery data")
+	return passed
+
+func _write_fixture(path: String, contents: String) -> bool:
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	if not file:
+		return false
+	file.store_string(contents)
+	file.flush()
+	return file.get_error() == OK

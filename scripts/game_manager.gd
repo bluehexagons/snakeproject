@@ -471,10 +471,7 @@ func load_game_state() -> bool:
 		food.queue_free()
 	
 	var save_data = GameState.load_game_state()
-	if save_data.is_empty() or not GameState.is_valid_save_data(save_data):
-		if not save_data.is_empty():
-			push_warning("Ignoring invalid save data and starting a new game")
-			GameState.delete_save_game()
+	if save_data.is_empty():
 		spawn_player()
 		_refill_food()
 		spawn_initial_rocks()

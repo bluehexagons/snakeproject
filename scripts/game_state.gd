@@ -49,7 +49,7 @@ func _is_finite_number(value: Variant) -> bool:
 	var numeric_value := float(value)
 	return not is_nan(numeric_value) and not is_inf(numeric_value)
 
-func _write_text_safely(path: String, contents: String) -> bool:
+func _write_text_safely(path: String, contents: String, keep_backup: bool) -> bool:
 	var temporary_path = path + ".tmp"
 	var file = FileAccess.open(temporary_path, FileAccess.WRITE)
 	if not file:
@@ -70,54 +70,45 @@ func _write_text_safely(path: String, contents: String) -> bool:
 		return false
 
 	# Godot's Windows rename removes an existing destination before moving.
-	# Move the old save aside first so a failed promotion or interrupted write
-	# leaves a recoverable copy. Readers use it only when the primary is absent.
+	# Keep the recovery copy if the primary is unreadable or invalid.
 	if FileAccess.file_exists(path):
-		var backup_result = directory.rename(path.get_file(), path.get_file() + ".bak")
-		if backup_result != OK:
-			push_warning("Failed to back up save file: %s" % backup_result)
+		var filename = path.get_file()
+		var prepare_result = directory.remove(filename) if keep_backup else directory.rename(filename, filename + ".bak")
+		if prepare_result != OK:
+			push_warning("Failed to prepare save file for replacement: %s" % prepare_result)
 			return false
 	var rename_result = _promote_save(directory, temporary_path.get_file(), path.get_file())
 	if rename_result != OK:
-		push_warning("Failed to commit save file; previous save retained: %s" % rename_result)
+		push_warning("Failed to commit save file: %s" % rename_result)
 		return false
 	return true
 
 func _promote_save(directory: DirAccess, source: String, destination: String) -> Error:
 	return directory.rename(source, destination)
 
-func _open_saved_file(path: String) -> FileAccess:
-	var file = FileAccess.open(path, FileAccess.READ)
-	if not file and FileAccess.get_open_error() == ERR_FILE_NOT_FOUND:
-		return FileAccess.open(path + ".bak", FileAccess.READ)
-	return file
-
 func save_game_state(data: Dictionary) -> bool:
-	var save_data = data.duplicate(true)
+	var save_data = data.duplicate()
 	save_data["version"] = SAVE_VERSION
-	return _write_text_safely(save_file_path, JSON.stringify(save_data))
+	if not is_valid_save_data(save_data):
+		return false
+	var keep_backup = FileAccess.file_exists(save_file_path + ".bak") and _read_game_save(save_file_path).is_empty()
+	return _write_text_safely(save_file_path, JSON.stringify(save_data), keep_backup)
 
 func load_game_state() -> Dictionary:
-	var file = _open_saved_file(save_file_path)
+	var data = _read_game_save(save_file_path)
+	return _read_game_save(save_file_path + ".bak") if data.is_empty() else data
+
+func _read_game_save(path: String) -> Dictionary:
+	var file = FileAccess.open(path, FileAccess.READ)
 	if not file:
-		if FileAccess.get_open_error() != ERR_FILE_NOT_FOUND:
-			push_error("Failed to open save file for reading: ", FileAccess.get_open_error())
 		return {}
-	
-	var json_string = file.get_as_text()
-	file.close()
 	
 	var json = JSON.new()
-	var parse_result = json.parse(json_string)
-	if parse_result != OK:
-		push_error("JSON Parse Error: ", json.get_error_message())
+	if json.parse(file.get_as_text()) != OK:
 		return {}
-		
 	var data = json.get_data()
-	if typeof(data) != TYPE_DICTIONARY:
-		push_error("Invalid save data format")
+	if not data is Dictionary or not is_valid_save_data(data):
 		return {}
-		
 	return data
 
 func is_valid_save_data(data: Dictionary) -> bool:
@@ -197,19 +188,7 @@ func _has_valid_physics_scalars(data: Dictionary) -> bool:
 	return not data.has("is_grounded") or data.is_grounded is bool
 
 func has_saved_game() -> bool:
-	var file = _open_saved_file(save_file_path)
-	if not file:
-		return false
-	var json_string = file.get_as_text()
-	file.close()
-
-	var json = JSON.new()
-	if json.parse(json_string) != OK:
-		return false
-	var data = json.get_data()
-	if not data is Dictionary:
-		return false
-	return is_valid_save_data(data)
+	return not load_game_state().is_empty()
 
 func delete_save_game() -> bool:
 	var directory = DirAccess.open(save_file_path.get_base_dir())
@@ -234,18 +213,26 @@ func delete_save_game() -> bool:
 	return true
 
 func get_best_score() -> int:
-	var file = _open_saved_file(best_score_file_path)
-	if not file:
-		return 0
+	var score = _read_best_score(best_score_file_path)
+	return maxi(_read_best_score(best_score_file_path + ".bak"), 0) if score < 0 else score
 
-	var value = file.get_as_text().to_int()
-	file.close()
-	return clampi(value, 0, MAX_SAVED_SCORE)
+func _read_best_score(path: String) -> int:
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file:
+		return -1
+	var score_text = file.get_as_text().strip_edges()
+	if not score_text.is_valid_int():
+		return -1
+	var score = score_text.to_int()
+	return score if score >= 0 and score <= MAX_SAVED_SCORE else -1
 
 func save_best_score(score: int) -> bool:
 	if score < 0 or score > MAX_SAVED_SCORE:
 		return false
-	if score <= get_best_score():
+	var primary_score = _read_best_score(best_score_file_path)
+	var keep_backup = primary_score < 0 and FileAccess.file_exists(best_score_file_path + ".bak")
+	var best = maxi(_read_best_score(best_score_file_path + ".bak"), 0) if keep_backup else maxi(primary_score, 0)
+	if score <= best:
 		return true
 
-	return _write_text_safely(best_score_file_path, str(score))
+	return _write_text_safely(best_score_file_path, str(score), keep_backup)

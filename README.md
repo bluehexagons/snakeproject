@@ -76,17 +76,18 @@ Test scenes refuse to run against player saves. Release builds ignore this
 override. Normal Windows saves remain in
 `%APPDATA%\Godot\app_userdata\snake3d`; the project name stays stable to preserve
 existing saves. Save replacement retains a `.bak` recovery copy before promoting
-the new file. If an interrupted write leaves the primary missing, Continue,
-gameplay loading, and best-score loading read the backup. Starting a new run or
-ending a run clears the session's backup and temporary files as well, preventing
-an old session from reappearing.
+the new file. Continue, gameplay loading, and best-score loading use a valid
+backup if the primary is missing or damaged. Subsequent writes preserve that
+backup until a valid primary is available. Starting a new run or ending a run
+clears the session's backup and temporary files as well, preventing an old
+session from reappearing.
 
 Coverage includes rapid pickups, forward impulses and their speed cap, turning,
 grounded body persistence, recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, inactivity, wall
-death, failed-save recovery, recovery-file cleanup, key-repeat handling, and
-malformed save validation, rock entrance recovery, and food placement around
-hazards and in crowded arenas. Headless tests do not establish GPU, sound,
+death, interrupted or corrupt save recovery, recovery-file cleanup, key-repeat
+handling, malformed save validation, rock entrance recovery, and food placement
+around hazards and in crowded arenas. Headless tests do not establish GPU, sound,
 or display scaling behavior; also check the native window on target hardware.
 
 ## Exporting
