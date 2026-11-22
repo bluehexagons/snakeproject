@@ -9,6 +9,12 @@ signal player_lost
 
 const BASE_COLOR = Color(0.2, 0.4, 1.0)
 const BASE_EMISSION = Color(0.2, 0.4, 1.0)
+const STUCK_WARNING_COLOR = Color(0.55, 0.55, 0.55)
+const STUCK_DANGER_COLOR = Color(1.0, 0.2, 0.2)
+const STUCK_MIN_SPEED = 1.5
+const STUCK_CHECK_INTERVAL = 0.5
+const STUCK_WARNING_START = 1.0
+const STUCK_TIMEOUT = 3.0
 const BASE_MAX_SPEED = 8.0
 const SPEED_BOOST_BASE = 1.0
 const BONUS_SPEED_PER_FEED = 0.025
@@ -40,6 +46,9 @@ var pending_pickup_impulse: float = 0.0
 var pickup_speed_bonus: float = 0.0
 var previous_pickup_position: Vector3
 var pickup_position_initialized: bool = false
+var stuck_elapsed: float = 0.0
+var motion_sample_elapsed: float = 0.0
+var motion_sample_start: Vector2
 
 func _ready() -> void:
 	super()
@@ -73,7 +82,9 @@ func _physics_process(delta: float) -> void:
 		input_dir = right * raw_input.x - forward * raw_input.y
 		if not input_dir.is_zero_approx():
 			has_started_moving = true
-		_collect_food()
+		_update_stuck(delta)
+		if not has_lost:
+			_collect_food()
 	_update_body(delta)
 	if is_digesting:
 		digestion_timer += delta
@@ -81,6 +92,39 @@ func _physics_process(delta: float) -> void:
 		mesh_instance.scale = Vector3.ONE * (1.0 + sin(progress * PI) * 0.15)
 		if progress >= 1.0:
 			finish_digestion()
+
+func _update_stuck(delta: float) -> void:
+	if not has_started_moving or unkillable:
+		stuck_elapsed = 0.0
+		motion_sample_elapsed = 0.0
+		_update_stuck_color(delta)
+		return
+
+	var position_xz = Vector2(global_position.x, global_position.z)
+	if motion_sample_elapsed == 0.0:
+		motion_sample_start = position_xz
+	motion_sample_elapsed += delta
+	var distance = motion_sample_start.distance_to(position_xz)
+	# Net horizontal movement filters out vertical bounce and contact jitter.
+	if distance >= STUCK_MIN_SPEED * maxf(motion_sample_elapsed, STUCK_CHECK_INTERVAL):
+		stuck_elapsed = 0.0
+	if motion_sample_elapsed + 0.000001 >= STUCK_CHECK_INTERVAL:
+		var sample_duration = maxf(motion_sample_elapsed, STUCK_CHECK_INTERVAL)
+		if distance < STUCK_MIN_SPEED * sample_duration:
+			stuck_elapsed += sample_duration
+		motion_sample_elapsed = 0.0
+	if stuck_elapsed + 0.000001 >= STUCK_TIMEOUT:
+		lose()
+	else:
+		_update_stuck_color(delta)
+
+func _update_stuck_color(delta: float) -> void:
+	var warning = clampf((stuck_elapsed - STUCK_WARNING_START) / (STUCK_TIMEOUT - STUCK_WARNING_START), 0.0, 1.0)
+	var color = BASE_COLOR
+	if stuck_elapsed >= STUCK_WARNING_START:
+		color = STUCK_WARNING_COLOR.lerp(STUCK_DANGER_COLOR, warning)
+	var blend = 1.0 - exp(-12.0 * delta)
+	apply_color(current_color.lerp(color, blend), BASE_EMISSION.lerp(STUCK_DANGER_COLOR, warning), 0.6 + warning)
 
 func _collect_food() -> void:
 	var start = previous_pickup_position if pickup_position_initialized else global_position
@@ -175,6 +219,8 @@ func get_save_data() -> Dictionary:
 	}
 	base_data["food_eaten"] = food_eaten
 	base_data["current_speed_boost"] = current_speed_boost
+	base_data["has_started_moving"] = has_started_moving
+	base_data["stuck_elapsed"] = stuck_elapsed
 	base_data["segments"] = get_segment_positions()
 	var saved_trail: Array[Dictionary] = []
 	for point in trail:
@@ -202,6 +248,8 @@ func restore_from_save(data: Dictionary) -> void:
 	food_eaten = max(int(state.get("food_eaten", 0)), 0)
 	current_speed_boost = clampf(float(state.get("current_speed_boost", SPEED_BOOST_BASE)), SPEED_BOOST_BASE, MAX_SPEED_BOOST)
 	max_speed = calculate_max_speed(current_speed_boost)
+	has_started_moving = state.get("has_started_moving", false)
+	stuck_elapsed = float(state.get("stuck_elapsed", 0.0)) if has_started_moving else 0.0
 
 func _vector_from_save(data: Variant, fallback: Vector3) -> Vector3:
 	if not data is Dictionary:

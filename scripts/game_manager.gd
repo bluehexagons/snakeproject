@@ -199,7 +199,7 @@ func _build_debug_trace_sample() -> Dictionary:
 			"paused": is_paused or is_gameplay_paused,
 			"lost": is_game_over,
 			"active_input": Input.get_vector("move_left", "move_right", "move_up", "move_down").length_squared() > 0.0,
-			"inactivity": 0.0,
+			"inactivity": player.stuck_elapsed if is_instance_valid(player) else 0.0,
 		},
 	}
 

@@ -119,12 +119,12 @@ func run() -> void:
 		var saved = saved_positions[index].position
 		check(player.segments[index].position.distance_to(Vector3(saved.x, saved.y, saved.z)) < 0.01, "Save/resume reversed the body order")
 	var stayed_grounded = true
-	for frame in 240:
+	for frame in 70:
 		await get_tree().physics_frame
 		for segment in player.segments:
 			stayed_grounded = stayed_grounded and absf(segment.position.y - 0.35) < 0.01
 	check(stayed_grounded, "Saved trail pulled a recovered body off the ground")
-	check(not player.has_lost, "Intentional inactivity killed the player")
+	check(not player.has_lost, "A brief stop after resuming killed the player")
 	for segment in player.segments:
 		check(segment.position.y > 0.3 and is_equal_approx(segment.current_scale, 1.0), "Resumed body disappeared or failed to finish growth")
 		check(segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "Resumed body stayed intangible")
@@ -140,6 +140,7 @@ func run() -> void:
 	main.free()
 	Engine.time_scale = 1.0
 	await _check_body_contacts()
+	await _check_stuck_loss()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
@@ -226,6 +227,80 @@ func _check_body_contacts() -> void:
 	main.free()
 	Engine.time_scale = 1.0
 	check(GameState.delete_save_game(), "Failed to clear body collision fixture")
+
+func _check_stuck_loss() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.4, "z": 0}},
+		"food_positions": [{"x": -6, "y": 0, "z": -6}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write inactivity fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	var player: Player = main.player
+	for frame in 190:
+		await get_tree().physics_frame
+	check(not main.is_game_over and player.stuck_elapsed == 0.0, "Inactivity killed the player before their first move")
+
+	Input.action_press("move_right")
+	for frame in 24:
+		await get_tree().physics_frame
+	Input.action_release("move_right")
+	for frame in 110:
+		await get_tree().physics_frame
+	check(player.stuck_elapsed >= Player.STUCK_WARNING_START and not main.is_game_over, "Stopping did not give the player time to recover")
+	await get_tree().process_frame
+	check(main.ui.hint_label.visible and main.ui.hint_label.text.begins_with("KEEP MOVING"), "Stuck warning was missing from the HUD")
+
+	var before_pause = player.stuck_elapsed
+	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	for frame in 125:
+		await get_tree().physics_frame
+	check(is_equal_approx(player.stuck_elapsed, before_pause) and not main.is_game_over, "Inactivity advanced while the run was paused")
+	main.free()
+	main = MAIN.instantiate()
+	add_child(main)
+	player = main.player
+	check(player.has_started_moving and is_equal_approx(player.stuck_elapsed, before_pause), "Resume lost the active inactivity countdown")
+
+	Input.action_press("move_down")
+	for frame in 24:
+		await get_tree().physics_frame
+	Input.action_release("move_down")
+	check(is_zero_approx(player.stuck_elapsed) and not main.is_game_over, "Moving before the deadline did not clear the warning")
+
+	for frame in 130:
+		await get_tree().physics_frame
+	check(not main.is_game_over, "A stop ended the run before the three-second timeout")
+	for frame in 105:
+		await get_tree().physics_frame
+		if main.is_game_over:
+			break
+	check(main.is_game_over and not GameState.has_saved_game(), "Staying stopped did not end the live run and clear its save")
+	main.free()
+
+	check(GameState.save_game_state(fixture), "Failed to write blocked-motion fixture")
+	main = MAIN.instantiate()
+	add_child(main)
+	player = main.player
+	var blocker = StaticBody3D.new()
+	var collider = CollisionShape3D.new()
+	var box = BoxShape3D.new()
+	box.size = Vector3(0.5, 2.0, 4.0)
+	collider.shape = box
+	blocker.add_child(collider)
+	blocker.position = Vector3(1.0, 0.9, 0.0)
+	main.gameplay_container.add_child(blocker)
+	await get_tree().physics_frame
+	Input.action_press("move_right")
+	for frame in 225:
+		await get_tree().physics_frame
+		if main.is_game_over:
+			break
+	Input.action_release("move_right")
+	check(main.is_game_over and player.position.x < 0.5, "Holding movement against a blocker bypassed the stuck timeout")
+	main.free()
+	Engine.time_scale = 1.0
 
 func _check_empty_food_resume() -> void:
 	var fixture = {

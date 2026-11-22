@@ -6,8 +6,9 @@ Move with **WASD or arrow keys**, collect glowing food, and avoid red walls and
 red rocks. Each pickup adds a body piece, awards 10 points, increases cruising
 speed slightly, and gives the snake a forward impulse. The head bumps into blue
 body pieces, and rocks can deflect the body. A piece that hits a wall turns red
-and is lethal to the head. Releasing movement brakes the head. You can stop
-without losing the run.
+and is lethal to the head. Releasing movement brakes the head. Once you start
+moving, make steady progress to survive. If you stop or get pinned, the head
+changes color and a countdown warns you before the three-second timeout.
 
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
 between overhead and angled arena views. Retry starts a fresh run after death.
@@ -87,7 +88,8 @@ session from reappearing.
 Coverage includes rapid pickups, forward impulses and their speed cap, turning,
 head and rock contact with the body, wall-touched pieces turning lethal,
 grounded body persistence, recovery of fallen saved paths, braking, pause,
-focus-loss save/pause, keyboard focus, save/resume ordering, inactivity, wall
+focus-loss save/pause, keyboard focus, save/resume ordering, stuck warnings,
+recovery, loss while stopped or blocked, wall
 death, interrupted or corrupt save recovery, recovery-file cleanup, key-repeat
 handling, malformed save validation, rock entrance recovery, and food placement
 around hazards and in crowded arenas. Headless tests do not establish GPU, sound,

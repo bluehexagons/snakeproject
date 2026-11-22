@@ -59,7 +59,11 @@ func _process(delta: float) -> void:
 	var length = player.segments.size() + 1
 	stats_label.text = "LENGTH %02d   SPEED %.1fx" % [length, player.current_speed_boost]
 	if player.has_started_moving:
-		hint_label.visible = false
+		hint_label.visible = player.stuck_elapsed >= Player.STUCK_WARNING_START and not (
+			pause_menu.visible or gameplay_pause_label.visible or game_over_menu.visible
+		)
+		if hint_label.visible:
+			hint_label.text = "KEEP MOVING  ·  %.1fs" % maxf(Player.STUCK_TIMEOUT - player.stuck_elapsed, 0.0)
 	else:
 		hint_elapsed += delta
 		hint_label.visible = hint_elapsed < 8.0

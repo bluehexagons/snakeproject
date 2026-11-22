@@ -134,6 +134,12 @@ func is_valid_save_data(data: Dictionary) -> bool:
 		return false
 	if player_state.has("current_speed_boost") and not _is_finite_number(player_state.current_speed_boost):
 		return false
+	if player_state.has("has_started_moving") and not player_state.has_started_moving is bool:
+		return false
+	if player_state.has("stuck_elapsed"):
+		var elapsed = player_state.stuck_elapsed
+		if not _is_finite_number(elapsed) or elapsed < 0.0 or elapsed >= Player.STUCK_TIMEOUT:
+			return false
 
 	var segments: Variant = player_state.get("segments", [])
 	if not segments is Array or segments.size() > MAX_SAVED_SEGMENTS:

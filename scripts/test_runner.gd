@@ -155,13 +155,17 @@ func _check_save_validation() -> bool:
 		push_error("Minimal legacy save was rejected")
 		return false
 	var cases: Array[Dictionary] = []
-	for field in ["food_eaten", "current_speed_boost", "current_scale", "ground_contact_timer", "is_grounded"]:
+	for field in ["food_eaten", "current_speed_boost", "current_scale", "ground_contact_timer", "is_grounded", "has_started_moving", "stuck_elapsed"]:
 		var malformed = valid.duplicate(true)
 		malformed.player_state[field] = {}
 		cases.append(malformed)
 	for count in [-1, 1.5, 2147483648]:
 		var malformed = valid.duplicate(true)
 		malformed.player_state.food_eaten = count
+		cases.append(malformed)
+	for elapsed in [-1.0, Player.STUCK_TIMEOUT]:
+		var malformed = valid.duplicate(true)
+		malformed.player_state.stuck_elapsed = elapsed
 		cases.append(malformed)
 	for value in [NAN, INF]:
 		var malformed = valid.duplicate(true)
