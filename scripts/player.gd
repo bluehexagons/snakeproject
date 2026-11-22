@@ -98,10 +98,10 @@ func _physics_process(delta: float) -> void:
 			_update_body(delta)
 	if is_digesting:
 		digestion_timer += delta
-		var progress = minf(digestion_timer / DIGESTION_DURATION, 1.0)
-		mesh_instance.scale = Vector3.ONE * (1.0 + sin(progress * PI) * 0.15)
-		if progress >= 1.0:
+		if digestion_timer >= DIGESTION_DURATION:
 			finish_digestion()
+		else:
+			_update_digestion_mesh()
 
 func _update_stuck(delta: float) -> void:
 	if not has_started_moving or unkillable:
@@ -237,8 +237,17 @@ func get_save_data() -> Dictionary:
 	}
 	base_data["food_eaten"] = food_eaten
 	base_data["current_speed_boost"] = current_speed_boost
+	base_data["pending_pickup_impulse"] = pending_pickup_impulse
+	base_data["pickup_speed_bonus"] = pickup_speed_bonus
+	if is_digesting:
+		base_data["digestion_timer"] = digestion_timer
 	base_data["has_started_moving"] = has_started_moving
 	base_data["stuck_elapsed"] = stuck_elapsed
+	if motion_sample_elapsed > 0.0:
+		base_data["motion_sample"] = {
+			"elapsed": motion_sample_elapsed,
+			"start": {"x": motion_sample_start.x, "y": 0.0, "z": motion_sample_start.y},
+		}
 	base_data["segments"] = get_segment_positions()
 	var saved_trail: Array[Dictionary] = []
 	for point in trail:
@@ -254,7 +263,9 @@ func restore_from_save(data: Dictionary) -> void:
 	restore_from_save_data(state)
 	# Old digestion saves may contain a pulsing collider or a fallen head.
 	apply_physics_scale(1.0, true)
-	global_position.y = maxf(global_position.y, 0.5)
+	if global_position.y < 0.3:
+		global_position.y = 0.5
+		linear_velocity.y = 0.0
 	facing_direction.y = 0.0
 	var saved_facing_direction: Variant = state.get("facing_direction")
 	if saved_facing_direction is Dictionary:
@@ -266,8 +277,18 @@ func restore_from_save(data: Dictionary) -> void:
 	food_eaten = max(int(state.get("food_eaten", 0)), 0)
 	current_speed_boost = clampf(float(state.get("current_speed_boost", SPEED_BOOST_BASE)), SPEED_BOOST_BASE, MAX_SPEED_BOOST)
 	max_speed = calculate_max_speed(current_speed_boost)
+	pending_pickup_impulse = float(state.get("pending_pickup_impulse", 0.0))
+	pickup_speed_bonus = float(state.get("pickup_speed_bonus", 0.0))
+	if state.has("digestion_timer"):
+		is_digesting = true
+		digestion_timer = float(state.digestion_timer)
+		_update_digestion_mesh()
 	has_started_moving = state.get("has_started_moving", false)
 	stuck_elapsed = float(state.get("stuck_elapsed", 0.0)) if has_started_moving else 0.0
+	if has_started_moving and state.has("motion_sample"):
+		var sample: Dictionary = state.motion_sample
+		motion_sample_elapsed = float(sample.elapsed)
+		motion_sample_start = Vector2(sample.start.x, sample.start.z)
 
 func _vector_from_save(data: Variant, fallback: Vector3) -> Vector3:
 	if not data is Dictionary:
@@ -294,6 +315,10 @@ func die() -> void:
 func start_digestion() -> void:
 	is_digesting = true
 	digestion_timer = 0.0
+
+func _update_digestion_mesh() -> void:
+	var progress = clampf(digestion_timer / DIGESTION_DURATION, 0.0, 1.0)
+	mesh_instance.scale = Vector3.ONE * (1.0 + sin(progress * PI) * 0.15)
 
 func finish_digestion() -> void:
 	is_digesting = false

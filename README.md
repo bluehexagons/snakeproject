@@ -37,7 +37,9 @@ visible and control axes stable.
 movement, collisions, and growth. `GameState` handles persistence. `DebugTelemetry`
 is inert in release builds. Saved paths preserve turns on resume, and older
 saves reconstruct the path from segment positions. Fallen segments return to
-the playing surface.
+the playing surface. Saves preserve queued lunges, active pickup boosts, the
+digestion pulse, and the current inactivity sample. Solid segments keep their
+collision and velocity when resumed.
 Rocks saved during their entrance animation resume at the same growth stage.
 If a save has no food, replacements are placed after its rocks are restored.
 When the arena is too crowded for safe placement, active play retries food
@@ -96,7 +98,7 @@ Coverage includes rapid pickups, speed-based scoring, capped forward impulses,
 momentum through turns, reversals, diagonal steering, head and rock contact
 with the body, rock impacts and breakage, wall-touched pieces turning lethal,
 grounded body persistence, recovery of fallen saved paths, braking, pause,
-focus-loss save/pause, keyboard focus, save/resume ordering, stuck warnings,
+focus-loss save/pause, keyboard focus, save/resume ordering, momentum, stuck warnings,
 recovery, loss while stopped or blocked, arena falls, death and body breakup,
 interrupted or corrupt save recovery, recovery-file cleanup, key-repeat
 handling, malformed save validation, rock entrance recovery, and pickups and

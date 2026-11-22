@@ -140,6 +140,22 @@ func is_valid_save_data(data: Dictionary) -> bool:
 		var elapsed = player_state.stuck_elapsed
 		if not _is_finite_number(elapsed) or elapsed < 0.0 or elapsed >= Player.STUCK_TIMEOUT:
 			return false
+	for key in ["pending_pickup_impulse", "pickup_speed_bonus"]:
+		if player_state.has(key):
+			var boost = player_state[key]
+			if not _is_finite_number(boost) or boost < 0.0 or boost > Player.MAX_PICKUP_BOOST:
+				return false
+	if player_state.has("digestion_timer"):
+		var elapsed = player_state.digestion_timer
+		if not _is_finite_number(elapsed) or elapsed < 0.0 or elapsed >= Player.DIGESTION_DURATION:
+			return false
+	if player_state.has("motion_sample"):
+		var sample = player_state.motion_sample
+		if not sample is Dictionary or not is_valid_saved_vector(sample.get("start")):
+			return false
+		var elapsed = sample.get("elapsed")
+		if not _is_finite_number(elapsed) or elapsed < 0.0 or elapsed >= Player.STUCK_CHECK_INTERVAL:
+			return false
 
 	var segments: Variant = player_state.get("segments", [])
 	if not segments is Array or segments.size() > MAX_SAVED_SEGMENTS:
@@ -151,9 +167,10 @@ func is_valid_save_data(data: Dictionary) -> bool:
 			return false
 		if segment_data.has("growth") and not _is_finite_number(segment_data.growth):
 			return false
-		if segment_data.has("is_dangerous") and not segment_data.is_dangerous is bool:
-			return false
-		for key in ["physics_pos", "visual_pos", "velocity"]:
+		for key in ["is_dangerous", "is_solid"]:
+			if segment_data.has(key) and not segment_data[key] is bool:
+				return false
+		for key in ["physics_pos", "visual_pos", "velocity", "path_target"]:
 			if segment_data.has(key) and not is_valid_saved_vector(segment_data.get(key)):
 				return false
 

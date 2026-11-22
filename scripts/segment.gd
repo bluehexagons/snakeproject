@@ -59,10 +59,13 @@ func _enable_collisions_if_clear() -> void:
 	query.transform = collision_shape.global_transform
 	query.collision_mask = SOLID_MASK
 	if get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty():
-		collision_layer = PhysicsConstants.LAYER_SEGMENT
-		collision_mask = SOLID_MASK
-		freeze = false
-		linear_velocity = path_velocity.limit_length(MAX_FOLLOW_SPEED)
+		_enable_collisions(path_velocity)
+
+func _enable_collisions(velocity: Vector3) -> void:
+	collision_layer = PhysicsConstants.LAYER_SEGMENT
+	collision_mask = SOLID_MASK
+	freeze = false
+	linear_velocity = Vector3(velocity.x, 0.0, velocity.z).limit_length(MAX_FOLLOW_SPEED)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	if is_detached:
@@ -109,13 +112,20 @@ func get_save_data() -> Dictionary:
 	var data = super.get_save_data()
 	data["growth"] = growth_timer / SegmentConstants.GROWTH_DURATION
 	data["is_dangerous"] = is_dangerous
+	data["is_solid"] = not freeze
+	data["path_target"] = {"x": path_target.x, "y": path_target.y, "z": path_target.z}
 	return data
 
 func init_from_save_data(data: Dictionary) -> void:
 	global_position = _vector_from_data(data.get("position"), global_position)
 	global_position.y = SegmentConstants.CENTER_HEIGHT
-	path_target = global_position
+	path_target = _vector_from_data(data.get("path_target"), global_position)
+	path_target.y = SegmentConstants.CENTER_HEIGHT
 	init_with_growth(float(data.get("growth", 1.0)))
+	if data.get("is_solid", false) and growth_timer >= SegmentConstants.GROWTH_DURATION:
+		path_velocity = _vector_from_data(data.get("velocity"), Vector3.ZERO)
+		path_velocity.y = 0.0
+		_enable_collisions(path_velocity)
 	if data.get("is_dangerous", false):
 		make_dangerous()
 	reset_physics_interpolation()

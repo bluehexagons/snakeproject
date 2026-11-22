@@ -155,7 +155,9 @@ func _check_save_validation() -> bool:
 		push_error("Minimal legacy save was rejected")
 		return false
 	var cases: Array[Dictionary] = []
-	for field in ["food_eaten", "current_speed_boost", "current_scale", "ground_contact_timer", "is_grounded", "has_started_moving", "stuck_elapsed"]:
+	for field in ["food_eaten", "current_speed_boost", "current_scale", "ground_contact_timer",
+			"is_grounded", "has_started_moving", "stuck_elapsed", "pending_pickup_impulse",
+			"pickup_speed_bonus", "digestion_timer"]:
 		var malformed = valid.duplicate(true)
 		malformed.player_state[field] = {}
 		cases.append(malformed)
@@ -175,6 +177,13 @@ func _check_save_validation() -> bool:
 			return false
 	for entry in [
 		{"segments": [{"position": {"x": 0, "y": 0.35, "z": 0}, "growth": []}]},
+		{"segments": [{"position": {"x": 0, "y": 0.35, "z": 0}, "is_solid": "true"}]},
+		{"segments": [{"position": {"x": 0, "y": 0.35, "z": 0}, "path_target": {}}]},
+		{"pickup_speed_bonus": Player.MAX_PICKUP_BOOST + 1.0},
+		{"pending_pickup_impulse": -1.0},
+		{"digestion_timer": Player.DIGESTION_DURATION},
+		{"motion_sample": {"start": {"x": 0, "y": 0, "z": 0}, "elapsed": Player.STUCK_CHECK_INTERVAL}},
+		{"motion_sample": {"start": {"x": "bad", "y": 0, "z": 0}, "elapsed": 0.1}},
 		{"trail": [{"x": "bad", "y": 0, "z": 0}]},
 	]:
 		var malformed = valid.duplicate(true)

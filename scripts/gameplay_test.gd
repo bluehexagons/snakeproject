@@ -107,6 +107,8 @@ func run() -> void:
 	var fallen_save = GameState.load_game_state()
 	for segment_data in fallen_save.player_state.segments:
 		segment_data.position.y = -3.0
+		segment_data.erase("is_solid")
+		segment_data.erase("path_target")
 	for point in fallen_save.player_state.trail:
 		point.y = -3.0
 	check(GameState.save_game_state(fallen_save), "Failed to write fallen-body fixture")
@@ -145,6 +147,7 @@ func run() -> void:
 	await _check_body_contacts()
 	await _check_stuck_loss()
 	await _check_speed_scoring()
+	await _check_resume_momentum()
 	await _check_handling()
 	await _check_rock_impacts()
 	await _check_pickup_clearance()
@@ -262,15 +265,20 @@ func _check_stuck_loss() -> void:
 	check(main.ui.hint_label.visible and main.ui.hint_label.text.begins_with("KEEP MOVING"), "Stuck warning was missing from the HUD")
 
 	var before_pause = player.stuck_elapsed
+	var partial_sample = player.motion_sample_elapsed
+	var sample_start = player.motion_sample_start
+	check(partial_sample > 0.0, "The pause did not catch an unfinished motion sample")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
 	for frame in 125:
 		await get_tree().physics_frame
 	check(is_equal_approx(player.stuck_elapsed, before_pause) and not main.is_game_over, "Inactivity advanced while the run was paused")
+	check(is_equal_approx(player.motion_sample_elapsed, partial_sample), "The partial motion sample advanced while paused")
 	main.free()
 	main = MAIN.instantiate()
 	add_child(main)
 	player = main.player
 	check(player.has_started_moving and is_equal_approx(player.stuck_elapsed, before_pause), "Resume lost the active inactivity countdown")
+	check(is_equal_approx(player.motion_sample_elapsed, partial_sample) and player.motion_sample_start.is_equal_approx(sample_start), "Resume lost the unfinished motion sample")
 
 	Input.action_press("move_down")
 	for frame in 24:
@@ -330,6 +338,62 @@ func _check_speed_scoring() -> void:
 	check(main.score == 20, "A cruising pickup did not award double the stationary score")
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear speed scoring fixture")
+
+func _check_resume_momentum() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.4, "z": 0}},
+		"food_positions": [{"x": 0, "y": 0, "z": 0}, {"x": 6, "y": 0, "z": 6}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write pickup resume fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	# Save at the pickup boundary before the next force integration.
+	main.player.food_collected.connect(func(_total): main.save_game_state(), CONNECT_ONE_SHOT)
+	for frame in 3:
+		await get_tree().physics_frame
+		if main.player.food_eaten == 1:
+			break
+	check(is_equal_approx(float(GameState.load_game_state().player_state.get("pending_pickup_impulse", 0.0)), Player.PICKUP_IMPULSE), "The pickup save lost the queued lunge")
+	main.free()
+	main = MAIN.instantiate()
+	add_child(main)
+	var player: Player = main.player
+	check(is_equal_approx(player.position.y, 0.4), "Resume lifted a grounded head")
+	check(player.is_digesting and player.segments[0].freeze, "Resume lost the digestion or growth state")
+	var resumed_speed = 0.0
+	for frame in 4:
+		await get_tree().physics_frame
+		resumed_speed = maxf(resumed_speed, player.linear_velocity.dot(Vector3.FORWARD))
+	check(resumed_speed > 1.0 and player.pending_pickup_impulse == 0.0, "The queued lunge did not apply on resume")
+	check(player.food_eaten == 1 and player.segments.size() == 1 and main.score == 10, "Resume duplicated the pickup")
+	var active_bonus = player.pickup_speed_bonus
+	var digestion = player.digestion_timer
+	main.save_game_state()
+	main.free()
+	main = MAIN.instantiate()
+	add_child(main)
+	player = main.player
+	check(active_bonus > 0.0 and is_equal_approx(player.pickup_speed_bonus, active_bonus) and player.pending_pickup_impulse == 0.0, "Resume reset or replayed an active speed bonus")
+	check(digestion > 0.0 and is_equal_approx(player.digestion_timer, digestion), "Resume reset the digestion pulse")
+	main.free()
+
+	fixture.food_positions.pop_front()
+	fixture.player_state.segments = [{
+		"position": {"x": -0.73, "y": 0.35, "z": 0},
+		"velocity": {"x": 0, "y": 0, "z": 1.5},
+		"path_target": {"x": -0.8, "y": 0.35, "z": 0},
+		"growth": 1.0,
+		"is_solid": true,
+	}]
+	check(GameState.save_game_state(fixture), "Failed to write touching-segment fixture")
+	main = MAIN.instantiate()
+	add_child(main)
+	var segment: Segment = main.player.segments[0]
+	check(not segment.freeze and segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "A solid segment temporarily lost collision on resume")
+	check(is_equal_approx(segment.linear_velocity.z, 1.5) and is_equal_approx(segment.path_target.x, -0.8), "Resume discarded a moving segment's motion")
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear pickup resume fixture")
 
 func _check_handling() -> void:
 	var fixture = {
