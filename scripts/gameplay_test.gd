@@ -148,6 +148,7 @@ func run() -> void:
 	await _check_handling()
 	await _check_rock_impacts()
 	await _check_pickup_clearance()
+	await _check_arena_fall()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
 	_check_body_spawn_clearance()
@@ -469,6 +470,25 @@ func _check_pickup_clearance() -> void:
 	check(main.player.food_eaten == 1 and main.player.position.y > 1.3, "The head failed to collect food within the generous vertical reach")
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear pickup clearance fixture")
+
+func _check_arena_fall() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 12, "y": 0.5, "z": 0}},
+		"rocks": [{"position": {"x": 12, "y": 0.5, "z": 3}}],
+		"food_positions": [{"x": 6, "y": 0, "z": 0}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write arena fall fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	for frame in 85:
+		await get_tree().physics_frame
+		if main.is_game_over and get_tree().get_nodes_in_group("rock").is_empty():
+			break
+	check(main.is_game_over and not GameState.has_saved_game(), "Falling out of the arena left a live or resumable run")
+	check(get_tree().get_nodes_in_group("rock").is_empty(), "A fallen rock remained in the game")
+	main.free()
+	Engine.time_scale = 1.0
 
 func _check_body_spawn_clearance() -> void:
 	var fixture = {

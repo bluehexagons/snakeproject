@@ -8,6 +8,7 @@ const PLAYER_DRAG = 0.4
 const PLAYER_MAX_SPEED = 12.0
 const ROCK_MAX_SPEED = 15.0
 const MAX_SPEED = 30.0
+const FALL_LIMIT_Y = -3.0
 
 const BASE_DYNAMIC_FRICTION = 0.01
 

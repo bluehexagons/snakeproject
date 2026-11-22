@@ -72,6 +72,9 @@ func setup_rock(spawn_position: Vector3) -> void:
 func _physics_process(delta: float) -> void:
 	if not is_initialized or is_shattering:
 		return
+	if global_position.y < PhysicsConstants.FALL_LIMIT_Y:
+		queue_free()
+		return
 		
 	if is_spawning:
 		spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)

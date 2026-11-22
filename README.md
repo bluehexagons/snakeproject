@@ -12,8 +12,8 @@ or get pinned, the head changes color and a countdown warns you before the
 three-second timeout.
 
 Impacts flash briefly. A hard hit, such as a head-on lunge after eating, can
-shatter a gray rock. Red rocks remain lethal. Food can be collected during
-small bounces, and solid obstacles block pickups.
+shatter a gray rock. Red rocks and falling out of the arena are lethal. Food can
+be collected during small bounces, and solid obstacles block pickups.
 
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
 between overhead and angled arena views. Retry starts a fresh run after death.
@@ -94,10 +94,10 @@ session from reappearing.
 
 Coverage includes rapid pickups, speed-based scoring, capped forward impulses,
 momentum through turns, reversals, diagonal steering, head and rock contact
-with the body, rock impacts and breakage, wall-touched pieces turning lethal, grounded body persistence,
-recovery of fallen saved paths, braking, pause,
+with the body, rock impacts and breakage, wall-touched pieces turning lethal,
+grounded body persistence, recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, stuck warnings,
-recovery, loss while stopped or blocked, death and body breakup,
+recovery, loss while stopped or blocked, arena falls, death and body breakup,
 interrupted or corrupt save recovery, recovery-file cleanup, key-repeat
 handling, malformed save validation, rock entrance recovery, and pickups and
 spawns around obstacles. Headless tests do not establish GPU, sound,

@@ -76,6 +76,8 @@ func _physics_process(delta: float) -> void:
 	input_dir = Vector3.ZERO
 	if OS.is_debug_build() and Input.is_action_just_pressed("toggle_unkillable"):
 		unkillable = not unkillable
+	if not has_lost and global_position.y < PhysicsConstants.FALL_LIMIT_Y:
+		lose()
 	if not has_lost:
 		var raw_input = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		var camera = get_viewport().get_camera_3d()
