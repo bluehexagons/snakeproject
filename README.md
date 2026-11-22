@@ -111,8 +111,10 @@ credentials are configured. The Web preset writes `build/web/index.html` (create
 than opening the HTML file directly. Build outputs are ignored by Git, and test
 scenes and verification tools are excluded from both export presets.
 
-On a Basaltwater host with the Godot web bundle, optionally export and publish
-for browser testing:
+On the Basaltwater host with the Godot web bundle, refresh the LAN playtest
+after pushing gameplay or web export changes to `main`. Publish from the
+updated `main` checkout using the existing `snake3d` name so players keep the
+same HTTPS URL.
 
 ```sh
 basaltw agent doctor --capability development --json
