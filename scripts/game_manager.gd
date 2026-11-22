@@ -146,7 +146,7 @@ func _start_debug_trace() -> void:
 		"physics_ticks_per_second": Engine.physics_ticks_per_second,
 		"debug_build": OS.is_debug_build(),
 		"max_bodies": DebugTelemetry.MAX_BODIES,
-		"max_contacts_reported": PhysicsObject.MAX_CONTACTS,
+		"max_contacts_reported": Player.HEAD_MAX_CONTACTS,
 		"random_seed": DEBUG_RANDOM_SEED,
 	})
 
@@ -499,7 +499,7 @@ func load_game_state() -> bool:
 			var restored_point = _vector_from_data(point)
 			# Segment restore repairs fallen pieces; repair their path too so
 			# the next physics tick cannot send them underground again.
-			restored_point.y = 0.35
+			restored_point.y = SegmentConstants.CENTER_HEIGHT
 			player.trail.append(restored_point)
 
 	var saved_rocks: Variant = save_data.get("rocks", [])

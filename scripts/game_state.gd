@@ -145,6 +145,8 @@ func is_valid_save_data(data: Dictionary) -> bool:
 			return false
 		if segment_data.has("growth") and not _is_finite_number(segment_data.growth):
 			return false
+		if segment_data.has("is_dangerous") and not segment_data.is_dangerous is bool:
+			return false
 		for key in ["physics_pos", "visual_pos", "velocity"]:
 			if segment_data.has(key) and not is_valid_saved_vector(segment_data.get(key)):
 				return false

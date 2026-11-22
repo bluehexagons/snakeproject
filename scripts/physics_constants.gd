@@ -29,11 +29,12 @@ const MATERIAL_SEGMENT = "segment"
 const MATERIAL_PLAYER = "player"
 const MATERIAL_ROCK = "rock"
 
-const LAYER_DEFAULT = 0b001  # Ground and static objects
-const LAYER_PHYSICAL = 0b010  # Movable objects (rocks, segments)
-const LAYER_PLAYER = 0b100   # Player and anything that should collide with everything
-
-const MASK_PHYSICAL = 0b111
+const LAYER_DEFAULT = 0b0001  # Ground
+const LAYER_PHYSICAL = 0b0010  # Rocks
+const LAYER_PLAYER = 0b0100
+const LAYER_SEGMENT = 0b1000
+const LAYER_BARRIER = 0b10000
+const LAYER_ARENA = LAYER_DEFAULT | LAYER_BARRIER
 
 const ROCK_MAX_CONTACTS = 4
 

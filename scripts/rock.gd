@@ -30,7 +30,7 @@ func _ready() -> void:
 	linear_damp = settings.linear_damp
 	angular_damp = settings.angular_damp
 	collision_layer = PhysicsConstants.LAYER_PHYSICAL
-	collision_mask = PhysicsConstants.LAYER_DEFAULT | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_PLAYER
+	collision_mask = PhysicsConstants.LAYER_ARENA | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_PLAYER | PhysicsConstants.LAYER_SEGMENT
 	contact_monitor = true
 	max_contacts_reported = PhysicsConstants.ROCK_MAX_CONTACTS
 	continuous_cd = false

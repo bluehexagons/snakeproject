@@ -4,8 +4,9 @@ A 3D survival game built with Godot 4.7.2.
 
 Move with **WASD or arrow keys**, collect glowing food, and avoid red walls and
 red rocks. Each pickup adds a body piece, awards 10 points, increases cruising
-speed slightly, and gives the snake a forward impulse. Gray rocks can be pushed;
-body pieces are safe to cross. Releasing movement brakes the head. You can stop
+speed slightly, and gives the snake a forward impulse. The head bumps into blue
+body pieces, and rocks can deflect the body. A piece that hits a wall turns red
+and is lethal to the head. Releasing movement brakes the head. You can stop
 without losing the run.
 
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
@@ -18,17 +19,18 @@ when already paused. Holding a pause or camera key does not repeatedly toggle it
 
 ## Gameplay systems
 
-The head uses a rigid body with bounded acceleration and pickup impulses. Body
-pieces follow its recorded path at fixed distance intervals, with visual growth
-independent of gravity, collision shapes, and mass. Godot physics interpolation
-smooths transforms. Both camera views keep the arena visible and control axes
-stable. Rocks remain physics objects, and red hazards end the run on contact.
+The head builds speed gradually, sheds sideways momentum when turning, and
+brakes faster than it accelerates. Body pieces track the recorded path using
+grounded rigid bodies. A new piece becomes solid once it has grown and has room
+for its collider. Godot physics interpolation smooths transforms. Both camera
+views keep the arena visible and control axes stable.
 
 `GameManager` owns the session, spawning, scoring, and save/resume lifecycle.
-`Player` emits gameplay signals and owns the body path; `Segment` displays each
-piece. `GameState` handles persistence. `DebugTelemetry` is inert in release
-builds. Saved paths preserve turns on resume; older saves reconstruct the path
-from segment positions and restore fallen segments to the playing surface.
+`Player` emits gameplay signals and owns the body path. `Segment` handles body
+movement, collisions, and growth. `GameState` handles persistence. `DebugTelemetry`
+is inert in release builds. Saved paths preserve turns on resume, and older
+saves reconstruct the path from segment positions. Fallen segments return to
+the playing surface.
 Rocks saved during their entrance animation resume at the same growth stage.
 If a save has no food, replacements are placed after its rocks are restored.
 When the arena is too crowded for safe placement, active play retries food
@@ -83,6 +85,7 @@ clears the session's backup and temporary files as well, preventing an old
 session from reappearing.
 
 Coverage includes rapid pickups, forward impulses and their speed cap, turning,
+head and rock contact with the body, wall-touched pieces turning lethal,
 grounded body persistence, recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, inactivity, wall
 death, interrupted or corrupt save recovery, recovery-file cleanup, key-repeat

@@ -13,13 +13,16 @@ const BASE_MAX_SPEED = 8.0
 const SPEED_BOOST_BASE = 1.0
 const BONUS_SPEED_PER_FEED = 0.025
 const MAX_SPEED_BOOST = 1.5
-const DIRECT_ACCELERATION = 40.0
+const DRIVE_ACCELERATION = 32.0
+const BRAKE_ACCELERATION = 55.0
+const TURN_ACCELERATION = 65.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
 const PICKUP_RADIUS = 0.8
 const PICKUP_IMPULSE = 2.5
 const MAX_PICKUP_BOOST = 4.0
 const PICKUP_BOOST_DECAY = 10.0
+const HEAD_MAX_CONTACTS = 12
 
 var facing_direction: Vector3 = Vector3.FORWARD
 var segments: Array[Segment] = []
@@ -42,7 +45,8 @@ func _ready() -> void:
 	super()
 	material_type = PhysicsConstants.MATERIAL_PLAYER
 	collision_layer = PhysicsConstants.LAYER_PLAYER
-	collision_mask = PhysicsConstants.LAYER_DEFAULT | PhysicsConstants.LAYER_PHYSICAL
+	collision_mask = PhysicsConstants.LAYER_ARENA | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_SEGMENT
+	max_contacts_reported = HEAD_MAX_CONTACTS
 	continuous_cd = true
 	lock_rotation = true
 	linear_damp = 0.0
@@ -70,7 +74,7 @@ func _physics_process(delta: float) -> void:
 		if not input_dir.is_zero_approx():
 			has_started_moving = true
 		_collect_food()
-	_update_body()
+	_update_body(delta)
 	if is_digesting:
 		digestion_timer += delta
 		var progress = minf(digestion_timer / DIGESTION_DURATION, 1.0)
@@ -106,8 +110,8 @@ func _collect_food() -> void:
 	previous_pickup_position = global_position
 	pickup_position_initialized = true
 
-func _update_body() -> void:
-	var head = Vector3(global_position.x, 0.35, global_position.z)
+func _update_body(delta: float) -> void:
+	var head = Vector3(global_position.x, SegmentConstants.CENTER_HEIGHT, global_position.z)
 	if trail.is_empty():
 		trail.append(head)
 	if head.distance_to(trail[0]) >= TRAIL_STEP:
@@ -127,16 +131,16 @@ func _update_body() -> void:
 			var length = path[edge].distance_to(path[edge + 1])
 			destination = path[edge].lerp(path[edge + 1], (wanted - traversed) / maxf(length, 0.0001))
 		# With no older path, new growth stays at the tail until we move.
-		segments[index].follow_path(destination)
+		segments[index].set_path_target(destination, delta)
 	var keep = maxi(edge + 3, 3)
 	if trail.size() > keep:
 		trail.resize(keep)
 
 func rebuild_trail() -> void:
 	trail.clear()
-	trail.append(Vector3(global_position.x, 0.35, global_position.z))
+	trail.append(Vector3(global_position.x, SegmentConstants.CENTER_HEIGHT, global_position.z))
 	for segment in segments:
-		trail.append(Vector3(segment.global_position.x, 0.35, segment.global_position.z))
+		trail.append(Vector3(segment.global_position.x, SegmentConstants.CENTER_HEIGHT, segment.global_position.z))
 	previous_pickup_position = global_position
 	pickup_position_initialized = true
 	reset_physics_interpolation()
@@ -147,15 +151,12 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO, u
 	var segment: Segment = SEGMENT_SCENE.instantiate()
 	var leader: Node3D = self if segments.is_empty() else segments.back()
 	var spawn_pos = saved_pos if use_saved_position else leader.global_position
-	spawn_pos.y = 0.35
+	spawn_pos.y = SegmentConstants.CENTER_HEIGHT
 	segment.position = spawn_pos
 	get_parent().add_child(segment)
 	segment.target = leader
 	segment.init_with_growth(growth_state)
 	segments.append(segment)
-	for index in segments.size():
-		segments[index].chain_index = index
-		segments[index].chain_length = segments.size()
 	segment.reset_physics_interpolation()
 	return segment
 
@@ -245,8 +246,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 				break
 	var horizontal = Vector3(state.linear_velocity.x, 0.0, state.linear_velocity.z)
 	pickup_speed_bonus = move_toward(pickup_speed_bonus, 0.0, PICKUP_BOOST_DECAY * state.step)
-	var desired = input_dir * (max_speed + pickup_speed_bonus) if not has_lost else Vector3.ZERO
-	horizontal = horizontal.move_toward(desired, DIRECT_ACCELERATION * state.step)
+	horizontal = _drive_velocity(horizontal, state.step)
 	state.linear_velocity = Vector3(horizontal.x, state.linear_velocity.y, horizontal.z)
 	if pending_pickup_impulse > 0.0 and not has_lost:
 		var direction = horizontal.normalized() if horizontal.length_squared() > 0.01 else facing_direction
@@ -258,3 +258,16 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	if horizontal.length_squared() > 0.01:
 		facing_direction = horizontal.normalized()
 	physics_pos = state.transform.origin
+
+func _drive_velocity(velocity: Vector3, step: float) -> Vector3:
+	if has_lost or input_dir.is_zero_approx():
+		return velocity.move_toward(Vector3.ZERO, BRAKE_ACCELERATION * step)
+
+	var direction = input_dir.normalized()
+	var forward_speed = velocity.dot(direction)
+	var lateral = velocity - direction * forward_speed
+	var target_speed = (max_speed + pickup_speed_bonus) * input_dir.length()
+	var acceleration = BRAKE_ACCELERATION if forward_speed < 0.0 or forward_speed > target_speed else DRIVE_ACCELERATION
+	forward_speed = move_toward(forward_speed, target_speed, acceleration * step)
+	lateral = lateral.move_toward(Vector3.ZERO, TURN_ACCELERATION * step)
+	return (direction * forward_speed + lateral).limit_length(max_speed + MAX_PICKUP_BOOST)

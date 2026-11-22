@@ -74,6 +74,14 @@ toggle_unkillable={
 ]
 }
 
+[layer_names]
+
+3d_physics/layer_1="Ground"
+3d_physics/layer_2="Rocks"
+3d_physics/layer_3="Head"
+3d_physics/layer_4="Body"
+3d_physics/layer_5="Walls"
+
 [physics]
 
 3d/run_on_separate_thread=false

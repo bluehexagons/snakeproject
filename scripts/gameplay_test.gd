@@ -2,6 +2,7 @@ extends Node
 
 const MAIN = preload("res://scenes/main.tscn")
 const FOOD = preload("res://scenes/food.tscn")
+const ROCK = preload("res://scenes/rock.tscn")
 var failed = false
 
 func check(condition: bool, message: String) -> void:
@@ -63,11 +64,17 @@ func run() -> void:
 				max_link = maxf(max_link, segment.global_position.distance_to(segment.target.global_position))
 		Input.action_release(action)
 	check(not player.has_lost, "Normal steering unexpectedly killed the player")
-	check(max_link < 1.0, "Body detached during a turn: %f" % max_link)
+	# Contact can temporarily stretch a link while a new piece rounds a corner.
+	check(max_link < 1.25, "Body stretched too far during a turn: %f" % max_link)
 	check(max_step < 0.3, "Tail teleported during movement: %f" % max_step)
-	for frame in 60:
+	for frame in 15:
 		await get_tree().physics_frame
-	check(player.linear_velocity.length() < 0.2, "Player did not stop after releasing input")
+	check(player.linear_velocity.length() < 0.2, "Player did not brake promptly after releasing input")
+	for frame in 45:
+		await get_tree().physics_frame
+	for segment in player.segments:
+		check(segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "A grown segment never became solid after moving clear")
+		check(segment.global_position.distance_to(segment.target.global_position) < 1.0, "Body did not close up after braking")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
 	check(main.is_paused and GameState.has_saved_game(), "Focus loss did not pause and save the run")
 	check(main.ui.get_node("PauseMenu/VBoxContainer/ResumeButton").has_focus(), "Pause menu has no keyboard focus")
@@ -120,6 +127,7 @@ func run() -> void:
 	check(not player.has_lost, "Intentional inactivity killed the player")
 	for segment in player.segments:
 		check(segment.position.y > 0.3 and is_equal_approx(segment.current_scale, 1.0), "Resumed body disappeared or failed to finish growth")
+		check(segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "Resumed body stayed intangible")
 	# Real wall contact must still end the session once, and prevent more food.
 	Input.action_press("move_right")
 	for frame in 240:
@@ -131,12 +139,93 @@ func run() -> void:
 	check(not GameState.has_saved_game() and not FileAccess.file_exists(GameState.save_file_path + ".bak"), "Game over retained a resumable dead session")
 	main.free()
 	Engine.time_scale = 1.0
+	await _check_body_contacts()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
 	if not failed:
 		print("Gameplay regression passed")
 	get_tree().quit(1 if failed else 0)
+
+func _check_body_contacts() -> void:
+	var fixture = {
+		"score": 10,
+		"player_state": {
+			"position": {"x": 0, "y": 0.4, "z": 0},
+			"segments": [{"position": {"x": -0.8, "y": 0.35, "z": 0}, "growth": 1.0}],
+		},
+		"food_positions": [{"x": 6, "y": 0, "z": 6}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write body collision fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	var player: Player = main.player
+	var segment: Segment = player.segments[0]
+	for frame in 10:
+		await get_tree().physics_frame
+	check(segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "A mature segment never became solid")
+
+	# A rock approaches the body from the side, outside the head's reach.
+	var rock: Rock = ROCK.instantiate()
+	main.gameplay_container.add_child(rock)
+	rock.restore_from_save_data({"position": {"x": -0.8, "y": 0.5, "z": -1.1}})
+	rock.linear_velocity = Vector3.BACK * 5.0
+	var rock_touched_body = false
+	var body_deflection = 0.0
+	for frame in 25:
+		await get_tree().physics_frame
+		rock_touched_body = rock_touched_body or rock.get_colliding_bodies().has(segment)
+		body_deflection = maxf(body_deflection, segment.position.z)
+	check(rock_touched_body and body_deflection > 0.02, "A moving rock passed through the body without deflecting it")
+	rock.queue_free()
+
+	# Reversing into a blue piece should produce contact without ending the run.
+	var touched_own_body = false
+	Input.action_press("move_left")
+	for frame in 18:
+		await get_tree().physics_frame
+		touched_own_body = touched_own_body or player.get_colliding_bodies().has(segment)
+	Input.action_release("move_left")
+	check(touched_own_body and not player.has_lost, "Reversing into a blue piece failed to produce a safe collision")
+	check(player.position.x > segment.position.x, "The head crossed through the solid body piece")
+	Input.action_press("move_down")
+	var turn_start = player.position
+	for frame in 16:
+		await get_tree().physics_frame
+	Input.action_release("move_down")
+	check(player.position.z - turn_start.z > 0.6, "Steering could not pull the head away from its body after contact")
+
+	# A body piece pushed into a wall becomes a visible, persistent hazard.
+	var wall_piece: Segment = Player.SEGMENT_SCENE.instantiate()
+	wall_piece.position = Vector3(10, 0.35, -3)
+	main.gameplay_container.add_child(wall_piece)
+	wall_piece.init_with_growth(1.0)
+	for frame in 3:
+		await get_tree().physics_frame
+	wall_piece.set_path_target(Vector3(11, 0.35, -3), 1.0)
+	for frame in 30:
+		await get_tree().physics_frame
+	check(wall_piece.is_dangerous and wall_piece.is_in_group("dangerous"), "Wall contact did not turn a body piece dangerous")
+	fixture.player_state.segments[0].is_dangerous = wall_piece.get_save_data().is_dangerous
+	main.free()
+
+	check(GameState.save_game_state(fixture), "Failed to write dangerous segment fixture")
+	main = MAIN.instantiate()
+	add_child(main)
+	player = main.player
+	check(player.segments[0].is_dangerous, "A dangerous segment lost its state on resume")
+	for frame in 10:
+		await get_tree().physics_frame
+	Input.action_press("move_left")
+	for frame in 18:
+		await get_tree().physics_frame
+		if main.is_game_over:
+			break
+	Input.action_release("move_left")
+	check(main.is_game_over, "Head contact with a red body piece did not end the run")
+	main.free()
+	Engine.time_scale = 1.0
+	check(GameState.delete_save_game(), "Failed to clear body collision fixture")
 
 func _check_empty_food_resume() -> void:
 	var fixture = {
