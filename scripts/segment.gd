@@ -71,6 +71,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 
 	if DebugTelemetry.enabled:
 		DebugTelemetry.record_contacts(self, state)
+	_flash_contacts(state)
 	var error = path_target - state.transform.origin
 	error.y = 0.0
 	# Follow the moving path slot and correct any displacement from contact.

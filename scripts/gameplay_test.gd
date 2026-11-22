@@ -146,6 +146,7 @@ func run() -> void:
 	await _check_stuck_loss()
 	await _check_speed_scoring()
 	await _check_handling()
+	await _check_rock_impacts()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
@@ -384,6 +385,45 @@ func _check_handling() -> void:
 		[cruise_speed, min_turn_speed, turn_drift, coast_distance])
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear handling fixture")
+
+func _check_rock_impacts() -> void:
+	# Use the real input and pickup path so the break is reachable in play.
+	for impact_case in ["cruise", "boosted", "dangerous"]:
+		var boosted = impact_case != "cruise"
+		var dangerous = impact_case == "dangerous"
+		var fixture = {
+			"score": 0,
+			"player_state": {"position": {"x": -4, "y": 0.5, "z": 0}},
+			"rocks": [{"position": {"x": 0, "y": 0.5, "z": 0}, "is_dangerous": dangerous}],
+			"food_positions": [{"x": -1.25 if boosted else 6, "y": 0, "z": 0}],
+		}
+		check(GameState.save_game_state(fixture), "Failed to write rock impact fixture")
+		var main = MAIN.instantiate()
+		add_child(main)
+		var rock: Rock = get_tree().get_first_node_in_group("rock")
+		var saw_flash = false
+		Input.action_press("move_right")
+		for frame in 58:
+			await get_tree().physics_frame
+			if is_instance_valid(rock):
+				saw_flash = saw_flash or rock.mesh.material_override != null
+			if main.is_game_over:
+				break
+		Input.action_release("move_right")
+		match impact_case:
+			"cruise":
+				check(is_instance_valid(rock) and rock.position.x > 0.3, "A cruising hit did not push an intact gray rock")
+				check(saw_flash, "The rock did not flash on impact")
+			"boosted":
+				check(main.player.food_eaten == 1 and not main.is_game_over, "The boosted collision did not follow a live pickup")
+				check(get_tree().get_nodes_in_group("rock").is_empty(), "A hard boosted hit did not break the gray rock")
+				main.save_game_state()
+				check(GameState.load_game_state().rocks.is_empty(), "A broken rock reappeared in the save")
+			"dangerous":
+				check(main.is_game_over and is_instance_valid(rock), "A boosted hit broke a red rock instead of ending the run")
+		main.free()
+		Engine.time_scale = 1.0
+		check(GameState.delete_save_game(), "Failed to clear rock impact fixture")
 
 func _check_empty_food_resume() -> void:
 	var fixture = {

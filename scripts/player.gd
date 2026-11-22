@@ -301,6 +301,8 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 			if collider is Node and collider.is_in_group("dangerous"):
 				lose()
 				break
+	if not has_lost:
+		_flash_contacts(state)
 	var horizontal = Vector3(state.linear_velocity.x, 0.0, state.linear_velocity.z)
 	pickup_speed_bonus = move_toward(pickup_speed_bonus, 0.0, PICKUP_BOOST_DECAY * state.step)
 	horizontal = _drive_velocity(horizontal, state.step)

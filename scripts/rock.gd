@@ -12,12 +12,16 @@ const GROWTH_PEAK = 0.6
 const GROWTH_CURVE = 0.4
 const SCALE_OVERSHOOT = 1.3
 const INITIAL_SPIN = 12.0
+const BREAK_IMPULSE = 4.5
+const FRAGMENT_COUNT = 5
+const SHATTER_DURATION = 0.24
 
 var is_dangerous: bool = false
 var is_initialized: bool = false
 var spawn_timer: float = 0.0
 var is_spawning: bool = true
 var spawn_progress: float = 0.0
+var is_shattering: bool = false
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 
@@ -66,7 +70,7 @@ func setup_rock(spawn_position: Vector3) -> void:
 	axis_lock_angular_z = true
 
 func _physics_process(delta: float) -> void:
-	if not is_initialized:
+	if not is_initialized or is_shattering:
 		return
 		
 	if is_spawning:
@@ -93,9 +97,15 @@ func _physics_process(delta: float) -> void:
 	_update_base_physics(delta)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
-	if is_spawning:
+	if is_spawning or is_shattering:
 		return
-	
+	if not is_dangerous:
+		for index in state.get_contact_count():
+			var head = state.get_contact_collider_object(index) as Player
+			if head and not head.has_lost and state.get_contact_impulse(index).length() >= BREAK_IMPULSE:
+				is_shattering = true
+				break_rock.call_deferred()
+				return
 	var current_speed = state.linear_velocity.length()
 	if current_speed > PhysicsConstants.ROCK_MAX_SPEED:
 		state.linear_velocity = state.linear_velocity * (PhysicsConstants.ROCK_MAX_SPEED / current_speed)
@@ -157,4 +167,21 @@ func dead_eat() -> float:
 	return 2.0
 
 func break_rock() -> void:
-	queue_free()
+	remove_from_group("rock")
+	freeze = true
+	collision_layer = 0
+	collision_mask = 0
+	mesh.hide()
+	var tween = create_tween().set_parallel()
+	var to_local = global_basis.inverse()
+	for index in FRAGMENT_COUNT:
+		var angle = TAU * index / FRAGMENT_COUNT
+		var direction = to_local * Vector3(cos(angle), 0.4 + 0.15 * (index % 3), sin(angle))
+		var fragment = MeshInstance3D.new()
+		fragment.mesh = mesh.mesh
+		fragment.position = direction * 0.2
+		fragment.scale = Vector3.ONE * 0.35
+		add_child(fragment)
+		tween.tween_property(fragment, "position", direction, SHATTER_DURATION).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		tween.tween_property(fragment, "scale", Vector3.ZERO, SHATTER_DURATION)
+	tween.chain().tween_callback(queue_free)

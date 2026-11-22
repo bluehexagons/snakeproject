@@ -452,7 +452,7 @@ func save_game_state() -> void:
 	
 	var rock_data: Array[Dictionary] = []
 	for rock in rocks:
-		if rock.is_queued_for_deletion():
+		if rock.is_queued_for_deletion() or rock.is_shattering:
 			continue
 		if rock.has_method("get_save_data"):
 			rock_data.append(rock.get_save_data())

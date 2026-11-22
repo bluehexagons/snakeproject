@@ -9,8 +9,10 @@ var visual_pos: Vector3
 @onready var current_material: StandardMaterial3D = _duplicate_mesh_material()
 
 const IMPACT_FLASH_DURATION = 0.15
-const IMPACT_MIN_FORCE = 0.3
-const IMPACT_MAX_FORCE = 35.0
+const IMPACT_MIN_IMPULSE = 1.0
+const IMPACT_FULL_IMPULSE = 6.0
+
+var impact_tween: Tween
 
 var target_color: Color
 var base_emission: Color
@@ -153,6 +155,7 @@ static func calculate_proximity_force(
 func _integrate_forces(state: PhysicsDirectBodyState3D):
 	if DebugTelemetry.enabled:
 		DebugTelemetry.record_contacts(self, state)
+	_flash_contacts(state)
 
 	var is_on_ground = false
 	for i in range(state.get_contact_count()):
@@ -277,32 +280,30 @@ func _vector_from_data(data: Variant, fallback: Vector3) -> Vector3:
 	)
 	return value if value.is_finite() and value.length() <= 1000.0 else fallback
 
-func handle_impact(force: float) -> void:
-	if !current_material or !mesh_instance:
+func _flash_contacts(state: PhysicsDirectBodyState3D) -> void:
+	var peak_impulse = 0.0
+	for index in state.get_contact_count():
+		peak_impulse = maxf(peak_impulse, state.get_contact_impulse(index).length())
+	if peak_impulse <= IMPACT_MIN_IMPULSE or not current_material:
 		return
-			
-	var flash_intensity = clampf((force - IMPACT_MIN_FORCE) / (IMPACT_MAX_FORCE - IMPACT_MIN_FORCE), 0.0, 1.0)
-	if flash_intensity <= 0.0:
-		return
-	
-	flash_intensity = 1.0 - (1.0 - flash_intensity) * 0.95
-	
-	var flash_material = current_material.duplicate()
-	var flash_emission = state_emission if state_emission != Color.BLACK else current_material.emission
+
+	var flash_intensity = remap(clampf(peak_impulse, IMPACT_MIN_IMPULSE, IMPACT_FULL_IMPULSE), IMPACT_MIN_IMPULSE, IMPACT_FULL_IMPULSE, 0.0, 1.0)
+	if impact_tween:
+		impact_tween.kill()
+	var flash_material = mesh_instance.material_override as StandardMaterial3D
+	if not flash_material:
+		flash_material = current_material.duplicate()
+	var flash_emission = current_material.emission
 	flash_material.albedo_color = current_color
-	flash_material.emission = flash_emission + Color(0.5, 0.5, 0.5, 1.0) * flash_intensity
+	flash_material.emission = flash_emission.lerp(Color.WHITE, flash_intensity)
 	flash_material.emission_energy_multiplier = state_emission_energy + flash_intensity * 2.0
-	 
 	mesh_instance.material_override = flash_material
-	
-	var tween = create_tween()
-	tween.tween_property(flash_material, "emission", flash_emission, IMPACT_FLASH_DURATION).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	tween.parallel().tween_property(flash_material, "emission_energy_multiplier", 
+
+	impact_tween = create_tween()
+	impact_tween.tween_property(flash_material, "emission", flash_emission, IMPACT_FLASH_DURATION)
+	impact_tween.parallel().tween_property(flash_material, "emission_energy_multiplier",
 		state_emission_energy, IMPACT_FLASH_DURATION).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
-	tween.tween_callback(func():
-		if is_instance_valid(mesh_instance):
-			mesh_instance.material_override = null
-	)
+	impact_tween.tween_callback(func(): mesh_instance.material_override = null)
 
 func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: float = -1.0) -> void:
 	if current_material:
