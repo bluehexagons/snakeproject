@@ -12,6 +12,7 @@ var growth_timer: float = 0.0
 var is_dangerous: bool = false
 var path_target: Vector3
 var path_velocity: Vector3
+var is_detached: bool = false
 
 func _ready() -> void:
 	super()
@@ -64,6 +65,10 @@ func _enable_collisions_if_clear() -> void:
 		linear_velocity = path_velocity.limit_length(MAX_FOLLOW_SPEED)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
+	if is_detached:
+		super._integrate_forces(state)
+		return
+
 	if DebugTelemetry.enabled:
 		DebugTelemetry.record_contacts(self, state)
 	var error = path_target - state.transform.origin
@@ -78,6 +83,21 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		if collider is Node and collider.is_in_group("barrier"):
 			make_dangerous()
 			break
+
+func release_from_chain() -> void:
+	is_detached = true
+	target = null
+	# A piece still sharing space with the chain cannot safely enter the solver.
+	if freeze:
+		hide()
+		set_physics_process(false)
+		return
+
+	axis_lock_linear_y = false
+	lock_rotation = false
+	gravity_scale = 1.0
+	collision_mask |= PhysicsConstants.LAYER_DEFAULT
+	physics_material_override.friction = 0.15
 
 func make_dangerous() -> void:
 	is_dangerous = true

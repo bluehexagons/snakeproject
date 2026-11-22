@@ -25,6 +25,8 @@ const TURN_ACCELERATION = 65.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
 const PICKUP_RADIUS = 0.8
+const SCORE_SPEED_REFERENCE = 0.5
+const MAX_SCORE_MULTIPLIER = 3.0
 const PICKUP_IMPULSE = 2.5
 const MAX_PICKUP_BOOST = 4.0
 const PICKUP_BOOST_DECAY = 10.0
@@ -85,7 +87,7 @@ func _physics_process(delta: float) -> void:
 		_update_stuck(delta)
 		if not has_lost:
 			_collect_food()
-	_update_body(delta)
+			_update_body(delta)
 	if is_digesting:
 		digestion_timer += delta
 		var progress = minf(digestion_timer / DIGESTION_DURATION, 1.0)
@@ -128,6 +130,8 @@ func _update_stuck_color(delta: float) -> void:
 
 func _collect_food() -> void:
 	var start = previous_pickup_position if pickup_position_initialized else global_position
+	var speed = Vector2(linear_velocity.x, linear_velocity.z).length()
+	var score_multiplier = clampf(speed / (max_speed * SCORE_SPEED_REFERENCE), 1.0, MAX_SCORE_MULTIPLIER)
 	for candidate in get_tree().get_nodes_in_group("food"):
 		var food = candidate as Food
 		if not food or not food.is_available():
@@ -149,7 +153,7 @@ func _collect_food() -> void:
 		add_segment()
 		pending_pickup_impulse = minf(pending_pickup_impulse + PICKUP_IMPULSE, MAX_PICKUP_BOOST)
 		start_digestion()
-		score_earned.emit(int(points), global_position + Vector3.UP * 1.5)
+		score_earned.emit(roundi(points * score_multiplier), global_position + Vector3.UP * 1.5)
 		food_collected.emit(food_eaten)
 	previous_pickup_position = global_position
 	pickup_position_initialized = true
@@ -266,6 +270,8 @@ func lose() -> void:
 	has_lost = true
 	is_dead = true
 	apply_color(Color(0.3, 0.1, 0.1), Color(0.2, 0, 0), 0.1)
+	for segment in segments:
+		segment.release_from_chain.call_deferred()
 	player_lost.emit()
 
 func die() -> void:

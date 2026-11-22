@@ -137,10 +137,14 @@ func run() -> void:
 	Input.action_release("move_right")
 	check(main.is_game_over and player.has_lost, "Wall collision failed to end the run")
 	check(not GameState.has_saved_game() and not FileAccess.file_exists(GameState.save_file_path + ".bak"), "Game over retained a resumable dead session")
+	await get_tree().process_frame
+	for segment in player.segments:
+		check(segment.is_detached and segment.target == null and not segment.axis_lock_linear_y, "The body remained tethered after death")
 	main.free()
 	Engine.time_scale = 1.0
 	await _check_body_contacts()
 	await _check_stuck_loss()
+	await _check_speed_scoring()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
@@ -301,6 +305,26 @@ func _check_stuck_loss() -> void:
 	check(main.is_game_over and player.position.x < 0.5, "Holding movement against a blocker bypassed the stuck timeout")
 	main.free()
 	Engine.time_scale = 1.0
+
+func _check_speed_scoring() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.4, "z": 0}},
+		"food_positions": [{"x": 3.5, "y": 0, "z": 0}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write speed scoring fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	Input.action_press("move_right")
+	for frame in 60:
+		await get_tree().physics_frame
+		if main.player.food_eaten > 0:
+			break
+	Input.action_release("move_right")
+	check(main.player.food_eaten == 1 and main.player.segments.size() == 1, "A cruising pickup failed to grow the body")
+	check(main.score == 20, "A cruising pickup did not award double the stationary score")
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear speed scoring fixture")
 
 func _check_empty_food_resume() -> void:
 	var fixture = {
