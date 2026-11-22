@@ -145,6 +145,7 @@ func run() -> void:
 	await _check_body_contacts()
 	await _check_stuck_loss()
 	await _check_speed_scoring()
+	await _check_handling()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
@@ -325,6 +326,64 @@ func _check_speed_scoring() -> void:
 	check(main.score == 20, "A cruising pickup did not award double the stationary score")
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear speed scoring fixture")
+
+func _check_handling() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.5, "z": -3}},
+		"food_positions": [{"x": -7, "y": 0, "z": -7}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write handling fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	var player: Player = main.player
+	Input.action_press("move_right")
+	for frame in 30:
+		await get_tree().physics_frame
+	Input.action_release("move_right")
+	var cruise_speed = player.linear_velocity.x
+	check(cruise_speed > Player.BASE_MAX_SPEED * 0.95, "The head was slow to reach cruising speed")
+
+	var turn_start = player.position
+	var min_turn_speed = cruise_speed
+	Input.action_press("move_down")
+	for frame in 14:
+		await get_tree().physics_frame
+		var velocity = Vector2(player.linear_velocity.x, player.linear_velocity.z)
+		min_turn_speed = minf(min_turn_speed, velocity.length())
+	Input.action_release("move_down")
+	var turn_drift = player.position.x - turn_start.x
+	check(min_turn_speed >= cruise_speed * 0.9, "A right-angle turn shed too much momentum")
+	check(player.linear_velocity.z >= cruise_speed * 0.9 and turn_drift < 1.15, "The head took too long to steer through a right angle")
+
+	var reverse_start = player.position
+	Input.action_press("move_up")
+	for frame in 14:
+		await get_tree().physics_frame
+	Input.action_release("move_up")
+	check(player.linear_velocity.z < -2.0 and absf(player.position.x - reverse_start.x) < 0.1, "A direct reversal was slow or pulled the head sideways")
+
+	main.camera.toggle_view()
+	Input.action_press("move_left")
+	Input.action_press("move_up")
+	for frame in 22:
+		await get_tree().physics_frame
+	Input.action_release("move_left")
+	Input.action_release("move_up")
+	var diagonal = Vector2(player.linear_velocity.x, player.linear_velocity.z)
+	check(diagonal.normalized().dot(Vector2(-1, -1).normalized()) > 0.99, "Diagonal steering changed with the camera angle")
+	check(absf(diagonal.length() - cruise_speed) < 0.3, "Diagonal input changed cruising speed")
+
+	var coast_start = player.position
+	for frame in 15:
+		await get_tree().physics_frame
+	var coast_distance = player.position.distance_to(coast_start)
+	check(player.linear_velocity.length() < 0.2 and coast_distance < 0.95, "The head coasted too far after release")
+	check(not main.is_game_over and player.food_eaten == 0, "The handling fixture hit a wall or picked up food")
+	print("Handling regression: cruise %.2f, turn minimum %.2f, turn drift %.2f, coast %.2f" %
+		[cruise_speed, min_turn_speed, turn_drift, coast_distance])
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear handling fixture")
 
 func _check_empty_food_resume() -> void:
 	var fixture = {

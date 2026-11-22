@@ -21,12 +21,12 @@ when already paused. Holding a pause or camera key does not repeatedly toggle it
 
 ## Gameplay systems
 
-The head builds speed gradually, sheds sideways momentum when turning, and
-brakes faster than it accelerates. Body pieces track the recorded path using
-grounded rigid bodies. A new piece becomes solid once it has grown and has room
-for its collider. The body breaks apart on death. Godot physics interpolation
-smooths transforms. Both camera views keep the arena visible and control axes
-stable.
+The head builds speed quickly and carries it through turns. It brakes before
+reversing direction and coasts briefly when you release movement. Body pieces
+track the recorded path using grounded rigid bodies. A new piece becomes solid
+once it has grown and has room for its collider. The body breaks apart on death.
+Godot physics interpolation smooths transforms. Both camera views keep the arena
+visible and control axes stable.
 
 `GameManager` owns the session, spawning, scoring, and save/resume lifecycle.
 `Player` emits gameplay signals and owns the body path. `Segment` handles body
@@ -88,8 +88,9 @@ clears the session's backup and temporary files as well, preventing an old
 session from reappearing.
 
 Coverage includes rapid pickups, speed-based scoring, capped forward impulses,
-turning, head and rock contact with the body, wall-touched pieces turning lethal,
-grounded body persistence, recovery of fallen saved paths, braking, pause,
+momentum through turns, reversals, diagonal steering, head and rock contact
+with the body, wall-touched pieces turning lethal, grounded body persistence,
+recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, stuck warnings,
 recovery, loss while stopped or blocked, death and body breakup,
 interrupted or corrupt save recovery, recovery-file cleanup, key-repeat

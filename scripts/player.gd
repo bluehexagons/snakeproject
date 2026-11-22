@@ -19,9 +19,12 @@ const BASE_MAX_SPEED = 8.0
 const SPEED_BOOST_BASE = 1.0
 const BONUS_SPEED_PER_FEED = 0.025
 const MAX_SPEED_BOOST = 1.5
-const DRIVE_ACCELERATION = 32.0
-const BRAKE_ACCELERATION = 55.0
-const TURN_ACCELERATION = 65.0
+const DRIVE_ACCELERATION = 46.0
+const DRIVE_RESPONSE = 18.0
+const BRAKE_ACCELERATION = 45.0
+const REVERSE_BRAKE_ACCELERATION = 68.0
+const REVERSE_ALIGNMENT = -0.966
+const TURN_RATE = 12.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
 const PICKUP_RADIUS = 0.8
@@ -303,7 +306,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	horizontal = _drive_velocity(horizontal, state.step)
 	state.linear_velocity = Vector3(horizontal.x, state.linear_velocity.y, horizontal.z)
 	if pending_pickup_impulse > 0.0 and not has_lost:
-		var direction = horizontal.normalized() if horizontal.length_squared() > 0.01 else facing_direction
+		var direction = input_dir.normalized() if not input_dir.is_zero_approx() else facing_direction
+		if horizontal.length_squared() > 0.01:
+			direction = horizontal.normalized()
 		state.apply_central_impulse(direction * pending_pickup_impulse * mass)
 		pickup_speed_bonus = minf(pickup_speed_bonus + pending_pickup_impulse, MAX_PICKUP_BOOST)
 		horizontal = Vector3(state.linear_velocity.x, 0.0, state.linear_velocity.z).limit_length(max_speed + MAX_PICKUP_BOOST)
@@ -318,10 +323,18 @@ func _drive_velocity(velocity: Vector3, step: float) -> Vector3:
 		return velocity.move_toward(Vector3.ZERO, BRAKE_ACCELERATION * step)
 
 	var direction = input_dir.normalized()
-	var forward_speed = velocity.dot(direction)
-	var lateral = velocity - direction * forward_speed
+	var speed = velocity.length()
+	var heading = velocity / speed if speed > 0.01 else direction
+	# Brake a direct reversal before changing heading. A half-turn would
+	# choose a side arbitrarily and could steer the head into a hazard.
+	if heading.dot(direction) <= REVERSE_ALIGNMENT:
+		return velocity.move_toward(Vector3.ZERO, REVERSE_BRAKE_ACCELERATION * step)
+
+	var turn_limit = TURN_RATE * step
+	var angle = heading.signed_angle_to(direction, Vector3.UP)
+	heading = heading.rotated(Vector3.UP, clampf(angle, -turn_limit, turn_limit))
 	var target_speed = (max_speed + pickup_speed_bonus) * input_dir.length()
-	var acceleration = BRAKE_ACCELERATION if forward_speed < 0.0 or forward_speed > target_speed else DRIVE_ACCELERATION
-	forward_speed = move_toward(forward_speed, target_speed, acceleration * step)
-	lateral = lateral.move_toward(Vector3.ZERO, TURN_ACCELERATION * step)
-	return (direction * forward_speed + lateral).limit_length(max_speed + MAX_PICKUP_BOOST)
+	var speed_error = target_speed - speed
+	var acceleration = minf(DRIVE_ACCELERATION, speed_error * DRIVE_RESPONSE) if speed_error > 0.0 else BRAKE_ACCELERATION
+	speed = move_toward(speed, target_speed, acceleration * step)
+	return heading * minf(speed, max_speed + MAX_PICKUP_BOOST)
