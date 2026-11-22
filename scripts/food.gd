@@ -16,6 +16,7 @@ var time: float = 0.0
 var is_consumed: bool = false
 var consuming_target: Node3D = null
 var consume_timer: float = 0.0
+var covering_rock_id: int = 0
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 

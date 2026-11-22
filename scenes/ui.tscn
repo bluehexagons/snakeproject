@@ -136,7 +136,7 @@ horizontal_alignment = 1
 
 [node name="PauseMenu" type="Panel" parent="."]
 visible = false
-custom_minimum_size = Vector2(250, 250)
+custom_minimum_size = Vector2(250, 300)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
@@ -144,9 +144,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -125.0
-offset_top = -125.0
+offset_top = -150.0
 offset_right = 125.0
-offset_bottom = 125.0
+offset_bottom = 150.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_u4k2p")
@@ -194,6 +194,13 @@ theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
 theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Quit"
+
+[node name="SaveErrorLabel" type="Label" parent="PauseMenu/VBoxContainer"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.7, 0.55, 1)
+text = "Save failed. Try again."
+horizontal_alignment = 1
 
 [node name="GameOverMenu" type="Panel" parent="."]
 visible = false

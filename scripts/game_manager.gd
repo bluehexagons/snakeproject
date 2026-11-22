@@ -25,7 +25,7 @@ const MIN_FOOD_ROCK_DISTANCE = 1.0
 const MIN_ROCK_PLAYER_DISTANCE = 2.5
 const MIN_BODY_SPAWN_DISTANCE = 1.0
 const MAX_FOOD_SPAWN_ATTEMPTS = 30
-const MAX_RELAXED_FOOD_SPAWN_ATTEMPTS = 10
+const FALLBACK_FOOD_SPAWN_LIMIT = 9 # The barriers sit at +/-11.
 const MAX_ROCK_SPAWN_ATTEMPTS = 30
 const MAX_SCORE = 2147483647
 const AUTOSAVE_INTERVAL = 5.0
@@ -39,6 +39,7 @@ var is_game_over: bool = false
 var score: int = 0
 var is_new_best: bool = false
 var is_quitting: bool = false
+var previous_auto_accept_quit: bool
 var autosave_elapsed: float = 0.0
 var debug_trace_elapsed: float = 0.0
 var debug_trace_time: float = 0.0
@@ -48,6 +49,13 @@ var player: Player
 @onready var ui: GameUI = $UI
 @onready var gameplay_container: Node3D = $GameplayContainer
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
+
+func _enter_tree() -> void:
+	previous_auto_accept_quit = get_tree().auto_accept_quit
+	get_tree().auto_accept_quit = false
+
+func _exit_tree() -> void:
+	get_tree().auto_accept_quit = previous_auto_accept_quit
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
@@ -78,8 +86,8 @@ func _process(delta: float) -> void:
 		return
 
 	autosave_elapsed = fmod(autosave_elapsed, AUTOSAVE_INTERVAL)
-	# Crowded arenas can open up as rocks move, even without a pickup.
-	_refill_food()
+	# Rocks can open or cover pickup locations even when the snake hasn't eaten.
+	_refill_food(true)
 	# Browser tabs can be refreshed or closed without sending a reliable close
 	# notification, so keep the resumable session reasonably current.
 	save_game_state()
@@ -233,11 +241,11 @@ func _bind_player(new_player: Player) -> void:
 	player.player_lost.connect(_on_player_lost)
 	ui.set_player(player)
 
-func _refill_food() -> void:
-	var available_food = get_tree().get_nodes_in_group("food").filter(
+func _refill_food(check_covered: bool = false) -> void:
+	var foods = get_tree().get_nodes_in_group("food").filter(
 		func(food): return not food.is_queued_for_deletion() and food.is_available()
 	)
-	if available_food.size() >= MIN_FOOD_COUNT:
+	if not check_covered and foods.size() >= MIN_FOOD_COUNT:
 		return
 
 	var hazards = get_tree().get_nodes_in_group("dangerous").filter(
@@ -246,46 +254,77 @@ func _refill_food() -> void:
 	var rocks = get_tree().get_nodes_in_group("rock").filter(
 		func(rock): return not rock.is_queued_for_deletion()
 	)
-	while available_food.size() < MIN_FOOD_COUNT:
-		var spawn_position: Variant = _find_food_spawn_position(available_food, hazards, rocks)
+	if check_covered:
+		for index in foods.size():
+			var food: Food = foods[index]
+			var cover_id = _covering_rock_id(food.get_pickup_position(), rocks)
+			# Give moving rocks a chance to clear the pickup on their own.
+			if cover_id != 0 and cover_id == food.covering_rock_id:
+				var replacement: Variant = _find_food_spawn_position(foods, hazards, rocks)
+				if replacement != null:
+					foods[index] = _spawn_food_at(replacement)
+					food.queue_free()
+			food.covering_rock_id = cover_id
+
+	while foods.size() < MIN_FOOD_COUNT:
+		var spawn_position: Variant = _find_food_spawn_position(foods, hazards, rocks)
 		if spawn_position == null:
 			break
-		var food = FOOD_SCENE.instantiate()
-		food.position = spawn_position
-		gameplay_container.add_child(food)
-		available_food.append(food)
+		foods.append(_spawn_food_at(spawn_position))
+
+func _spawn_food_at(spawn_position: Vector3) -> Food:
+	var food: Food = FOOD_SCENE.instantiate()
+	food.position = spawn_position
+	gameplay_container.add_child(food)
+	return food
+
+func _covering_rock_id(point: Vector3, rocks: Array) -> int:
+	for rock: Rock in rocks:
+		if rock.covers_pickup(point):
+			return rock.get_instance_id()
+	return 0
 
 func _find_food_spawn_position(foods: Array, hazards: Array, rocks: Array) -> Variant:
 	var best_position: Variant = null
 	var best_score = 0.0
-	for attempt in range(MAX_FOOD_SPAWN_ATTEMPTS + MAX_RELAXED_FOOD_SPAWN_ATTEMPTS):
-		var relaxed = attempt >= MAX_FOOD_SPAWN_ATTEMPTS
-		if relaxed and best_position != null:
-			break
-		var area = SPAWN_AREA_SIZE * (0.8 if relaxed else 0.9)
+	var area = SPAWN_AREA_SIZE * 0.9
+	for attempt in MAX_FOOD_SPAWN_ATTEMPTS:
 		var candidate = Vector3(randf_range(-area.x, area.x), 0, randf_range(-area.y, area.y))
-		var player_distance = _horizontal_distance(player.global_position, candidate)
-		if player_distance < MIN_PLAYER_DISTANCE:
-			continue
-		if _nearest_horizontal_distance(candidate, player.segments) < MIN_BODY_SPAWN_DISTANCE:
-			continue
-
-		var rock_distance = _nearest_horizontal_distance(candidate, rocks)
-		var hazard_distance = _nearest_horizontal_distance(candidate, hazards)
-		var food_distance = _nearest_horizontal_distance(candidate, foods)
-		var food_spacing = MIN_FOOD_DISTANCE * (0.5 if relaxed else 1.0)
-		if rock_distance <= MIN_FOOD_ROCK_DISTANCE or hazard_distance <= MIN_FOOD_DANGER_DISTANCE or food_distance <= food_spacing:
-			continue
-		if relaxed:
-			return candidate
-
-		var spacing = minf(hazard_distance, minf(rock_distance, food_distance))
-		var distance_factor = 1.0 - absf(player_distance - PREFERRED_PLAYER_DISTANCE) / PREFERRED_PLAYER_DISTANCE
-		var candidate_score = spacing * (1.0 + distance_factor)
+		var candidate_score = _food_spawn_score(candidate, foods, hazards, rocks, MIN_FOOD_DISTANCE)
 		if candidate_score > best_score:
 			best_score = candidate_score
 			best_position = candidate
+	if best_position != null:
+		return best_position
+
+	# Cover the wider arena if the random sample finds nothing. Only the
+	# spacing between food pickups can relax.
+	for x in range(-FALLBACK_FOOD_SPAWN_LIMIT, FALLBACK_FOOD_SPAWN_LIMIT + 1):
+		for z in range(-FALLBACK_FOOD_SPAWN_LIMIT, FALLBACK_FOOD_SPAWN_LIMIT + 1):
+			var candidate = Vector3(x, 0, z)
+			var candidate_score = _food_spawn_score(candidate, foods, hazards, rocks, MIN_FOOD_DISTANCE * 0.5)
+			if candidate_score > best_score:
+				best_score = candidate_score
+				best_position = candidate
 	return best_position
+
+func _food_spawn_score(candidate: Vector3, foods: Array, hazards: Array, rocks: Array, food_spacing: float) -> float:
+	var player_distance = _horizontal_distance(player.global_position, candidate)
+	if player_distance < MIN_PLAYER_DISTANCE or _nearest_horizontal_distance(candidate, player.segments) < MIN_BODY_SPAWN_DISTANCE:
+		return 0.0
+	var hazard_distance = _nearest_horizontal_distance(candidate, hazards)
+	if hazard_distance <= MIN_FOOD_DANGER_DISTANCE:
+		return 0.0
+	var rock_distance = _nearest_horizontal_distance(candidate, rocks)
+	if rock_distance <= MIN_FOOD_ROCK_DISTANCE:
+		return 0.0
+	var food_distance = _nearest_horizontal_distance(candidate, foods)
+	if food_distance <= food_spacing:
+		return 0.0
+
+	var spacing = minf(hazard_distance, minf(rock_distance, food_distance))
+	var distance_factor = maxf(1.0 - absf(player_distance - PREFERRED_PLAYER_DISTANCE) / PREFERRED_PLAYER_DISTANCE, 0.0)
+	return (1.0 if is_inf(spacing) else spacing) * (1.0 + distance_factor)
 
 func _nearest_horizontal_distance(position: Vector3, nodes: Array) -> float:
 	var nearest = INF
@@ -418,29 +457,34 @@ func game_over():
 	update_pause_state()
 	ui.show_game_over(score, GameState.get_best_score(), is_new_best)
 
-func return_to_main_menu():
-	save_game_state()
+func return_to_main_menu() -> void:
+	if not _save_before_leaving():
+		return
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	is_paused = false
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
-func save_and_quit():
-	if is_quitting:
+func save_and_quit() -> void:
+	if is_quitting or not _save_before_leaving():
 		return
 	is_quitting = true
-	save_game_state()
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	is_paused = false
 	get_tree().quit()
 
-func save_game_state() -> void:
-	if is_game_over:
-		return
+func _save_before_leaving() -> bool:
+	if save_game_state():
+		return true
+	if not is_paused:
+		toggle_pause()
+	ui.show_save_error()
+	return false
 
-	if not is_instance_valid(player) or player.is_dead:
-		return
+func save_game_state() -> bool:
+	if is_game_over or not is_instance_valid(player) or player.is_dead:
+		return true
 		
 	var foods = get_tree().get_nodes_in_group("food")
 	var rocks = get_tree().get_nodes_in_group("rock")
@@ -468,8 +512,10 @@ func save_game_state() -> void:
 		"food_positions": food_positions,
 		"rocks": rock_data
 	}
-	if not GameState.save_game_state(save_data):
-		push_warning("Unable to save the current game state")
+	if GameState.save_game_state(save_data):
+		return true
+	push_warning("Unable to save the current game state")
+	return false
 
 func load_game_state() -> bool:
 	for food in get_tree().get_nodes_in_group("food"):
@@ -522,12 +568,10 @@ func load_game_state() -> bool:
 		for food_pos in saved_food_positions:
 			if not food_pos is Dictionary:
 				continue
-			var food = FOOD_SCENE.instantiate()
-			food.position = _vector_from_data(food_pos)
-			food.position.y = 0.0
-			gameplay_container.add_child(food)
-	else:
-		_refill_food()
+			var food_position = _vector_from_data(food_pos)
+			food_position.y = 0.0
+			_spawn_food_at(food_position)
+	_refill_food()
 	
 
 	score = max(int(save_data.get("score", 0)), 0)
@@ -553,10 +597,7 @@ func _notification(what: int) -> void:
 		if is_node_ready() and not is_game_over:
 			if not is_paused and not is_gameplay_paused:
 				toggle_pause()
-			save_game_state()
-	elif what == NOTIFICATION_WM_CLOSE_REQUEST:
-		if is_quitting:
-			return
-		is_quitting = true
-		save_game_state()
-		get_tree().quit()
+			if not save_game_state() and is_paused:
+				ui.show_save_error()
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST and is_node_ready():
+		save_and_quit()

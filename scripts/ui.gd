@@ -14,6 +14,7 @@ signal main_menu_requested
 @onready var game_over_menu: Control = $GameOverMenu
 @onready var gameplay_pause_label: Label = $GameplayPauseLabel
 @onready var hint_label: Label = $HintLabel
+@onready var save_error_label: Label = $PauseMenu/VBoxContainer/SaveErrorLabel
 
 var hint_elapsed: float = 0.0
 var player: Player
@@ -58,10 +59,11 @@ func _process(delta: float) -> void:
 
 	var length = player.segments.size() + 1
 	stats_label.text = "LENGTH %02d   SPEED %.1fx" % [length, player.current_speed_boost]
+	if pause_menu.visible or gameplay_pause_label.visible or game_over_menu.visible:
+		hint_label.hide()
+		return
 	if player.has_started_moving:
-		hint_label.visible = player.stuck_elapsed >= Player.STUCK_WARNING_START and not (
-			pause_menu.visible or gameplay_pause_label.visible or game_over_menu.visible
-		)
+		hint_label.visible = player.stuck_elapsed >= Player.STUCK_WARNING_START
 		if hint_label.visible:
 			hint_label.text = "KEEP MOVING  ·  %.1fs" % maxf(Player.STUCK_TIMEOUT - player.stuck_elapsed, 0.0)
 	else:
@@ -81,6 +83,11 @@ func toggle_pause_menu(is_paused: bool) -> void:
 	pause_menu.visible = is_paused
 	if is_paused:
 		$PauseMenu/VBoxContainer/ResumeButton.grab_focus()
+	else:
+		save_error_label.hide()
+
+func show_save_error() -> void:
+	save_error_label.show()
 
 func show_game_over(final_score: int, best_score: int, is_new_best: bool) -> void:
 	game_over_menu.visible = true

@@ -152,8 +152,10 @@ func run() -> void:
 	await _check_rock_impacts()
 	await _check_pickup_clearance()
 	await _check_arena_fall()
+	_check_failed_exit_save()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
+	_check_covered_food_refill()
 	_check_body_spawn_clearance()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
 	if not failed:
@@ -586,6 +588,34 @@ func _check_body_spawn_clearance() -> void:
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear spawn clearance fixture")
 
+func _check_failed_exit_save() -> void:
+	var main = MAIN.instantiate()
+	var previous_auto_accept_quit = get_tree().auto_accept_quit
+	add_child(main)
+	check(not get_tree().auto_accept_quit, "Live gameplay did not take over the window close action")
+	var original_save_path = GameState.save_file_path
+	var blocked_path = original_save_path + ".blocked"
+	check(DirAccess.make_dir_absolute(blocked_path) == OK, "Failed to block the save destination")
+	GameState.save_file_path = blocked_path
+
+	main.return_to_main_menu()
+	check(main.is_paused and main.is_inside_tree(), "Failed menu save discarded the live game")
+	check(main.ui.save_error_label.is_visible_in_tree(), "Pause menu hid the failed save")
+	main.toggle_pause()
+	check(not main.ui.save_error_label.visible, "Resuming left a stale save error")
+	main.notification(NOTIFICATION_WM_CLOSE_REQUEST)
+	check(main.is_paused and not main.is_quitting, "Failed window-close save discarded the live game")
+	check(main.ui.save_error_label.is_visible_in_tree(), "Failed window-close save did not explain the pause")
+	main.save_and_quit()
+	check(not main.is_quitting, "Failed Quit save exited the game")
+
+	check(DirAccess.remove_absolute(blocked_path) == OK, "Failed to restore the save destination")
+	check(main.save_game_state() and GameState.has_saved_game(), "The live game could not be saved after the destination recovered")
+	check(GameState.delete_save_game(), "Failed to clear the recovered exit fixture")
+	GameState.save_file_path = original_save_path
+	main.free()
+	check(get_tree().auto_accept_quit == previous_auto_accept_quit, "Gameplay left window closing disabled outside the run")
+
 func _check_empty_food_resume() -> void:
 	var fixture = {
 		"score": 0,
@@ -632,18 +662,58 @@ func _check_crowded_food_refill() -> void:
 	# Cover the spawn area with hazard markers, then clear it without a pickup.
 	var hazards = Node3D.new()
 	main.gameplay_container.add_child(hazards)
+	var edge_hazards = Node3D.new()
+	hazards.add_child(edge_hazards)
 	for x in range(-8, 9):
 		for z in range(-8, 9):
 			var hazard = Node3D.new()
 			hazard.position = Vector3(x, 0, z)
 			hazard.add_to_group("dangerous")
-			hazards.add_child(hazard)
+			var parent = edge_hazards if absi(x) == 8 or absi(z) == 8 else hazards
+			parent.add_child(hazard)
 	main._refill_food()
 	var food = get_tree().get_nodes_in_group("food").filter(func(item): return not item.is_queued_for_deletion())
 	check(food.is_empty(), "Crowded arena spawned food on a hazard")
-	hazards.free()
+	edge_hazards.free()
 	main._process(main.AUTOSAVE_INTERVAL)
 	food = get_tree().get_nodes_in_group("food").filter(func(item): return not item.is_queued_for_deletion())
-	check(food.size() == main.MIN_FOOD_COUNT, "Active game did not refill food after the spawn area opened up")
+	check(food.size() == main.MIN_FOOD_COUNT, "Active game did not refill food in the free space outside a crowded center")
+	for item: Food in food:
+		check(maxf(absf(item.position.x), absf(item.position.z)) == 9.0, "Fallback food did not stay on the cleared outer ring")
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear food refill fixture")
+
+func _check_covered_food_refill() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.5, "z": 0}},
+		"food_positions": [{"x": 5, "y": 0, "z": 0}],
+		"rocks": [{"position": {"x": 5, "y": 0.5, "z": 0}, "is_dangerous": true}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write covered-food fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	var original_food: Food = get_tree().get_first_node_in_group("food")
+	var rock: Rock = get_tree().get_first_node_in_group("rock")
+	check(get_tree().get_node_count_in_group("food") == main.MIN_FOOD_COUNT, "Resume left a partial food supply")
+
+	main._process(main.AUTOSAVE_INTERVAL)
+	check(not original_food.is_queued_for_deletion(), "Food moved after a single observation of cover")
+	rock.position.y = 2.0
+	main._process(main.AUTOSAVE_INTERVAL)
+	check(not original_food.is_queued_for_deletion(), "An airborne rock removed food below it")
+
+	rock.position.y = 0.5
+	main._process(main.AUTOSAVE_INTERVAL)
+	check(not original_food.is_queued_for_deletion(), "Previously cleared cover carried over")
+	main._process(main.AUTOSAVE_INTERVAL)
+	check(original_food.is_queued_for_deletion(), "Food remained stuck inside a settled rock")
+	var food_count = 0
+	for food: Food in get_tree().get_nodes_in_group("food"):
+		if not food.is_queued_for_deletion():
+			check(main._horizontal_distance(food.position, rock.position) > main.MIN_FOOD_ROCK_DISTANCE, "Replacement food collided with the covering rock")
+			food_count += 1
+	check(food_count == main.MIN_FOOD_COUNT, "Covered food replacement changed the available supply")
+	check(GameState.load_game_state().food_positions.size() == main.MIN_FOOD_COUNT, "Covered food replacement did not persist")
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear covered-food fixture")

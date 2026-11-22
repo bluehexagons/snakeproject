@@ -51,6 +51,12 @@ func finish_spawn() -> void:
 	axis_lock_angular_x = false
 	axis_lock_angular_z = false
 
+func covers_pickup(point: Vector3) -> bool:
+	if is_spawning or is_shattering or collision_shape.disabled:
+		return false
+	var sphere := collision_shape.shape as SphereShape3D
+	return sphere != null and collision_shape.to_local(point).length_squared() < sphere.radius * sphere.radius
+
 func setup_rock(spawn_position: Vector3) -> void:
 	is_initialized = true
 	position = spawn_position + Vector3.UP * SPAWN_HEIGHT

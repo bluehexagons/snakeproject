@@ -13,14 +13,16 @@ three-second timeout.
 
 Impacts flash briefly. A hard hit, such as a head-on lunge after eating, can
 shatter a gray rock. Red rocks and falling out of the arena are lethal. Food can
-be collected during small bounces, and solid obstacles block pickups.
+be collected during small bounces, and solid obstacles block pickups. Food that
+stays trapped inside a rock is moved to a clear spot.
 
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
 between overhead and angled arena views. Retry starts a fresh run after death.
 Switching away from the window pauses and saves the run; resume explicitly when you return.
 Menus support keyboard navigation with arrow keys, Tab, and Enter.
-The pause menu returns to the main menu with a resumable save. Active games also
-autosave every five seconds; best scores persist across runs. Focus loss also saves
+The pause menu returns to the main menu with a resumable save. If an exit save
+fails, the game stays paused so you can try again. Active games autosave every
+five seconds, and best scores persist across runs. Focus loss also saves
 when already paused. Holding a pause or camera key does not repeatedly toggle it.
 
 ## Gameplay systems
@@ -41,10 +43,10 @@ the playing surface. Saves preserve queued lunges, active pickup boosts, the
 digestion pulse, and the current inactivity sample. Solid segments keep their
 collision and velocity when resumed.
 Rocks saved during their entrance animation resume at the same growth stage.
-If a save has no food, replacements are placed after its rocks are restored.
-When the arena is too crowded for safe placement, active play retries food
-spawns on the five-second autosave interval. New rocks and food leave room
-around the snake's body.
+When resuming, the game refills food after restoring the rocks. If the center
+is crowded, placement searches farther out while keeping clear of obstacles.
+Active play retries any missing spawns on the five-second autosave interval.
+New rocks and food leave room around the snake's body.
 
 ## Verification
 
