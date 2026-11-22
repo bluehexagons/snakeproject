@@ -23,6 +23,7 @@ const MIN_PLAYER_DISTANCE = 2.0
 const MIN_FOOD_DANGER_DISTANCE = 1.5
 const MIN_FOOD_ROCK_DISTANCE = 1.0
 const MIN_ROCK_PLAYER_DISTANCE = 2.5
+const MIN_BODY_SPAWN_DISTANCE = 1.0
 const MAX_FOOD_SPAWN_ATTEMPTS = 30
 const MAX_RELAXED_FOOD_SPAWN_ATTEMPTS = 10
 const MAX_ROCK_SPAWN_ATTEMPTS = 30
@@ -266,6 +267,8 @@ func _find_food_spawn_position(foods: Array, hazards: Array, rocks: Array) -> Va
 		var player_distance = _horizontal_distance(player.global_position, candidate)
 		if player_distance < MIN_PLAYER_DISTANCE:
 			continue
+		if _nearest_horizontal_distance(candidate, player.segments) < MIN_BODY_SPAWN_DISTANCE:
+			continue
 
 		var rock_distance = _nearest_horizontal_distance(candidate, rocks)
 		var hazard_distance = _nearest_horizontal_distance(candidate, hazards)
@@ -302,6 +305,8 @@ func spawn_rock(force_safe: bool = false) -> bool:
 		var spawn_pos = Vector3(random_x, 0, random_z)
 		if current_player and _horizontal_distance(current_player.global_position, spawn_pos) < MIN_ROCK_PLAYER_DISTANCE:
 			continue
+		if current_player and _nearest_horizontal_distance(spawn_pos, current_player.segments) < MIN_BODY_SPAWN_DISTANCE:
+			continue
 
 		var overlaps_rock = false
 		for other_rock in get_tree().get_nodes_in_group("rock"):
@@ -312,7 +317,7 @@ func spawn_rock(force_safe: bool = false) -> bool:
 			continue
 		var overlaps_food = false
 		for food in get_tree().get_nodes_in_group("food"):
-			if food.is_available() and _horizontal_distance(food.position, spawn_pos) < MIN_FOOD_ROCK_DISTANCE:
+			if not food.is_queued_for_deletion() and food.is_available() and _horizontal_distance(food.position, spawn_pos) < MIN_FOOD_ROCK_DISTANCE:
 				overlaps_food = true
 				break
 		if overlaps_food:
@@ -518,9 +523,9 @@ func load_game_state() -> bool:
 			if not food_pos is Dictionary:
 				continue
 			var food = FOOD_SCENE.instantiate()
-			gameplay_container.add_child(food)
 			food.position = _vector_from_data(food_pos)
 			food.position.y = 0.0
+			gameplay_container.add_child(food)
 	else:
 		_refill_food()
 	

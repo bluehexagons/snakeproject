@@ -28,6 +28,9 @@ const TURN_RATE = 12.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
 const PICKUP_RADIUS = 0.8
+const PICKUP_VERTICAL_RADIUS = 1.1
+const PICKUP_SWEEP_SCALE = Vector3(1.0, PICKUP_RADIUS / PICKUP_VERTICAL_RADIUS, 1.0)
+const PICKUP_OBSTACLES = PhysicsConstants.LAYER_BARRIER | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_SEGMENT
 const SCORE_SPEED_REFERENCE = 0.5
 const MAX_SCORE_MULTIPLIER = 3.0
 const PICKUP_IMPULSE = 2.5
@@ -133,18 +136,24 @@ func _update_stuck_color(delta: float) -> void:
 
 func _collect_food() -> void:
 	var start = previous_pickup_position if pickup_position_initialized else global_position
+	var scaled_start = start * PICKUP_SWEEP_SCALE
+	var scaled_end = global_position * PICKUP_SWEEP_SCALE
 	var speed = Vector2(linear_velocity.x, linear_velocity.z).length()
 	var score_multiplier = clampf(speed / (max_speed * SCORE_SPEED_REFERENCE), 1.0, MAX_SCORE_MULTIPLIER)
 	for candidate in get_tree().get_nodes_in_group("food"):
 		var food = candidate as Food
 		if not food or not food.is_available():
 			continue
-		# Sweep the horizontal movement so high speed cannot skip a pickup.
-		var a = Vector2(start.x, start.z)
-		var b = Vector2(global_position.x, global_position.z)
-		var point = Vector2(food.global_position.x, food.global_position.z)
-		var nearest = Geometry2D.get_closest_point_to_segment(point, a, b)
-		if point.distance_to(nearest) > PICKUP_RADIUS:
+		# Sweep the head's movement to catch pickups at speed, then check for
+		# solid geometry between the approach point and the food.
+		var point = food.get_pickup_position()
+		var scaled_point = point * PICKUP_SWEEP_SCALE
+		var nearest = Geometry3D.get_closest_point_to_segment(scaled_point, scaled_start, scaled_end)
+		if scaled_point.distance_squared_to(nearest) > PICKUP_RADIUS * PICKUP_RADIUS:
+			continue
+		var ray = PhysicsRayQueryParameters3D.create(nearest / PICKUP_SWEEP_SCALE, point, PICKUP_OBSTACLES)
+		ray.hit_from_inside = true
+		if not get_world_3d().direct_space_state.intersect_ray(ray).is_empty():
 			continue
 		var points = food.eat(self)
 		if points <= 0.0:

@@ -147,8 +147,10 @@ func run() -> void:
 	await _check_speed_scoring()
 	await _check_handling()
 	await _check_rock_impacts()
+	await _check_pickup_clearance()
 	_check_empty_food_resume()
 	_check_crowded_food_refill()
+	_check_body_spawn_clearance()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
 	if not failed:
 		print("Gameplay regression passed")
@@ -424,6 +426,81 @@ func _check_rock_impacts() -> void:
 		main.free()
 		Engine.time_scale = 1.0
 		check(GameState.delete_save_game(), "Failed to clear rock impact fixture")
+
+func _check_pickup_clearance() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.5, "z": 0}},
+		"food_positions": [{"x": 0.65, "y": 0, "z": 0}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write obstructed pickup fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	var blocker = StaticBody3D.new()
+	blocker.collision_layer = PhysicsConstants.LAYER_BARRIER
+	blocker.position = Vector3(0.48, 0.6, 0)
+	var collider = CollisionShape3D.new()
+	var box = BoxShape3D.new()
+	box.size = Vector3(0.1, 1.2, 2.0)
+	collider.shape = box
+	blocker.add_child(collider)
+	main.gameplay_container.add_child(blocker)
+	for frame in 8:
+		await get_tree().physics_frame
+	check(main.player.food_eaten == 0, "The head collected food through a solid obstacle")
+	blocker.queue_free()
+	for frame in 4:
+		await get_tree().physics_frame
+	check(main.player.food_eaten == 1, "Removing the obstacle did not make the food collectible")
+	main.free()
+
+	fixture.player_state.position.y = 2.6
+	fixture.food_positions[0].x = 0.2
+	check(GameState.save_game_state(fixture), "Failed to write airborne pickup fixture")
+	main = MAIN.instantiate()
+	add_child(main)
+	for frame in 10:
+		await get_tree().physics_frame
+	check(main.player.food_eaten == 0, "The head collected food from far above it")
+	for frame in 25:
+		await get_tree().physics_frame
+		if main.player.food_eaten > 0:
+			break
+	check(main.player.food_eaten == 1 and main.player.position.y > 1.3, "The head failed to collect food within the generous vertical reach")
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear pickup clearance fixture")
+
+func _check_body_spawn_clearance() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {"position": {"x": 0, "y": 0.5, "z": 0}, "segments": []},
+	}
+	check(GameState.save_game_state(fixture), "Failed to write spawn clearance fixture")
+	seed(42)
+	var main = MAIN.instantiate()
+	add_child(main)
+	for food in get_tree().get_nodes_in_group("food"):
+		fixture.player_state.segments.append({"position": {"x": food.position.x, "y": 0.35, "z": food.position.z}})
+	seed(88)
+	check(main.spawn_rock(true), "Could not place the reference rock")
+	var rock: Rock = get_tree().get_first_node_in_group("rock")
+	if rock:
+		fixture.player_state.segments.append({"position": {"x": rock.position.x, "y": 0.35, "z": rock.position.z}})
+	main.free()
+
+	check(GameState.save_game_state(fixture), "Failed to write body-occupied spawn fixture")
+	seed(42)
+	main = MAIN.instantiate()
+	add_child(main)
+	seed(88)
+	check(main.spawn_rock(true), "Body clearance prevented all rock placement")
+	check(get_tree().get_nodes_in_group("food").size() == main.MIN_FOOD_COUNT, "Body clearance prevented food refill")
+	for group in ["rock", "food"]:
+		for item in get_tree().get_nodes_in_group(group):
+			for segment in main.player.segments:
+				check(main._horizontal_distance(item.position, segment.position) >= main.MIN_BODY_SPAWN_DISTANCE, "A %s spawned over the body" % group)
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear spawn clearance fixture")
 
 func _check_empty_food_resume() -> void:
 	var fixture = {

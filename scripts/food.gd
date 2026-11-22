@@ -22,6 +22,10 @@ var consume_timer: float = 0.0
 func _ready() -> void:
 	start_y = position.y
 
+func get_pickup_position() -> Vector3:
+	# Sample the center of the hover animation at a fixed height in physics.
+	return get_parent_node_3d().to_global(Vector3(position.x, start_y + LEVITATION, position.z))
+
 func _process(delta: float) -> void:
 	if is_consumed:
 		consume_timer += delta

@@ -11,6 +11,10 @@ the head. Once you start moving, make steady progress to survive. If you stop
 or get pinned, the head changes color and a countdown warns you before the
 three-second timeout.
 
+Impacts flash briefly. A hard hit, such as a head-on lunge after eating, can
+shatter a gray rock. Red rocks remain lethal. Food can be collected during
+small bounces, and solid obstacles block pickups.
+
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
 between overhead and angled arena views. Retry starts a fresh run after death.
 Switching away from the window pauses and saves the run; resume explicitly when you return.
@@ -37,7 +41,8 @@ the playing surface.
 Rocks saved during their entrance animation resume at the same growth stage.
 If a save has no food, replacements are placed after its rocks are restored.
 When the arena is too crowded for safe placement, active play retries food
-spawns on the five-second autosave interval.
+spawns on the five-second autosave interval. New rocks and food leave room
+around the snake's body.
 
 ## Verification
 
@@ -89,13 +94,13 @@ session from reappearing.
 
 Coverage includes rapid pickups, speed-based scoring, capped forward impulses,
 momentum through turns, reversals, diagonal steering, head and rock contact
-with the body, wall-touched pieces turning lethal, grounded body persistence,
+with the body, rock impacts and breakage, wall-touched pieces turning lethal, grounded body persistence,
 recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, stuck warnings,
 recovery, loss while stopped or blocked, death and body breakup,
 interrupted or corrupt save recovery, recovery-file cleanup, key-repeat
-handling, malformed save validation, rock entrance recovery, and food placement
-around hazards and in crowded arenas. Headless tests do not establish GPU, sound,
+handling, malformed save validation, rock entrance recovery, and pickups and
+spawns around obstacles. Headless tests do not establish GPU, sound,
 or display scaling behavior; also check the native window on target hardware.
 
 ## Exporting
