@@ -117,18 +117,17 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 		super._integrate_forces(state)
 		return
 	_drop_contact = is_spawning
-	if not is_dangerous:
-		for index in state.get_contact_count():
-			var head = state.get_contact_collider_object(index) as Player
-			if head and not head.has_lost and state.get_contact_impulse(index).length() >= BREAK_IMPULSE:
-				is_shattering = true
-				break_rock.call_deferred()
-				return
 	var current_speed = state.linear_velocity.length()
 	if current_speed > PhysicsConstants.ROCK_MAX_SPEED:
 		state.linear_velocity = state.linear_velocity * (PhysicsConstants.ROCK_MAX_SPEED / current_speed)
 
 	super._integrate_forces(state)
+
+func shatter_from_lunge(impulse: float) -> void:
+	if not is_initialized or is_dangerous or is_shattering or impulse < BREAK_IMPULSE:
+		return
+	is_shattering = true
+	break_rock.call_deferred()
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()

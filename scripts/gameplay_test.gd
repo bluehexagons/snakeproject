@@ -540,9 +540,10 @@ func _check_passive_momentum() -> void:
 
 func _check_rock_impacts() -> void:
 	# Use the real input and pickup path so the break is reachable in play.
-	for impact_case in ["cruise", "early_boost", "fast_cruise", "hard_boost", "glancing", "dangerous"]:
-		var fast = impact_case in ["fast_cruise", "hard_boost", "glancing", "dangerous"]
-		var boosted = impact_case not in ["cruise", "fast_cruise"]
+	for impact_case in ["cruise", "early_boost", "fast_cruise", "oncoming", "expired_boost", "hard_boost", "glancing", "dangerous"]:
+		var oncoming = impact_case in ["oncoming", "expired_boost"]
+		var fast = oncoming or impact_case in ["fast_cruise", "hard_boost", "glancing", "dangerous"]
+		var boosted = impact_case in ["early_boost", "hard_boost", "glancing", "dangerous"]
 		var dangerous = impact_case == "dangerous"
 		var row = 0.57 if impact_case == "glancing" else 0.0
 		var fixture = {
@@ -558,6 +559,13 @@ func _check_rock_impacts() -> void:
 				{"x": 6, "y": 0, "z": 6}, {"x": 7, "y": 0, "z": -6},
 			],
 		}
+		if oncoming:
+			fixture.player_state.position.x = -4.0
+			fixture.player_state.velocity = {"x": 12, "y": 0, "z": 0}
+			fixture.rocks[0].velocity = {"x": -6, "y": 0, "z": 0}
+		if impact_case == "expired_boost":
+			fixture.player_state.position.x = -9.0
+			fixture.player_state.pickup_speed_bonus = 2.5
 		check(GameState.save_game_state(fixture), "Failed to write rock impact fixture")
 		var main = MAIN.instantiate()
 		add_child(main)
@@ -573,6 +581,8 @@ func _check_rock_impacts() -> void:
 		Input.action_release("move_right")
 		if boosted:
 			check(main.player.food_eaten == (21 if fast else 1), "%s: the snake missed the pickup before impact" % impact_case)
+		if oncoming:
+			check(main.player.pickup_speed_bonus == 0.0, "The oncoming-rock fixture still had a pickup boost")
 		match impact_case:
 			"hard_boost":
 				check(not main.is_game_over, "Shattering a gray rock ended the run")

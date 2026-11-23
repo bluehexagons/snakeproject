@@ -37,6 +37,8 @@ const MAX_SCORE_MULTIPLIER = 3.0
 const PICKUP_IMPULSE = 2.5
 const MAX_PICKUP_BOOST = 4.0
 const PICKUP_BOOST_DECAY = 10.0
+const ROCK_SHATTER_MIN_BOOST = 0.75
+const ROCK_SHATTER_ALIGNMENT = 0.85
 const HEAD_MAX_CONTACTS = 12
 
 var facing_direction: Vector3 = Vector3.FORWARD
@@ -343,6 +345,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 				lose()
 				break
 	if not has_lost:
+		# Contacts come from the last movement step, before any new pickup impulse.
+		if pickup_speed_bonus >= ROCK_SHATTER_MIN_BOOST:
+			_check_lunge_contacts(state)
 		_flash_contacts(state)
 	var horizontal = Vector3(state.linear_velocity.x, 0.0, state.linear_velocity.z)
 	pickup_speed_bonus = move_toward(pickup_speed_bonus, 0.0, PICKUP_BOOST_DECAY * state.step)
@@ -360,6 +365,15 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	if horizontal.length_squared() > 0.01:
 		facing_direction = horizontal.normalized()
 	physics_pos = state.transform.origin
+
+func _check_lunge_contacts(state: PhysicsDirectBodyState3D) -> void:
+	for index in state.get_contact_count():
+		var rock := state.get_contact_collider_object(index) as Rock
+		if not rock:
+			continue
+		var toward_rock := (rock.global_position - state.transform.origin).normalized()
+		if facing_direction.dot(toward_rock) >= ROCK_SHATTER_ALIGNMENT:
+			rock.shatter_from_lunge(state.get_contact_impulse(index).length())
 
 func _drive_velocity(velocity: Vector3, step: float) -> Vector3:
 	if has_lost or input_dir.is_zero_approx():

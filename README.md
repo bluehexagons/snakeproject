@@ -12,10 +12,10 @@ you stop or get pinned, the head changes color and a countdown warns you
 before the three-second timeout.
 
 Ground rings mark incoming rocks and expand briefly on impact.
-Impacts flash briefly. A high-speed, head-on lunge after eating can
-shatter a gray rock. Red rocks and falling out of the arena are lethal. Food can
-be collected during small bounces, and solid obstacles block pickups. Food that
-stays trapped inside a rock is moved to a clear spot.
+Impacts flash briefly. Gray rocks shatter only on a hard, direct hit during
+the brief lunge from eating. Red rocks and falling out of the arena are lethal.
+Food can be collected during small bounces, and solid obstacles block pickups.
+Food that stays trapped inside a rock is moved to a clear spot.
 
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
 between overhead and angled arena views. Retry starts a fresh run after death.
