@@ -82,9 +82,14 @@ cast_shadow = 0
 material_override = SubResource("LandingMaterial")
 mesh = SubResource("LandingMesh")
 
-[node name="BreakSparks" type="GPUParticles3D" parent="."]
+[node name="ShatterEffect" type="Node3D" parent="."]
+top_level = true
+physics_interpolation_mode = 2
+
+[node name="BreakSparks" type="GPUParticles3D" parent="ShatterEffect"]
 cast_shadow = 0
 emitting = false
+local_coords = true
 amount = 20
 lifetime = 0.36
 one_shot = true

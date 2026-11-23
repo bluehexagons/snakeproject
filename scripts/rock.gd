@@ -26,7 +26,8 @@ var _drop_contact := false
 @onready var mesh: MeshInstance3D = $MeshInstance3D
 @onready var landing_marker: MeshInstance3D = $LandingMarker
 @onready var landing_material: ShaderMaterial = landing_marker.material_override
-@onready var break_sparks: GPUParticles3D = $BreakSparks
+@onready var shatter_effect: Node3D = $ShatterEffect
+@onready var break_sparks: GPUParticles3D = $ShatterEffect/BreakSparks
 
 func _ready() -> void:
 	super()
@@ -184,6 +185,8 @@ func dead_eat() -> float:
 	return 2.0
 
 func break_rock() -> void:
+	# Anchor the burst before freezing the rigid body changes its transform.
+	shatter_effect.global_position = global_position
 	SoundFx.play(SoundFx.Cue.SHATTER)
 	remove_from_group("rock")
 	freeze = true
@@ -191,17 +194,16 @@ func break_rock() -> void:
 	collision_mask = 0
 	mesh.hide()
 	landing_marker.hide()
-	break_sparks.emitting = true
+	break_sparks.restart()
 	var tween = create_tween().set_parallel()
-	var to_local = global_basis.inverse()
 	for index in FRAGMENT_COUNT:
 		var angle = TAU * index / FRAGMENT_COUNT
-		var direction = to_local * Vector3(cos(angle), 0.4 + 0.15 * (index % 3), sin(angle))
+		var direction = Vector3(cos(angle), 0.4 + 0.15 * (index % 3), sin(angle))
 		var fragment = MeshInstance3D.new()
 		fragment.mesh = mesh.mesh
 		fragment.position = direction * 0.2
 		fragment.scale = Vector3.ONE * 0.35
-		add_child(fragment)
+		shatter_effect.add_child(fragment)
 		tween.tween_property(fragment, "position", direction, SHATTER_DURATION).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		tween.tween_property(fragment, "scale", Vector3.ZERO, SHATTER_DURATION)
 	tween.chain().tween_callback(queue_free).set_delay(break_sparks.lifetime - SHATTER_DURATION)

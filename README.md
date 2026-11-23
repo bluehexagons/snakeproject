@@ -14,8 +14,9 @@ Move with **WASD or arrow keys**, collect glowing food, and avoid red walls and
 red rocks. Each pickup adds a body piece, awards 10 to 30 points based on your
 speed, increases cruising speed slightly, and gives the snake a forward impulse.
 The head bumps into blue body pieces, and rocks can deflect the body. A piece
-that hits a wall turns red and is lethal to the head. The head coasts when you
-release movement. Once you start moving, make steady progress to survive. If
+that hits a wall turns red and is lethal to the head. Release movement to coast
+and gradually stop, or hold the opposite direction to brake and reverse into
+your own body. Once you start moving, make steady progress to survive. If
 you stop or get pinned, the head changes color and a countdown warns you
 before the three-second timeout.
 

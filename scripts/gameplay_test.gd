@@ -71,7 +71,7 @@ func run() -> void:
 	# Contact can temporarily stretch a link while a new piece rounds a corner.
 	check(max_link < 1.25, "Body stretched too far during a turn: %f" % max_link)
 	check(max_step < 0.3, "Tail teleported during movement: %f" % max_step)
-	for frame in 42:
+	for frame in 86:
 		await get_tree().physics_frame
 	check(player.linear_velocity.length() < 0.2, "Player did not settle after coasting")
 	for frame in 18:
@@ -190,6 +190,15 @@ func _check_rock_drop(container: Node3D) -> void:
 	for frame in 20:
 		await get_tree().physics_frame
 	check(not rock.landing_marker.visible, "The landing marker stayed visible after impact")
+	var impact_position := rock.global_position
+	rock.shatter_from_lunge(Rock.BREAK_IMPULSE)
+	for frame in 5:
+		await get_tree().physics_frame
+	check(rock.shatter_effect.global_position.is_equal_approx(impact_position)
+		and rock.break_sparks.global_position.is_equal_approx(impact_position),
+		"The shatter effect moved away from the rock's impact position")
+	check(rock.shatter_effect.get_child_count() == Rock.FRAGMENT_COUNT + 1,
+		"The rock fragments were not attached to the shatter effect")
 	rock.free()
 
 func _check_body_contacts() -> void:
@@ -224,14 +233,28 @@ func _check_body_contacts() -> void:
 	check(rock_touched_body and body_deflection > 0.02, "A moving rock passed through the body without deflecting it")
 	rock.queue_free()
 
-	# Reversing into a blue piece should produce contact without ending the run.
-	var touched_own_body = false
-	Input.action_press("move_left")
-	for frame in 18:
+	# Brake from forward motion and then reverse into the blue piece.
+	Input.action_press("move_right")
+	for frame in 28:
 		await get_tree().physics_frame
-		touched_own_body = touched_own_body or player.get_colliding_bodies().has(segment)
+	Input.action_release("move_right")
+	var forward_speed := player.linear_velocity.x
+	check(forward_speed > 6.0, "The snake never reached speed before braking")
+	var touched_own_body = false
+	var furthest_x := player.position.x
+	Input.action_press("move_left")
+	for frame in 38:
+		await get_tree().physics_frame
+		furthest_x = maxf(furthest_x, player.position.x)
+		if frame == 4:
+			check(player.linear_velocity.x > 0.0 and player.linear_velocity.x < forward_speed - 1.0,
+				"Opposite input did not brake forward motion before reversing")
+		if player.get_colliding_bodies().has(segment):
+			touched_own_body = true
+			break
 	Input.action_release("move_left")
-	check(touched_own_body and not player.has_lost, "Reversing into a blue piece failed to produce a safe collision")
+	check(touched_own_body and furthest_x - player.position.x > 0.08 and not player.has_lost,
+		"Reversing into a blue piece failed to produce a safe collision")
 	check(player.position.x > segment.position.x, "The head crossed through the solid body piece")
 	Input.action_press("move_down")
 	var turn_start = player.position
@@ -290,7 +313,7 @@ func _check_stuck_loss() -> void:
 	for frame in 24:
 		await get_tree().physics_frame
 	Input.action_release("move_right")
-	for frame in 110:
+	for frame in 140:
 		await get_tree().physics_frame
 	check(player.stuck_elapsed >= Player.STUCK_WARNING_START and not main.is_game_over, "Stopping did not give the player time to recover")
 	await get_tree().process_frame
@@ -485,11 +508,16 @@ func _check_handling() -> void:
 	for frame in 15:
 		await get_tree().physics_frame
 	var coast_speed = player.linear_velocity.length()
-	for frame in 24:
+	for frame in 25:
+		await get_tree().physics_frame
+	var mid_coast_speed = Vector2(player.linear_velocity.x, player.linear_velocity.z)
+	for frame in 40:
 		await get_tree().physics_frame
 	var coast_distance = player.position.distance_to(coast_start)
-	check(coast_speed > 3.5 and coast_distance > 1.8, "Releasing the input canceled too much momentum")
-	check(player.linear_velocity.length() < 0.2 and coast_distance < 2.8, "The head did not settle after a controlled coast")
+	check(coast_speed > 6.0 and mid_coast_speed.dot(diagonal.normalized()) > 3.0,
+		"Releasing the input canceled too much forward momentum")
+	check(player.linear_velocity.length() < 0.2 and coast_distance > 4.4 and coast_distance < 5.5,
+		"The head did not roll to a gradual stop")
 	check(not main.is_game_over and player.food_eaten == 0, "The handling fixture hit a wall or picked up food")
 	print("Handling regression: cruise %.2f, turn minimum %.2f, turn drift %.2f, coast speed %.2f, coast distance %.2f" %
 		[cruise_speed, min_turn_speed, turn_drift, coast_speed, coast_distance])

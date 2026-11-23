@@ -21,10 +21,11 @@ const BONUS_SPEED_PER_FEED = 0.025
 const MAX_SPEED_BOOST = 1.5
 const DRIVE_ACCELERATION = 24.0
 const DRIVE_RESPONSE = 10.0
-const COAST_DECELERATION = 14.0
+const COAST_DECELERATION = 6.5
+const DEATH_DECELERATION = 14.0
 const OVERSPEED_DECELERATION = 16.0
 const REVERSE_BRAKE_ACCELERATION = 40.0
-const REVERSE_ALIGNMENT = -0.966
+const REVERSE_ALIGNMENT = -0.866
 const TURN_RATE = 6.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
@@ -376,7 +377,9 @@ func _check_lunge_contacts(state: PhysicsDirectBodyState3D) -> void:
 			rock.shatter_from_lunge(state.get_contact_impulse(index).length())
 
 func _drive_velocity(velocity: Vector3, step: float) -> Vector3:
-	if has_lost or input_dir.is_zero_approx():
+	if has_lost:
+		return velocity.move_toward(Vector3.ZERO, DEATH_DECELERATION * step)
+	if input_dir.is_zero_approx():
 		return velocity.move_toward(Vector3.ZERO, COAST_DECELERATION * step)
 
 	var direction = input_dir.normalized()
