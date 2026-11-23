@@ -24,6 +24,7 @@ var spawn_progress: float = 0.0
 var is_shattering: bool = false
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
+@onready var break_sparks: GPUParticles3D = $BreakSparks
 
 func _ready() -> void:
 	super()
@@ -181,6 +182,7 @@ func break_rock() -> void:
 	collision_layer = 0
 	collision_mask = 0
 	mesh.hide()
+	break_sparks.emitting = true
 	var tween = create_tween().set_parallel()
 	var to_local = global_basis.inverse()
 	for index in FRAGMENT_COUNT:
@@ -193,4 +195,4 @@ func break_rock() -> void:
 		add_child(fragment)
 		tween.tween_property(fragment, "position", direction, SHATTER_DURATION).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 		tween.tween_property(fragment, "scale", Vector3.ZERO, SHATTER_DURATION)
-	tween.chain().tween_callback(queue_free)
+	tween.chain().tween_callback(queue_free).set_delay(break_sparks.lifetime - SHATTER_DURATION)

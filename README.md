@@ -35,6 +35,19 @@ room for its collider. The body breaks apart on death.
 Godot physics interpolation smooths transforms. Both camera views keep the arena
 visible and control axes stable.
 
+## Rendering
+
+The arena uses procedural PBR materials, emissive rails, a moving backdrop,
+screen-space ambient occlusion, and glow. Gold rings and local lighting mark
+pickups. Red rails and rocks mark hazards, and the snake's visor shows its
+heading. The angled view uses transparent hazard walls to keep the floor visible.
+
+The default Compatibility renderer shares this presentation with the web build.
+On desktop, launch Godot with `--rendering-method forward_plus` to render the
+arena with volumetric fog.
+
+## Runtime
+
 `GameManager` owns the session, spawning, scoring, and save/resume lifecycle.
 `Player` emits gameplay signals and owns the body path. `Segment` handles body
 movement, collisions, and growth. `GameState` handles persistence. `DebugTelemetry`

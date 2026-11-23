@@ -15,6 +15,7 @@ signal main_menu_requested
 @onready var gameplay_pause_label: Label = $GameplayPauseLabel
 @onready var hint_label: Label = $HintLabel
 @onready var save_error_label: Label = $PauseMenu/VBoxContainer/SaveErrorLabel
+@onready var menu_shade: ColorRect = $MenuShade
 
 var hint_elapsed: float = 0.0
 var player: Player
@@ -65,13 +66,15 @@ func _process(delta: float) -> void:
 	if player.has_started_moving:
 		hint_label.visible = player.stuck_elapsed >= Player.STUCK_WARNING_START
 		if hint_label.visible:
+			if not hint_label.text.begins_with("KEEP MOVING"):
+				hint_label.add_theme_color_override("font_color", Color(1.0, 0.68, 0.38))
 			hint_label.text = "KEEP MOVING  ·  %.1fs" % maxf(Player.STUCK_TIMEOUT - player.stuck_elapsed, 0.0)
 	else:
 		hint_elapsed += delta
 		hint_label.visible = hint_elapsed < 8.0
 
 func update_score(new_score: int) -> void:
-	score_label.text = "Score: %d" % new_score
+	score_label.text = "SCORE  %d" % new_score
 
 func set_player(new_player: Player) -> void:
 	player = new_player
@@ -81,6 +84,7 @@ func set_gameplay_paused(is_paused: bool) -> void:
 
 func toggle_pause_menu(is_paused: bool) -> void:
 	pause_menu.visible = is_paused
+	menu_shade.visible = is_paused
 	if is_paused:
 		$PauseMenu/VBoxContainer/ResumeButton.grab_focus()
 	else:
@@ -91,6 +95,7 @@ func show_save_error() -> void:
 
 func show_game_over(final_score: int, best_score: int, is_new_best: bool) -> void:
 	game_over_menu.visible = true
+	menu_shade.show()
 	$GameOverMenu/VBoxContainer/RetryButton.grab_focus()
 	$GameOverMenu/VBoxContainer/ScoreLabel.text = "Final Score: %d" % final_score
 	$GameOverMenu/VBoxContainer/SummaryLabel.text = "NEW BEST SCORE!" if is_new_best else "Best Score: %d" % best_score

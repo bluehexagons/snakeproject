@@ -7,8 +7,8 @@ signal food_collected(total_food_eaten: int)
 signal score_earned(points: int, popup_position: Vector3)
 signal player_lost
 
-const BASE_COLOR = Color(0.2, 0.4, 1.0)
-const BASE_EMISSION = Color(0.2, 0.4, 1.0)
+const BASE_COLOR = Color(0.18, 0.49, 1.0)
+const BASE_EMISSION = Color(0.12, 0.42, 1.0)
 const STUCK_WARNING_COLOR = Color(0.55, 0.55, 0.55)
 const STUCK_DANGER_COLOR = Color(1.0, 0.2, 0.2)
 const STUCK_MIN_SPEED = 1.5
@@ -74,6 +74,7 @@ func _ready() -> void:
 	apply_color(BASE_COLOR, BASE_EMISSION, 0.6)
 
 func _physics_process(delta: float) -> void:
+	mesh_instance.rotation.y = atan2(-facing_direction.x, -facing_direction.z)
 	input_dir = Vector3.ZERO
 	if OS.is_debug_build() and Input.is_action_just_pressed("toggle_unkillable"):
 		unkillable = not unkillable

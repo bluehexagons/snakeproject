@@ -1,51 +1,17 @@
-[gd_scene load_steps=6 format=3 uid="uid://dbkt4gaf6xf28"]
+[gd_scene load_steps=4 format=3 uid="uid://dbkt4gaf6xf28"]
 
 [ext_resource type="Script" uid="uid://c4lkjrkm6ousk" path="res://scripts/ui.gd" id="1_script"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_u4k2p"]
-bg_color = Color(0.129412, 0.129412, 0.129412, 0.901961)
-corner_radius_top_left = 8
-corner_radius_top_right = 8
-corner_radius_bottom_right = 8
-corner_radius_bottom_left = 8
-shadow_color = Color(0, 0, 0, 0.25)
-shadow_size = 4
+[ext_resource type="Theme" path="res://resources/arena_theme.tres" id="2_theme"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover"]
-bg_color = Color(0.2, 0.23, 0.26, 0.9)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
+[sub_resource type="StyleBoxFlat" id="HudBackground"]
+bg_color = Color(0.026, 0.059, 0.091, 0.86)
 border_width_bottom = 1
-border_color = Color(0.3, 0.35, 0.4, 0.3)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_pressed"]
-bg_color = Color(0.12, 0.14, 0.16, 0.9)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.3, 0.35, 0.4, 0.2)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_normal"]
-bg_color = Color(0.15, 0.17, 0.19, 0.9)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.3, 0.35, 0.4, 0.2)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+border_color = Color(0.25, 0.49, 0.55, 0.8)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
 
 [node name="UI" type="Control"]
 layout_mode = 3
@@ -54,6 +20,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("2_theme")
 script = ExtResource("1_script")
 
 [node name="ScoreLabel" type="Label" parent="."]
@@ -61,43 +28,50 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -200.0
-offset_top = 20.0
-offset_right = -20.0
-offset_bottom = 46.0
+offset_left = -239.0
+offset_top = 18.0
+offset_right = -18.0
+offset_bottom = 59.0
 grow_horizontal = 0
 theme_override_font_sizes/font_size = 24
-text = "Score: 0"
-horizontal_alignment = 2
+theme_override_styles/normal = SubResource("HudBackground")
+text = "SCORE  0"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="StatsLabel" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 0
-offset_left = 20.0
-offset_top = 20.0
-offset_right = 250.0
-offset_bottom = 46.0
+offset_left = 18.0
+offset_top = 18.0
+offset_right = 251.0
+offset_bottom = 59.0
 theme_override_colors/font_color = Color(0.7, 0.85, 0.95, 1)
 theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("HudBackground")
 text = "LENGTH 01   SPEED 1.0x"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="HintLabel" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 8
+anchors_preset = 12
 anchor_left = 0.5
-anchor_top = 0.5
+anchor_top = 1.0
 anchor_right = 0.5
-anchor_bottom = 0.5
+anchor_bottom = 1.0
 offset_left = -180.0
-offset_top = 65.0
+offset_top = -80.0
 offset_right = 180.0
-offset_bottom = 95.0
+offset_bottom = -45.0
 grow_horizontal = 2
-grow_vertical = 2
+grow_vertical = 0
 theme_override_colors/font_color = Color(0.75, 0.95, 1, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("HudBackground")
 text = "EAT THE GLOWING FOOD TO GROW"
 horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="ControlHintLabel" type="Label" parent="."]
 layout_mode = 1
@@ -134,22 +108,32 @@ theme_override_font_sizes/font_size = 18
 text = "GAME PAUSED - PRESS SPACE"
 horizontal_alignment = 1
 
+[node name="MenuShade" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.015, 0.036, 0.06, 0.52)
+
 [node name="PauseMenu" type="Panel" parent="."]
 visible = false
-custom_minimum_size = Vector2(250, 300)
+custom_minimum_size = Vector2(300, 310)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -125.0
-offset_top = -150.0
-offset_right = 125.0
-offset_bottom = 150.0
+offset_left = -150.0
+offset_top = -155.0
+offset_right = 150.0
+offset_bottom = 155.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_u4k2p")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="PauseMenu"]
 layout_mode = 1
@@ -174,25 +158,16 @@ horizontal_alignment = 1
 [node name="ResumeButton" type="Button" parent="PauseMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Resume"
 
 [node name="MainMenuButton" type="Button" parent="PauseMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Main Menu"
 
 [node name="QuitButton" type="Button" parent="PauseMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Quit"
 
 [node name="SaveErrorLabel" type="Label" parent="PauseMenu/VBoxContainer"]
@@ -204,20 +179,19 @@ horizontal_alignment = 1
 
 [node name="GameOverMenu" type="Panel" parent="."]
 visible = false
-custom_minimum_size = Vector2(250, 300)
+custom_minimum_size = Vector2(300, 310)
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -125.0
-offset_top = -150.0
-offset_right = 125.0
-offset_bottom = 150.0
+offset_left = -150.0
+offset_top = -155.0
+offset_right = 150.0
+offset_bottom = 155.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_u4k2p")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="GameOverMenu"]
 layout_mode = 1
@@ -236,7 +210,7 @@ alignment = 1
 [node name="GameOverLabel" type="Label" parent="GameOverMenu/VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 0
-theme_override_colors/font_color = Color(1, 0.2, 0.2, 1)
+theme_override_colors/font_color = Color(1, 0.48, 0.37, 1)
 theme_override_font_sizes/font_size = 32
 text = "GAME OVER"
 horizontal_alignment = 1
@@ -257,15 +231,9 @@ horizontal_alignment = 1
 [node name="RetryButton" type="Button" parent="GameOverMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Retry"
 
 [node name="MainMenuButton" type="Button" parent="GameOverMenu/VBoxContainer"]
 custom_minimum_size = Vector2(0, 45)
 layout_mode = 2
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_pressed")
-theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
 text = "Main Menu"

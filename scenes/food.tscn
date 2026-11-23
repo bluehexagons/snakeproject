@@ -1,55 +1,57 @@
-[gd_scene load_steps=8 format=3 uid="uid://bd6bhycl6y7m3"]
+[gd_scene load_steps=10 format=3 uid="uid://bd6bhycl6y7m3"]
 
 [ext_resource type="Script" uid="uid://g1y6imqw1c56" path="res://scripts/food.gd" id="1_script"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
-transparency = 1
-albedo_color = Color(0.3, 0.4, 1, 0.9)
-metallic = 0.8
-metallic_specular = 1.0
-roughness = 0.2
+[sub_resource type="StandardMaterial3D" id="CoreMaterial"]
+albedo_color = Color(1, 0.68, 0.19, 1)
+metallic = 0.48
+roughness = 0.26
 emission_enabled = true
-emission = Color(0.1, 0.4, 0.8, 1)
-emission_energy_multiplier = 2.0
-billboard_mode = 1
+emission = Color(1, 0.63, 0.19, 1)
+emission_energy_multiplier = 1.6
 
-[sub_resource type="SphereMesh" id="SphereMesh_1"]
-material = SubResource("StandardMaterial3D_1")
-radius = 0.2
-height = 0.4
-radial_segments = 16
-rings = 8
+[sub_resource type="SphereMesh" id="CoreMesh"]
+material = SubResource("CoreMaterial")
+radius = 0.22
+height = 0.54
+radial_segments = 4
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="OrbitMaterial"]
+shading_mode = 0
+albedo_color = Color(1, 0.65, 0.23, 1)
+emission_enabled = true
+emission = Color(1, 0.58, 0.14, 1)
+emission_energy_multiplier = 0.58
+
+[sub_resource type="TorusMesh" id="OrbitMesh"]
+material = SubResource("OrbitMaterial")
+inner_radius = 0.335
+outer_radius = 0.366
+rings = 24
+ring_segments = 6
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_1"]
 radius = 0.25
 
-[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_rih64"]
-emission_shape = 3
-emission_box_extents = Vector3(11, 0.1, 11)
+[sub_resource type="ParticleProcessMaterial" id="SparkMotion"]
+emission_shape = 1
+emission_sphere_radius = 0.27
 direction = Vector3(0, 1, 0)
-spread = 5.0
-initial_velocity_min = 0.1
-initial_velocity_max = 0.2
-gravity = Vector3(0, 0.1, 0)
-scale_min = 0.05
-scale_max = 0.15
-turbulence_enabled = true
-turbulence_noise_strength = 0.1
-turbulence_noise_scale = 2.0
+spread = 32.0
+initial_velocity_min = 0.16
+initial_velocity_max = 0.42
+gravity = Vector3(0, 0.08, 0)
+scale_min = 0.35
+scale_max = 1.1
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2"]
-transparency = 1
-blend_mode = 1
+[sub_resource type="StandardMaterial3D" id="SparkMaterial"]
 shading_mode = 0
-vertex_color_use_as_albedo = true
-albedo_color = Color(0.878431, 0.819608, 0, 0.054902)
+albedo_color = Color(1, 0.72, 0.37, 1)
 
-[sub_resource type="SphereMesh" id="SphereMesh_0tm4n"]
-material = SubResource("StandardMaterial3D_2")
-radius = 0.1
-height = 0.2
-radial_segments = 8
-rings = 4
+[sub_resource type="BoxMesh" id="SparkMesh"]
+material = SubResource("SparkMaterial")
+size = Vector3(0.035, 0.045, 0.035)
 
 [node name="Food" type="Area3D" groups=["food"]]
 collision_layer = 0
@@ -57,23 +59,29 @@ collision_mask = 0
 script = ExtResource("1_script")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-mesh = SubResource("SphereMesh_1")
+mesh = SubResource("CoreMesh")
+
+[node name="Orbit" type="MeshInstance3D" parent="MeshInstance3D"]
+rotation = Vector3(0.46, 0, 0.35)
+cast_shadow = 0
+mesh = SubResource("OrbitMesh")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_1")
 
 [node name="OmniLight3D" type="OmniLight3D" parent="."]
-light_color = Color(0.219608, 0.4, 0.6, 1)
-light_energy = 4.152
-light_specular = 0.0
-omni_range = 6.563
-omni_attenuation = 2.0
+light_color = Color(1, 0.67, 0.26, 1)
+light_energy = 1.55
+light_specular = 0.42
+omni_range = 3.2
+omni_attenuation = 1.95
 
 [node name="Particles" type="GPUParticles3D" parent="."]
-transform = Transform3D(0.0356572, 0, 0, 0, 0.0345384, 0, 0, 0, 0.0396899, 0, -0.125468, 0)
-amount = 25
-lifetime = 73.85
-preprocess = 4.0
-visibility_aabb = AABB(-12, -1, -12, 24, 12, 24)
-process_material = SubResource("ParticleProcessMaterial_rih64")
-draw_pass_1 = SubResource("SphereMesh_0tm4n")
+cast_shadow = 0
+amount = 11
+lifetime = 1.05
+preprocess = 1.05
+fixed_fps = 30
+visibility_aabb = AABB(-1, -0.5, -1, 2, 2, 2)
+process_material = SubResource("SparkMotion")
+draw_pass_1 = SubResource("SparkMesh")
