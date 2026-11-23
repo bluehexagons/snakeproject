@@ -22,29 +22,25 @@ height = 0.8
 [sub_resource type="SphereShape3D" id="SphereShape3D_1"]
 radius = 0.4
 
-[sub_resource type="StandardMaterial3D" id="VisorMaterial"]
-albedo_color = Color(0.025, 0.063, 0.115, 1)
-metallic = 0.62
-roughness = 0.26
-
-[sub_resource type="SphereMesh" id="VisorMesh"]
-material = SubResource("VisorMaterial")
-radius = 0.1
-height = 0.2
-radial_segments = 16
-rings = 8
-
 [sub_resource type="StandardMaterial3D" id="EyeMaterial"]
 shading_mode = 0
-albedo_color = Color(0.76, 0.96, 1, 1)
-emission_enabled = true
-emission = Color(0.38, 0.85, 1, 1)
-emission_energy_multiplier = 0.78
+albedo_color = Color(0.94, 0.97, 0.98, 1)
 
 [sub_resource type="SphereMesh" id="EyeMesh"]
 material = SubResource("EyeMaterial")
-radius = 0.046
-height = 0.092
+radius = 0.066
+height = 0.132
+radial_segments = 12
+rings = 6
+
+[sub_resource type="StandardMaterial3D" id="PupilMaterial"]
+shading_mode = 0
+albedo_color = Color(0.019, 0.055, 0.1, 1)
+
+[sub_resource type="SphereMesh" id="PupilMesh"]
+material = SubResource("PupilMaterial")
+radius = 0.035
+height = 0.07
 radial_segments = 12
 rings = 6
 
@@ -61,22 +57,35 @@ script = ExtResource("1_script")
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("SphereMesh_1")
 
-[node name="Visor" type="MeshInstance3D" parent="MeshInstance3D"]
-position = Vector3(0, 0.263, -0.26)
-rotation = Vector3(-0.65, 0, 0)
-scale = Vector3(2.55, 0.48, 1.15)
-cast_shadow = 0
-mesh = SubResource("VisorMesh")
+[node name="LeftEye" type="Node3D" parent="MeshInstance3D"]
+position = Vector3(-0.105, 0.336, -0.189)
+rotation = Vector3(-0.48, 0, 0.25)
 
-[node name="LeftEye" type="MeshInstance3D" parent="MeshInstance3D"]
-position = Vector3(-0.112, 0.295, -0.277)
+[node name="White" type="MeshInstance3D" parent="MeshInstance3D/LeftEye"]
+scale = Vector3(0.8, 0.19, 1)
 cast_shadow = 0
 mesh = SubResource("EyeMesh")
 
-[node name="RightEye" type="MeshInstance3D" parent="MeshInstance3D"]
-position = Vector3(0.112, 0.295, -0.277)
+[node name="Pupil" type="MeshInstance3D" parent="MeshInstance3D/LeftEye"]
+position = Vector3(0, 0.009, -0.012)
+scale = Vector3(0.9, 0.19, 1)
+cast_shadow = 0
+mesh = SubResource("PupilMesh")
+
+[node name="RightEye" type="Node3D" parent="MeshInstance3D"]
+position = Vector3(0.105, 0.336, -0.189)
+rotation = Vector3(-0.48, 0, -0.25)
+
+[node name="White" type="MeshInstance3D" parent="MeshInstance3D/RightEye"]
+scale = Vector3(0.8, 0.19, 1)
 cast_shadow = 0
 mesh = SubResource("EyeMesh")
+
+[node name="Pupil" type="MeshInstance3D" parent="MeshInstance3D/RightEye"]
+position = Vector3(0, 0.009, -0.012)
+scale = Vector3(0.9, 0.19, 1)
+cast_shadow = 0
+mesh = SubResource("PupilMesh")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_1")

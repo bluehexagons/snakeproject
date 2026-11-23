@@ -57,7 +57,8 @@ func run() -> void:
 			node.queue_free()
 	var max_link = 0.0
 	var max_step = 0.0
-	for action in ["move_right", "move_down", "move_left", "move_up", "move_right", "move_down"]:
+	# Finish the second lap heading into open space for the coast check.
+	for action in ["move_right", "move_down", "move_left", "move_up", "move_right", "move_down", "move_left", "move_up"]:
 		Input.action_press(action)
 		for frame in 36:
 			var previous = player.segments.back().global_position
@@ -71,14 +72,15 @@ func run() -> void:
 	# Contact can temporarily stretch a link while a new piece rounds a corner.
 	check(max_link < 1.25, "Body stretched too far during a turn: %f" % max_link)
 	check(max_step < 0.3, "Tail teleported during movement: %f" % max_step)
-	for frame in 86:
+	for frame in 100:
 		await get_tree().physics_frame
 	check(player.linear_velocity.length() < 0.2, "Player did not settle after coasting")
 	for frame in 18:
 		await get_tree().physics_frame
 	for segment in player.segments:
 		check(segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "A grown segment never became solid after moving clear")
-		check(segment.global_position.distance_to(segment.target.global_position) < 1.0, "Body did not close up after coasting")
+		check(is_instance_valid(segment.target) and segment.global_position.distance_to(segment.target.global_position) < 1.0,
+			"Body did not close up after coasting")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
 	check(main.is_paused and GameState.has_saved_game(), "Focus loss did not pause and save the run")
 	check(main.ui.get_node("PauseMenu/VBoxContainer/ResumeButton").has_focus(), "Pause menu has no keyboard focus")

@@ -49,7 +49,7 @@ visible and control axes stable.
 
 The arena uses procedural PBR materials, emissive rails, a moving backdrop,
 screen-space ambient occlusion, and glow. Gold rings and local lighting mark
-pickups. Red rails and rocks mark hazards, and the snake's visor shows its
+pickups. Red rails and rocks mark hazards, and the snake's eyes show its
 heading. The angled view uses transparent hazard walls to keep the floor visible.
 
 The default Compatibility renderer shares this presentation with the web build.

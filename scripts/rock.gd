@@ -1,8 +1,8 @@
 extends "res://scripts/physics_object.gd"
 class_name Rock
 
-const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
-const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
+const DANGER_COLOR = Color(0.68, 0.14, 0.10, 1.0)
+const DANGER_EMISSION = Color(0.34, 0.042, 0.023, 1.0)
 
 const SPAWN_HEIGHT = 5.2
 const DROP_GRAVITY_SCALE = 1.3
@@ -15,6 +15,8 @@ const LANDING_MARKER_Y = 0.018
 const BREAK_IMPULSE = 6.5
 const FRAGMENT_COUNT = 5
 const SHATTER_DURATION = 0.24
+
+static var _stone_mesh: ArrayMesh
 
 var is_dangerous: bool = false
 var is_initialized: bool = false
@@ -30,6 +32,9 @@ var _drop_contact := false
 @onready var break_sparks: GPUParticles3D = $ShatterEffect/BreakSparks
 
 func _ready() -> void:
+	if _stone_mesh == null:
+		_stone_mesh = _build_stone_mesh(mesh.mesh)
+	mesh.mesh = _stone_mesh
 	super()
 	material_type = PhysicsConstants.MATERIAL_ROCK
 	add_to_group("physics_object")
@@ -47,6 +52,34 @@ func _ready() -> void:
 	physics_material_override.friction = settings.friction
 	physics_material_override.bounce = settings.bounce
 	physics_material_override.rough = true
+
+static func _build_stone_mesh(source: Mesh) -> ArrayMesh:
+	var arrays := source.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for index in vertices.size():
+		var direction := vertices[index].normalized()
+		var chips := sin(direction.dot(Vector3(5.2, -6.1, 4.8))) * 0.075
+		var shoulders := cos(direction.dot(Vector3(-6.3, 2.7, 3.9))) * 0.065
+		vertices[index] *= 0.96 + chips + shoulders
+
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	surface.set_smooth_group(-1)
+	for triangle in range(0, indices.size(), 3):
+		var a := vertices[indices[triangle]]
+		var b := vertices[indices[triangle + 1]]
+		var c := vertices[indices[triangle + 2]]
+		if (b - a).cross(c - a).length_squared() < 0.0000001:
+			continue
+		for corner in range(triangle, triangle + 3):
+			var index := indices[corner]
+			surface.set_uv(uvs[index])
+			surface.add_vertex(vertices[index])
+	surface.generate_normals()
+	surface.generate_tangents()
+	return surface.commit()
 
 func _finish_spawn() -> void:
 	is_spawning = false

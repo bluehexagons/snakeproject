@@ -11,6 +11,7 @@ func _ready() -> void:
 	call_deferred("_fit_panel_to_viewport")
 	_refresh_continue_button()
 	best_score_label.text = "BEST SCORE  %d" % GameState.get_best_score()
+	$Panel/VersionLabel.text = "v%s" % ProjectSettings.get_setting("application/config/version")
 	continue_button.pressed.connect(_on_continue_button_pressed)
 	$Panel/VBoxContainer/NewGameButton.pressed.connect(on_new_game_pressed)
 	$Panel/VBoxContainer/QuitButton.pressed.connect(on_quit_pressed)
