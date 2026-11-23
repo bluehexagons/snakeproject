@@ -23,6 +23,10 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_script")
 
+[node name="ScorePopups" type="Control" parent="."]
+layout_mode = 0
+mouse_filter = 2
+
 [node name="ScoreLabel" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 1

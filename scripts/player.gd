@@ -19,13 +19,13 @@ const BASE_MAX_SPEED = 8.0
 const SPEED_BOOST_BASE = 1.0
 const BONUS_SPEED_PER_FEED = 0.025
 const MAX_SPEED_BOOST = 1.5
-const DRIVE_ACCELERATION = 46.0
-const DRIVE_RESPONSE = 18.0
+const DRIVE_ACCELERATION = 24.0
+const DRIVE_RESPONSE = 10.0
 const COAST_DECELERATION = 14.0
 const OVERSPEED_DECELERATION = 16.0
-const REVERSE_BRAKE_ACCELERATION = 68.0
+const REVERSE_BRAKE_ACCELERATION = 40.0
 const REVERSE_ALIGNMENT = -0.966
-const TURN_RATE = 12.0
+const TURN_RATE = 6.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
 const PICKUP_RADIUS = 0.8
@@ -172,7 +172,7 @@ func _collect_food() -> void:
 		add_segment()
 		pending_pickup_impulse = minf(pending_pickup_impulse + PICKUP_IMPULSE, MAX_PICKUP_BOOST)
 		start_digestion()
-		score_earned.emit(roundi(points * score_multiplier), global_position + Vector3.UP * 1.5)
+		score_earned.emit(roundi(points * score_multiplier), point)
 		food_collected.emit(food_eaten)
 	previous_pickup_position = global_position
 	pickup_position_initialized = true

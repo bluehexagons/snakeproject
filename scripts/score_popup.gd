@@ -1,34 +1,28 @@
-extends Label3D
+extends Label
+class_name ScorePopup
 
-const FADE_IN_TIME = 0.05
-const COLOR_SHIFT_TIME = 0.3
-const FADE_OUT_TIME = 2.0
-const INITIAL_COLOR = Color(0.3, 1.0, 0.3, 0.0)
-const PEAK_COLOR = Color(1.0, 1.0, 0.6, 1.0)
-const FINAL_COLOR = Color(0.7, 0.7, 0.7, 0.0)
-const RISE_SPEED = 1.0
+const LIFETIME := 0.8
 
-var time: float = 0.0
+var camera: Camera3D
+var world_position: Vector3
+var points := 0
+var elapsed := 0.0
 
-func _ready():
-	modulate = INITIAL_COLOR
-	outline_modulate = Color(0, 0, 0, 0)
+func can_combine(world_point: Vector3) -> bool:
+	return elapsed < 0.45 and world_position.distance_squared_to(world_point) < 2.56
 
-func _process(delta):
-	time += delta
-	position.y += RISE_SPEED * delta
-	
-	if time < FADE_IN_TIME:
-		var t = time / FADE_IN_TIME
-		modulate = INITIAL_COLOR.lerp(PEAK_COLOR, t)
-		outline_modulate = Color(0, 0, 0, t)
-	elif time < COLOR_SHIFT_TIME:
-		modulate = PEAK_COLOR
-		outline_modulate = Color.BLACK
-	else:
-		var t = (time - COLOR_SHIFT_TIME) / FADE_OUT_TIME
-		modulate = PEAK_COLOR.lerp(FINAL_COLOR, t)
-		outline_modulate = Color(0, 0, 0, 1.0 - t)
-		
-	if time >= COLOR_SHIFT_TIME + FADE_OUT_TIME:
+func add_points(amount: int) -> void:
+	points += amount
+	text = "+%d" % points
+	reset_size()
+
+func _process(delta: float) -> void:
+	elapsed += delta
+	if elapsed >= LIFETIME:
 		queue_free()
+		return
+
+	var lift := lerpf(24.0, 50.0, ease(elapsed / LIFETIME, 0.5))
+	var screen_position := camera.unproject_position(world_position) - Vector2(0.0, lift)
+	position = (screen_position - size * 0.5).round()
+	modulate.a = smoothstep(0.0, 0.08, elapsed) * (1.0 - smoothstep(0.45, LIFETIME, elapsed))

@@ -1,14 +1,6 @@
-[gd_scene load_steps=8 format=3 uid="uid://7fw1r87o02d1"]
+[gd_scene load_steps=5 format=3 uid="uid://7fw1r87o02d1"]
 
-[ext_resource type="Shader" path="res://shaders/hazard_rail.gdshader" id="1_rail"]
 [ext_resource type="Shader" path="res://shaders/hazard_field.gdshader" id="2_field"]
-
-[sub_resource type="ShaderMaterial" id="RailMaterial"]
-shader = ExtResource("1_rail")
-
-[sub_resource type="BoxMesh" id="RailMesh"]
-material = SubResource("RailMaterial")
-size = Vector3(1, 0.48, 1)
 
 [sub_resource type="ShaderMaterial" id="FieldMaterial"]
 shader = ExtResource("2_field")
@@ -22,11 +14,6 @@ size = Vector3(1, 3, 1)
 
 [node name="Barrier" type="StaticBody3D" groups=["barrier", "dangerous"]]
 collision_layer = 16
-
-[node name="Rail" type="MeshInstance3D" parent="."]
-position = Vector3(0, 0.24, 0)
-cast_shadow = 0
-mesh = SubResource("RailMesh")
 
 [node name="Field" type="MeshInstance3D" parent="."]
 position = Vector3(0, 1.74, 0)

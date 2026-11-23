@@ -23,6 +23,7 @@ func run() -> void:
 	add_child(main)
 	var player: Player = main.player
 	# A controlled empty arena retains real ground, walls, input and physics.
+	main.set_process(false) # Keep the autosave refill from placing food along the route.
 	for group in ["rock", "food"]:
 		for node in get_tree().get_nodes_in_group(group):
 			node.queue_free()
@@ -43,6 +44,8 @@ func run() -> void:
 	await get_tree().physics_frame
 	check(player.food_eaten == 6 and player.segments.size() == 6, "Rapid pickups lost or duplicated growth")
 	check(main.score == 60, "Pickup scoring was not exactly once per food")
+	check(main.score_popups.get_child_count() == 1 and main.score_popup.text == "+60",
+		"Nearby pickups did not combine into one readable score popup")
 	check(is_equal_approx(player.mass, 1.0) and player.collision_shape.scale.is_equal_approx(Vector3.ONE), "Eating changed head collision or mass")
 	await get_tree().physics_frame
 	check(player.linear_velocity.dot(Vector3.FORWARD) > 1.0, "Pickup did not apply a forward impulse")
@@ -435,7 +438,11 @@ func _check_handling() -> void:
 	add_child(main)
 	var player: Player = main.player
 	Input.action_press("move_right")
-	for frame in 30:
+	for frame in 9:
+		await get_tree().physics_frame
+	var launch_speed = player.linear_velocity.x
+	check(launch_speed > 2.0 and launch_speed < 4.3, "The head accelerated too abruptly or hesitated off the line")
+	for frame in 25:
 		await get_tree().physics_frame
 	Input.action_release("move_right")
 	var cruise_speed = player.linear_velocity.x
@@ -444,18 +451,21 @@ func _check_handling() -> void:
 	var turn_start = player.position
 	var min_turn_speed = cruise_speed
 	Input.action_press("move_down")
-	for frame in 14:
+	for frame in 20:
 		await get_tree().physics_frame
 		var velocity = Vector2(player.linear_velocity.x, player.linear_velocity.z)
+		if frame == 5:
+			check(velocity.x > 5.5 and velocity.y > 2.0, "A right-angle turn did not change heading gradually")
 		min_turn_speed = minf(min_turn_speed, velocity.length())
 	Input.action_release("move_down")
 	var turn_drift = player.position.x - turn_start.x
 	check(min_turn_speed >= cruise_speed * 0.9, "A right-angle turn shed too much momentum")
-	check(player.linear_velocity.z >= cruise_speed * 0.9 and turn_drift < 1.15, "The head took too long to steer through a right angle")
+	check(player.linear_velocity.z >= cruise_speed * 0.95 and turn_drift > 1.0 and turn_drift < 1.55,
+		"The head did not track the expected wider cornering arc")
 
 	var reverse_start = player.position
 	Input.action_press("move_up")
-	for frame in 14:
+	for frame in 22:
 		await get_tree().physics_frame
 	Input.action_release("move_up")
 	check(player.linear_velocity.z < -2.0 and absf(player.position.x - reverse_start.x) < 0.1, "A direct reversal was slow or pulled the head sideways")
@@ -530,14 +540,23 @@ func _check_passive_momentum() -> void:
 
 func _check_rock_impacts() -> void:
 	# Use the real input and pickup path so the break is reachable in play.
-	for impact_case in ["cruise", "boosted", "dangerous"]:
-		var boosted = impact_case != "cruise"
+	for impact_case in ["cruise", "early_boost", "fast_cruise", "hard_boost", "glancing", "dangerous"]:
+		var fast = impact_case in ["fast_cruise", "hard_boost", "glancing", "dangerous"]
+		var boosted = impact_case not in ["cruise", "fast_cruise"]
 		var dangerous = impact_case == "dangerous"
+		var row = 0.57 if impact_case == "glancing" else 0.0
 		var fixture = {
 			"score": 0,
-			"player_state": {"position": {"x": -4, "y": 0.5, "z": 0}},
+			"player_state": {
+				"position": {"x": -6.5, "y": 0.5, "z": row},
+				"food_eaten": 20 if fast else 0,
+				"current_speed_boost": 1.5 if fast else 1.0,
+			},
 			"rocks": [{"position": {"x": 0, "y": 0.5, "z": 0}, "is_dangerous": dangerous}],
-			"food_positions": [{"x": -1.25 if boosted else 6, "y": 0, "z": 0}],
+			"food_positions": [
+				{"x": -1.24 if boosted else 6, "y": 0, "z": row},
+				{"x": 6, "y": 0, "z": 6}, {"x": 7, "y": 0, "z": -6},
+			],
 		}
 		check(GameState.save_game_state(fixture), "Failed to write rock impact fixture")
 		var main = MAIN.instantiate()
@@ -545,24 +564,28 @@ func _check_rock_impacts() -> void:
 		var rock: Rock = get_tree().get_first_node_in_group("rock")
 		var saw_flash = false
 		Input.action_press("move_right")
-		for frame in 58:
+		for frame in 65:
 			await get_tree().physics_frame
-			if is_instance_valid(rock):
+			if impact_case == "cruise" and is_instance_valid(rock):
 				saw_flash = saw_flash or rock.mesh.material_override != null
 			if main.is_game_over:
 				break
 		Input.action_release("move_right")
+		if boosted:
+			check(main.player.food_eaten == (21 if fast else 1), "%s: the snake missed the pickup before impact" % impact_case)
 		match impact_case:
-			"cruise":
-				check(is_instance_valid(rock) and rock.position.x > 0.3, "A cruising hit did not push an intact gray rock")
-				check(saw_flash, "The rock did not flash on impact")
-			"boosted":
-				check(main.player.food_eaten == 1 and not main.is_game_over, "The boosted collision did not follow a live pickup")
+			"hard_boost":
+				check(not main.is_game_over, "Shattering a gray rock ended the run")
 				check(get_tree().get_nodes_in_group("rock").is_empty(), "A hard boosted hit did not break the gray rock")
 				main.save_game_state()
 				check(GameState.load_game_state().rocks.is_empty(), "A broken rock reappeared in the save")
 			"dangerous":
 				check(main.is_game_over and is_instance_valid(rock), "A boosted hit broke a red rock instead of ending the run")
+			_:
+				check(is_instance_valid(rock) and not rock.is_shattering and rock.position.x > 0.3,
+					"%s: the rock should have rolled away intact" % impact_case)
+				if impact_case == "cruise":
+					check(saw_flash, "The rock did not flash on impact")
 		main.free()
 		Engine.time_scale = 1.0
 		check(GameState.delete_save_game(), "Failed to clear rock impact fixture")

@@ -12,7 +12,7 @@ you stop or get pinned, the head changes color and a countdown warns you
 before the three-second timeout.
 
 Ground rings mark incoming rocks and expand briefly on impact.
-Impacts flash briefly. A hard hit, such as a head-on lunge after eating, can
+Impacts flash briefly. A high-speed, head-on lunge after eating can
 shatter a gray rock. Red rocks and falling out of the arena are lethal. Food can
 be collected during small bounces, and solid obstacles block pickups. Food that
 stays trapped inside a rock is moved to a clear spot.
@@ -28,7 +28,7 @@ when already paused. Holding a pause or camera key does not repeatedly toggle it
 
 ## Gameplay systems
 
-The head builds speed quickly and carries it through turns. Pressing the
+The head builds speed gradually and carries it through wider turns. Pressing the
 opposite direction brakes before reversing. Body pieces retain some sideways
 motion from hits as they return to the recorded path. Rocks and detached pieces
 keep rolling after impact. A new piece becomes solid once it has grown and has

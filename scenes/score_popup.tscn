@@ -1,17 +1,16 @@
-[gd_scene load_steps=2 format=3 uid="uid://f0qb8kb2tai7"]
+[gd_scene load_steps=3 format=3 uid="uid://f0qb8kb2tai7"]
 
 [ext_resource type="Script" uid="uid://degwihjb1ieo7" path="res://scripts/score_popup.gd" id="1_script"]
 
-[node name="ScorePopup" type="Label3D"]
-process_mode = 3
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
-billboard = 1
-no_depth_test = true
-fixed_size = true
-render_priority = 1
-modulate = Color(0.3, 1, 0.3, 0)
-outline_modulate = Color(0, 0, 0, 0)
-text = "+10"
-font_size = 16
-outline_size = 2
+[sub_resource type="FontVariation" id="ScoreFont"]
+variation_embolden = 0.65
+
+[node name="ScorePopup" type="Label"]
+modulate = Color(1, 1, 1, 0)
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.92, 0.69, 1)
+theme_override_colors/font_outline_color = Color(0.024, 0.047, 0.07, 1)
+theme_override_constants/outline_size = 5
+theme_override_fonts/font = SubResource("ScoreFont")
+theme_override_font_sizes/font_size = 24
 script = ExtResource("1_script")

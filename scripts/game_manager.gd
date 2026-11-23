@@ -44,9 +44,11 @@ var autosave_elapsed: float = 0.0
 var debug_trace_elapsed: float = 0.0
 var debug_trace_time: float = 0.0
 var player: Player
+var score_popup: ScorePopup
 
 @onready var camera: GameCamera = $GameplayContainer/Camera3D
 @onready var ui: GameUI = $UI
+@onready var score_popups: Control = $UI/ScorePopups
 @onready var gameplay_container: Node3D = $GameplayContainer
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
 
@@ -422,10 +424,12 @@ func _on_player_score_earned(points: int, popup_position: Vector3) -> void:
 	if is_game_over:
 		return
 	add_score(points)
-	var popup = SCORE_POPUP.instantiate()
-	popup.position = popup_position
-	popup.text = "+" + str(points)
-	gameplay_container.add_child(popup)
+	if not is_instance_valid(score_popup) or not score_popup.can_combine(popup_position):
+		score_popup = SCORE_POPUP.instantiate()
+		score_popup.camera = camera
+		score_popup.world_position = popup_position
+		score_popups.add_child(score_popup)
+	score_popup.add_points(points)
 
 func _on_player_lost() -> void:
 	game_over()

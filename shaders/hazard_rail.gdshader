@@ -14,12 +14,15 @@ void fragment() {
 	float panel = fract(along * 0.72 + 0.5);
 	float lamp = smoothstep(0.08, 0.13, panel) * (1.0 - smoothstep(0.83, 0.89, panel));
 	float cross_rail = max(edge.x, edge.y);
-	float strip = 1.0 - smoothstep(0.052, 0.091, abs(cross_rail - 10.80));
+	float corner = smoothstep(10.08, 10.44, min(edge.x, edge.y));
+	float spine = max(cross_rail - 10.80, (edge.x + edge.y - 21.36) * 0.7071);
+	float strip = 1.0 - smoothstep(0.045, 0.078, abs(spine));
 	float upper_face = smoothstep(0.33, 0.46, world_position.y);
 	float vents = smoothstep(0.14, 0.48, fract(along * 1.45 + world_position.y * 2.4));
-	float signal = lamp * strip * upper_face;
-	ALBEDO = rail_color.rgb * (0.64 + upper_face * (0.24 + vents * 0.25));
-	EMISSION = lamp_color.rgb * (signal * 1.6 + lamp * 0.06);
+	float signal = mix(lamp, 1.0, corner) * strip * upper_face;
+	vec3 casing = mix(rail_color.rgb, vec3(0.17, 0.09, 0.105), corner);
+	ALBEDO = casing * (0.64 + upper_face * (0.24 + vents * 0.25 * (1.0 - corner)));
+	EMISSION = lamp_color.rgb * (signal * 1.6 + lamp * 0.04 * (1.0 - corner));
 	METALLIC = 0.56;
 	ROUGHNESS = 0.32;
 }
