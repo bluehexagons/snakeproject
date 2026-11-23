@@ -123,7 +123,10 @@ func _update_stuck(delta: float) -> void:
 	if motion_sample_elapsed + 0.000001 >= STUCK_CHECK_INTERVAL:
 		var sample_duration = maxf(motion_sample_elapsed, STUCK_CHECK_INTERVAL)
 		if distance < STUCK_MIN_SPEED * sample_duration:
+			var was_warned := stuck_elapsed >= STUCK_WARNING_START
 			stuck_elapsed += sample_duration
+			if not was_warned and stuck_elapsed >= STUCK_WARNING_START:
+				SoundFx.play(SoundFx.Cue.WARNING, 0.61)
 		motion_sample_elapsed = 0.0
 	if stuck_elapsed + 0.000001 >= STUCK_TIMEOUT:
 		lose()

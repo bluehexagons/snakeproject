@@ -177,6 +177,7 @@ func dead_eat() -> float:
 	return 2.0
 
 func break_rock() -> void:
+	SoundFx.play(SoundFx.Cue.SHATTER)
 	remove_from_group("rock")
 	freeze = true
 	collision_layer = 0

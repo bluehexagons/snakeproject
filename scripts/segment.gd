@@ -87,6 +87,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		var collider = state.get_contact_collider_object(index)
 		if collider is Node and collider.is_in_group("barrier"):
 			make_dangerous()
+			SoundFx.play(SoundFx.Cue.WARNING, 0.52, 0.83)
 			break
 
 func release_from_chain() -> void:

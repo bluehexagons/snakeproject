@@ -46,6 +46,13 @@ The default Compatibility renderer shares this presentation with the web build.
 On desktop, launch Godot with `--rendering-method forward_plus` to render the
 arena with volumetric fog.
 
+## Sound
+
+The game synthesizes glassy bells for pickups, impacts, shattering, warnings,
+and menus. Pickups cycle through a pentatonic scale. Heavy knocks ring louder
+and lower, with different tones for body and rock contacts. `SoundFx` caches
+the generated clips and limits simultaneous voices during busy collisions.
+
 ## Runtime
 
 `GameManager` owns the session, spawning, scoring, and save/resume lifecycle.

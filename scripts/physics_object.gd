@@ -284,8 +284,16 @@ func _vector_from_data(data: Variant, fallback: Vector3) -> Vector3:
 
 func _flash_contacts(state: PhysicsDirectBodyState3D) -> void:
 	var peak_impulse = 0.0
+	var strongest_contact := -1
 	for index in state.get_contact_count():
-		peak_impulse = maxf(peak_impulse, state.get_contact_impulse(index).length())
+		var impulse := state.get_contact_impulse(index).length()
+		if impulse > peak_impulse:
+			peak_impulse = impulse
+			strongest_contact = index
+	if peak_impulse > SoundFx.MIN_IMPACT_IMPULSE:
+		var collider := state.get_contact_collider_object(strongest_contact) as Node
+		if collider:
+			SoundFx.queue_impact(self, collider, peak_impulse)
 	if peak_impulse <= IMPACT_MIN_IMPULSE or not current_material:
 		return
 

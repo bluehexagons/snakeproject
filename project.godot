@@ -21,6 +21,7 @@ config/foreground_mode=0
 
 GameState="*res://scripts/game_state.gd"
 DebugTelemetry="*res://scripts/debug_telemetry.gd"
+SoundFx="*res://scripts/sound_fx.gd"
 
 [display]
 

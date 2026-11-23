@@ -109,8 +109,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("toggle_camera_angle"):
 		camera.toggle_view()
+		SoundFx.play(SoundFx.Cue.UI, 0.39, 1.20)
 	if event.is_action_pressed("ui_cancel"):
-		toggle_pause()
+		toggle_pause(true)
 	elif event.is_action_pressed("gameplay_pause"):
 		if !is_paused:
 			toggle_gameplay_pause()
@@ -119,6 +120,7 @@ func toggle_gameplay_pause() -> void:
 		return
 
 	is_gameplay_paused = not is_gameplay_paused
+	_play_pause_cue(is_gameplay_paused)
 	update_pause_state()
 	if ui:
 		ui.set_gameplay_paused(is_gameplay_paused)
@@ -127,16 +129,21 @@ func toggle_gameplay_pause() -> void:
 	else:
 		_start_debug_trace()
 
-func toggle_pause() -> void:
+func toggle_pause(play_cue: bool = false) -> void:
 	if is_game_over:
 		return
 
 	is_paused = !is_paused
+	if play_cue:
+		_play_pause_cue(is_paused)
 	if is_paused and is_gameplay_paused:
 		is_gameplay_paused = false
 		ui.set_gameplay_paused(false)
 	update_pause_state()
 	ui.toggle_pause_menu(is_paused)
+
+func _play_pause_cue(paused: bool) -> void:
+	SoundFx.play(SoundFx.Cue.UI, 0.48, 0.81 if paused else 1.12)
 
 func update_pause_state() -> void:
 	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if (is_paused or is_gameplay_paused) else Node.PROCESS_MODE_INHERIT
@@ -405,6 +412,7 @@ func _on_player_food_collected(total_food_eaten: int) -> void:
 	if is_game_over:
 		return
 
+	SoundFx.pickup(total_food_eaten)
 	if total_food_eaten % ROCKS_SPAWN_INTERVAL == 0:
 		spawn_rock()
 	
@@ -424,12 +432,13 @@ func _on_player_lost() -> void:
 
 func _on_resume_requested() -> void:
 	Engine.time_scale = 1.0
-	toggle_pause()
+	toggle_pause(true)
 
 func _on_retry_requested() -> void:
 	if not GameState.delete_save_game():
 		push_warning("Unable to clear the saved game for retry")
 		return
+	SoundFx.play(SoundFx.Cue.UI, 0.53, 1.27)
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	get_tree().reload_current_scene()
@@ -449,6 +458,7 @@ func game_over():
 		return
 
 	is_game_over = true
+	SoundFx.play(SoundFx.Cue.LOSS)
 	GameState.delete_save_game()
 	if not GameState.save_best_score(score):
 		push_warning("Unable to save the best score")
@@ -460,6 +470,7 @@ func game_over():
 func return_to_main_menu() -> void:
 	if not _save_before_leaving():
 		return
+	SoundFx.play(SoundFx.Cue.UI, 0.49, 0.89)
 	Engine.time_scale = 1.0
 	get_tree().paused = false
 	is_paused = false

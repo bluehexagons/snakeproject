@@ -44,6 +44,7 @@ func on_new_game_pressed() -> void:
 	if not GameState.delete_save_game():
 		push_warning("Unable to clear the saved game")
 		return
+	SoundFx.play(SoundFx.Cue.UI, 0.53, 1.27)
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 func on_quit_pressed() -> void:
@@ -51,5 +52,6 @@ func on_quit_pressed() -> void:
 
 func _on_continue_button_pressed() -> void:
 	if GameState.has_saved_game():
+		SoundFx.play(SoundFx.Cue.UI, 0.53, 1.12)
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
 			

@@ -9,6 +9,7 @@ const LOAD_TARGETS = [
 	"res://scripts/physics_object.gd",
 	"res://scripts/physics_constants.gd",
 	"res://scripts/segment_constants.gd",
+	"res://scripts/sound_fx.gd",
 	"res://scripts/player.gd",
 	"res://scripts/segment.gd",
 	"res://scripts/rock.gd",
@@ -64,6 +65,8 @@ func run() -> void:
 	if not _check_interrupted_save():
 		failed = true
 	if not _check_corrupt_primary():
+		failed = true
+	if not _check_impact_audio():
 		failed = true
 
 	for path in LOAD_TARGETS:
@@ -145,6 +148,38 @@ func run() -> void:
 	print("Smoke test passed")
 	get_tree().quit(0)
 
+
+func _check_impact_audio() -> bool:
+	var body := Node.new()
+	var light_rock := Node.new()
+	var heavy_rock := Node.new()
+	for node in [body, light_rock, heavy_rock]:
+		node.add_to_group("physics_object")
+		add_child(node)
+	light_rock.add_to_group("rock")
+	heavy_rock.add_to_group("rock")
+
+	var voices := SoundFx._impact_voices
+	SoundFx.queue_impact(body, light_rock, 0.55)
+	SoundFx._process(0.0)
+	var quiet_contact_is_silent := not voices[0].playing
+	SoundFx.queue_impact(body, light_rock, 1.1)
+	SoundFx._process(0.0)
+	SoundFx.queue_impact(body, heavy_rock, 5.0)
+	SoundFx._process(0.0)
+	SoundFx.queue_impact(heavy_rock, body, 5.0)
+	SoundFx._process(0.0)
+	var distinct := voices[0].playing and voices[1].playing and not voices[2].playing
+	var responsive := voices[1].volume_linear > voices[0].volume_linear and voices[1].pitch_scale < voices[0].pitch_scale
+	for voice in voices:
+		voice.stop()
+	body.free()
+	light_rock.free()
+	heavy_rock.free()
+	if not quiet_contact_is_silent or not distinct or not responsive:
+		push_error("Impact audio failed its threshold, pair deduplication, or gain and pitch response")
+		return false
+	return true
 
 func _check_save_validation() -> bool:
 	var valid = {
