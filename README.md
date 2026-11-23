@@ -13,8 +13,16 @@ renderer, and Jolt physics.
 
 ## Controls and gameplay
 
-Move with **WASD or arrow keys**, collect glowing food, and avoid red walls and
-red rocks. Each pickup adds a body piece, awards 10 to 30 points based on your
+Collect glowing food and avoid red walls and red rocks.
+
+| Input | Steer | Pause | Camera |
+| --- | --- | --- | --- |
+| Keyboard | WASD or arrow keys | Esc for menu, Space for quick pause | F |
+| Mouse | Hold the left button to steer toward the pointer | Pause button | Camera button |
+| Touch | Touch the playfield and drag in the direction you want to move | Pause button | Camera button |
+| Gamepad | Left stick or D-pad | Start/Menu | Y / Triangle |
+
+Each pickup adds a body piece, awards 10 to 30 points based on your
 speed, increases cruising speed slightly, and gives the snake a forward impulse.
 The head bumps into blue body pieces, and rocks can deflect the body. A piece
 that hits a wall turns red and is lethal to the head. Release movement to coast
@@ -29,11 +37,11 @@ the brief lunge from eating. Red rocks and falling out of the arena are lethal.
 Food can be collected during small bounces, and solid obstacles block pickups.
 Food that stays trapped inside a rock is moved to a clear spot.
 
-**Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
-between overhead and angled arena views. Retry starts a fresh run after death.
+The Camera button switches between overhead and angled arena views.
+Retry starts a fresh run after death.
 Switching away from the window pauses and saves the run. Resume explicitly
 when you return.
-Menus support keyboard navigation with arrow keys, Tab, and Enter.
+Navigate menus with the arrow keys, Tab, and Enter or the D-pad and A / Cross.
 The pause menu returns to the main menu with a resumable save. If an exit save
 fails, the game stays paused so you can try again. Active games autosave every
 five seconds, and best scores persist across runs. Focus loss also saves

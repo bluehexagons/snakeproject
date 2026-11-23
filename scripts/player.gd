@@ -54,6 +54,7 @@ var unkillable: bool = false
 var is_digesting: bool = false
 var digestion_timer: float = 0.0
 var input_dir: Vector3 = Vector3.ZERO
+var steering: GameplaySteering
 var pending_pickup_impulse: float = 0.0
 var pickup_speed_bonus: float = 0.0
 var previous_pickup_position: Vector3
@@ -84,7 +85,7 @@ func _physics_process(delta: float) -> void:
 	if not has_lost and global_position.y < PhysicsConstants.FALL_LIMIT_Y:
 		lose()
 	if not has_lost:
-		var raw_input = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		var raw_input = steering.movement() if steering else GameplaySteering.movement_actions()
 		var camera = get_viewport().get_camera_3d()
 		var right = Vector3.RIGHT
 		var forward = Vector3.FORWARD
@@ -95,6 +96,8 @@ func _physics_process(delta: float) -> void:
 			# Cross product remains stable even for a straight-down camera.
 			forward = Vector3.UP.cross(right)
 		input_dir = right * raw_input.x - forward * raw_input.y
+		if steering and input_dir.is_zero_approx():
+			input_dir = steering.pointer_direction(global_position, camera)
 		if not input_dir.is_zero_approx():
 			has_started_moving = true
 		_update_stuck(delta)

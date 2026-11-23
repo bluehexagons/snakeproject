@@ -1,8 +1,10 @@
-[gd_scene load_steps=4 format=3 uid="uid://dbkt4gaf6xf28"]
+[gd_scene load_steps=5 format=3 uid="uid://dbkt4gaf6xf28"]
 
 [ext_resource type="Script" uid="uid://c4lkjrkm6ousk" path="res://scripts/ui.gd" id="1_script"]
 
 [ext_resource type="Theme" path="res://resources/arena_theme.tres" id="2_theme"]
+
+[ext_resource type="Script" path="res://scripts/gameplay_steering.gd" id="3_steering"]
 
 [sub_resource type="StyleBoxFlat" id="HudBackground"]
 bg_color = Color(0.026, 0.059, 0.091, 0.86)
@@ -20,8 +22,14 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_script")
+
+[node name="Steering" type="Control" parent="." node_paths=PackedStringArray("action_bar")]
+mouse_filter = 2
+script = ExtResource("3_steering")
+action_bar = NodePath("../ActionBar")
 
 [node name="ScorePopups" type="Control" parent="."]
 layout_mode = 0
@@ -29,15 +37,14 @@ mouse_filter = 2
 
 [node name="ScoreLabel" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -239.0
-offset_top = 18.0
-offset_right = -18.0
-offset_bottom = 59.0
+offset_left = -242.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 60.0
 grow_horizontal = 0
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 22
 theme_override_styles/normal = SubResource("HudBackground")
 text = "SCORE  0"
 horizontal_alignment = 1
@@ -45,13 +52,12 @@ vertical_alignment = 1
 
 [node name="StatsLabel" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 0
-offset_left = 18.0
-offset_top = 18.0
-offset_right = 251.0
-offset_bottom = 59.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 242.0
+offset_bottom = 60.0
 theme_override_colors/font_color = Color(0.7, 0.85, 0.95, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("HudBackground")
 text = "LENGTH 01   SPEED 1.0x"
 horizontal_alignment = 1
@@ -59,58 +65,78 @@ vertical_alignment = 1
 
 [node name="HintLabel" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 12
 anchor_left = 0.5
-anchor_top = 1.0
 anchor_right = 0.5
+anchor_top = 1.0
 anchor_bottom = 1.0
-offset_left = -180.0
-offset_top = -80.0
-offset_right = 180.0
-offset_bottom = -45.0
+offset_left = -132.0
+offset_right = 132.0
+offset_top = -65.0
+offset_bottom = -37.0
 grow_horizontal = 2
-grow_vertical = 0
 theme_override_colors/font_color = Color(0.75, 0.95, 1, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 16
 theme_override_styles/normal = SubResource("HudBackground")
-text = "EAT THE GLOWING FOOD TO GROW"
+text = "EAT GLOWING FOOD TO GROW"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="ControlHintLabel" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 12
-anchor_left = 0.5
 anchor_top = 1.0
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -260.0
-offset_top = -42.0
-offset_right = 260.0
-offset_bottom = -16.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_colors/font_color = Color(0.65, 0.7, 0.75, 1)
+offset_left = 12.0
+offset_right = -12.0
+offset_top = -35.0
+offset_bottom = -9.0
+theme_override_colors/font_color = Color(0.77, 0.84, 0.9, 1)
 theme_override_font_sizes/font_size = 14
-text = "WASD / ARROWS  MOVE     SPACE  PAUSE     F  CAMERA"
+text = "WASD / arrows or hold left mouse"
 horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="ActionBar" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -104.0
+offset_right = 104.0
+offset_top = 12.0
+offset_bottom = 60.0
+theme_override_constants/separation = 8
+
+[node name="PauseButton" type="Button" parent="ActionBar"]
+custom_minimum_size = Vector2(100, 48)
+layout_mode = 2
+focus_mode = 0
+text = "Pause"
+tooltip_text = "Pause (Esc)"
+
+[node name="CameraButton" type="Button" parent="ActionBar"]
+custom_minimum_size = Vector2(100, 48)
+layout_mode = 2
+focus_mode = 0
+text = "Camera"
+tooltip_text = "Switch camera (F)"
 
 [node name="GameplayPauseLabel" type="Label" parent="."]
+visible = false
 layout_mode = 1
-anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -100.0
-offset_top = -13.0
+offset_top = -20.0
 offset_right = 100.0
-offset_bottom = 13.0
-grow_horizontal = 2
-grow_vertical = 2
+offset_bottom = 20.0
 theme_override_font_sizes/font_size = 18
-text = "GAME PAUSED - PRESS SPACE"
+theme_override_styles/normal = SubResource("HudBackground")
+text = "GAME PAUSED"
 horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="MenuShade" type="ColorRect" parent="."]
 visible = false
@@ -160,17 +186,17 @@ text = "PAUSED"
 horizontal_alignment = 1
 
 [node name="ResumeButton" type="Button" parent="PauseMenu/VBoxContainer"]
-custom_minimum_size = Vector2(0, 45)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 text = "Resume"
 
 [node name="MainMenuButton" type="Button" parent="PauseMenu/VBoxContainer"]
-custom_minimum_size = Vector2(0, 45)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 text = "Main Menu"
 
 [node name="QuitButton" type="Button" parent="PauseMenu/VBoxContainer"]
-custom_minimum_size = Vector2(0, 45)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 text = "Quit"
 
@@ -233,11 +259,11 @@ text = "Best Score: 0"
 horizontal_alignment = 1
 
 [node name="RetryButton" type="Button" parent="GameOverMenu/VBoxContainer"]
-custom_minimum_size = Vector2(0, 45)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 text = "Retry"
 
 [node name="MainMenuButton" type="Button" parent="GameOverMenu/VBoxContainer"]
-custom_minimum_size = Vector2(0, 45)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 text = "Main Menu"

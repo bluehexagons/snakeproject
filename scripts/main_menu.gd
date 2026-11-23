@@ -8,6 +8,7 @@ const VIEWPORT_MARGIN = 16.0
 
 func _ready() -> void:
 	get_viewport().size_changed.connect(_on_viewport_size_changed)
+	$Panel/VBoxContainer/QuitButton.visible = not OS.has_feature("web")
 	call_deferred("_fit_panel_to_viewport")
 	_refresh_continue_button()
 	best_score_label.text = "BEST SCORE  %d" % GameState.get_best_score()
@@ -30,10 +31,19 @@ func _on_viewport_size_changed() -> void:
 	_fit_panel_to_viewport()
 
 func _fit_panel_to_viewport() -> void:
-	if not is_instance_valid(panel) or panel.size.x <= 0.0 or panel.size.y <= 0.0:
-		return
-	panel.pivot_offset = panel.size * 0.5
 	var available_size = get_viewport_rect().size - Vector2.ONE * VIEWPORT_MARGIN * 2.0
+	var compact = available_size.y < 400.0
+	var width = clampf(available_size.x, 280.0, 360.0)
+	var height = 350.0 if compact else 400.0
+	if compact and OS.has_feature("web"):
+		height = 300.0
+	panel.offset_left = -width * 0.5
+	panel.offset_right = width * 0.5
+	panel.offset_top = -height * 0.5
+	panel.offset_bottom = height * 0.5
+	$Panel/VBoxContainer.add_theme_constant_override("separation", 8 if compact else 12)
+	$Panel/VBoxContainer/TitleLabel.add_theme_font_size_override("font_size", 38 if compact else 48)
+	panel.pivot_offset = panel.size * 0.5
 	var scale_factor = minf(1.0, minf(available_size.x / panel.size.x, available_size.y / panel.size.y))
 	panel.scale = Vector2.ONE * maxf(scale_factor, 0.01)
 

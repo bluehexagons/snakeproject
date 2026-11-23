@@ -132,6 +132,7 @@ light_energy = 0.38
 sky_mode = 1
 
 [node name="Camera3D" type="Camera3D" parent="GameplayContainer"]
+process_mode = 3
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 10, 0)
 projection = 1
 size = 15.0

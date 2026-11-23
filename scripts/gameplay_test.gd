@@ -164,10 +164,143 @@ func run() -> void:
 	_check_crowded_food_refill()
 	_check_covered_food_refill()
 	_check_body_spawn_clearance()
+	await _check_device_controls()
 	print("Gameplay regression: max link %.3f, max tail step %.3f" % [max_link, max_step])
 	if not failed:
 		print("Gameplay regression passed")
 	get_tree().quit(1 if failed else 0)
+
+func _send_input(event: InputEvent) -> void:
+	Input.parse_input_event(event.duplicate())
+	Input.flush_buffered_events()
+
+func _check_device_controls() -> void:
+	var main = MAIN.instantiate()
+	add_child(main)
+	var player: Player = main.player
+	player.freeze = true
+	player.position = Vector3(0.0, 0.5, 0.0)
+	var window = get_window()
+	var original_size = window.size
+	for resolution in [Vector2i(320, 640), Vector2i(568, 320), Vector2i(640, 480), Vector2i(1440, 540)]:
+		window.size = resolution
+		await get_tree().process_frame
+		var play_area: Rect2 = main.ui.get_play_area()
+		for corner in [Vector3(-11, 0, -11), Vector3(11, 0, -11), Vector3(-11, 0, 11), Vector3(11, 0, 11)]:
+			check(play_area.has_point(main.camera.unproject_position(corner)),
+				"Arena escaped the HUD-safe play area at %s" % resolution)
+		check(not main.ui.score_label.get_global_rect().intersects(main.ui.stats_label.get_global_rect()),
+			"HUD cards overlap at %s" % resolution)
+
+	var mouse = InputEventMouseButton.new()
+	mouse.button_index = MOUSE_BUTTON_LEFT
+	mouse.position = main.camera.unproject_position(Vector3(5.0, 0.5, 0.0))
+	mouse.pressed = true
+	_send_input(mouse)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.dot(Vector3.RIGHT) > 0.99, "Holding the mouse did not steer toward the pointed world position")
+	mouse.pressed = false
+	mouse.position = main.ui.pause_button.get_global_rect().get_center()
+	_send_input(mouse)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.is_zero_approx(), "Releasing the mouse over a HUD button kept steering")
+
+	var touch = InputEventScreenTouch.new()
+	touch.index = 0
+	touch.position = main.ui.get_play_area().get_center()
+	touch.pressed = true
+	_send_input(touch)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.is_zero_approx(), "Touch-down steered before the player dragged")
+	var drag = InputEventScreenDrag.new()
+	drag.index = touch.index
+	drag.position = touch.position + Vector2(0.0, -50.0)
+	_send_input(drag)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.dot(Vector3.FORWARD) > 0.99, "Touch drag did not steer along the screen axes")
+	touch.pressed = false
+	touch.canceled = true
+	_send_input(touch)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.is_zero_approx(), "Canceling touch did not release steering")
+
+	var axis = InputEventJoypadMotion.new()
+	axis.axis = JOY_AXIS_LEFT_X
+	axis.axis_value = -0.8
+	_send_input(axis)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.x < -0.4 and player.input_dir.x > -0.9, "Left stick did not provide analog steering")
+	axis.axis_value = 0.2
+	_send_input(axis)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.is_zero_approx(), "Stick drift bypassed the movement deadzone")
+	axis.axis_value = 0.0
+	_send_input(axis)
+
+	var button = InputEventJoypadButton.new()
+	button.button_index = JOY_BUTTON_START
+	button.pressed = true
+	_send_input(button)
+	check(main.is_paused, "Start did not open the pause menu")
+	button.pressed = false
+	_send_input(button)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	button.button_index = JOY_BUTTON_DPAD_DOWN
+	button.pressed = true
+	_send_input(button)
+	check(main.ui.get_node("PauseMenu/VBoxContainer/MainMenuButton").has_focus(), "D-pad did not navigate the pause menu")
+	button.button_index = JOY_BUTTON_START
+	_send_input(button)
+	check(not main.is_paused, "Start did not resume gameplay")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.is_zero_approx(), "Held menu direction steered immediately after resuming")
+	button.pressed = false
+	_send_input(button)
+	button.button_index = JOY_BUTTON_DPAD_DOWN
+	_send_input(button)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	button.pressed = true
+	_send_input(button)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(player.input_dir.dot(Vector3.BACK) > 0.99, "D-pad did not steer after returning to neutral")
+	button.pressed = false
+	_send_input(button)
+	button.button_index = JOY_BUTTON_Y
+	button.pressed = true
+	_send_input(button)
+	check(main.camera.is_third_person, "Y did not switch to the angled camera")
+	await get_tree().create_timer(0.8).timeout
+	var angled_area: Rect2 = main.ui.get_play_area()
+	check(angled_area.has_point(main.camera.unproject_position(Vector3(11, 0, 11))),
+		"Angled camera cropped the arena")
+	button.pressed = false
+	_send_input(button)
+	button.button_index = JOY_BUTTON_B
+	button.pressed = true
+	_send_input(button)
+	check(main.is_paused, "B did not open the pause menu")
+	button.pressed = false
+	_send_input(button)
+	await get_tree().process_frame
+	button.button_index = JOY_BUTTON_A
+	button.pressed = true
+	_send_input(button)
+	button.pressed = false
+	_send_input(button)
+	check(not main.is_paused, "A did not activate the focused Resume button")
+	main.free()
+	window.size = original_size
 
 func _check_rock_drop(container: Node3D) -> void:
 	var rock: Rock = ROCK.instantiate()

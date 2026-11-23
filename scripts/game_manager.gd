@@ -66,6 +66,7 @@ func _ready() -> void:
 	_configure_renderer_features()
 	_connect_ui()
 	load_game_state()
+	update_pause_state()
 	update_score(0)
 	_start_debug_trace()
 
@@ -74,6 +75,10 @@ func _configure_renderer_features() -> void:
 		world_environment.environment.volumetric_fog_enabled = RenderingServer.get_current_rendering_method() == "forward_plus"
 
 func _connect_ui() -> void:
+	ui.play_area_changed.connect(camera.fit_arena)
+	camera.fit_arena(ui.get_play_area())
+	ui.pause_requested.connect(_on_pause_requested)
+	ui.camera_requested.connect(_toggle_camera)
 	ui.resume_requested.connect(_on_resume_requested)
 	ui.quit_requested.connect(save_and_quit)
 	ui.retry_requested.connect(_on_retry_requested)
@@ -107,16 +112,25 @@ func _physics_process(delta: float) -> void:
 	DebugTelemetry.record_sample(_build_debug_trace_sample())
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_echo():
+	if event.is_echo() or is_game_over:
 		return
-	if event.is_action_pressed("toggle_camera_angle"):
-		camera.toggle_view()
-		SoundFx.play(SoundFx.Cue.UI, 0.39, 1.20)
-	if event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("gameplay_menu"):
 		toggle_pause(true)
-	elif event.is_action_pressed("gameplay_pause"):
-		if !is_paused:
-			toggle_gameplay_pause()
+	elif event.is_action_pressed("gameplay_pause") and not is_paused:
+		toggle_gameplay_pause()
+	elif event.is_action_pressed("toggle_camera_angle") and not is_paused:
+		_toggle_camera()
+
+func _on_pause_requested() -> void:
+	if is_gameplay_paused:
+		toggle_gameplay_pause()
+	else:
+		toggle_pause(true)
+
+func _toggle_camera() -> void:
+	camera.toggle_view()
+	SoundFx.play(SoundFx.Cue.UI, 0.39, 1.20)
+
 func toggle_gameplay_pause() -> void:
 	if is_game_over:
 		return
@@ -148,7 +162,9 @@ func _play_pause_cue(paused: bool) -> void:
 	SoundFx.play(SoundFx.Cue.UI, 0.48, 0.81 if paused else 1.12)
 
 func update_pause_state() -> void:
-	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if (is_paused or is_gameplay_paused) else Node.PROCESS_MODE_INHERIT
+	var paused = is_paused or is_gameplay_paused
+	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if paused else Node.PROCESS_MODE_INHERIT
+	ui.steering.set_steering_enabled(not paused and not is_game_over)
 
 func _start_debug_trace() -> void:
 	if not DebugTelemetry.can_capture():
@@ -216,7 +232,7 @@ func _build_debug_trace_sample() -> Dictionary:
 			"score": score,
 			"paused": is_paused or is_gameplay_paused,
 			"lost": is_game_over,
-			"active_input": Input.get_vector("move_left", "move_right", "move_up", "move_down").length_squared() > 0.0,
+			"active_input": is_instance_valid(player) and not player.input_dir.is_zero_approx(),
 			"inactivity": player.stuck_elapsed if is_instance_valid(player) else 0.0,
 		},
 	}
@@ -245,6 +261,7 @@ func spawn_player() -> Player:
 
 func _bind_player(new_player: Player) -> void:
 	player = new_player
+	player.steering = ui.steering
 	player.food_collected.connect(_on_player_food_collected, CONNECT_DEFERRED)
 	player.score_earned.connect(_on_player_score_earned)
 	player.player_lost.connect(_on_player_lost)
