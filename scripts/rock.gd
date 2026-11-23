@@ -4,14 +4,14 @@ class_name Rock
 const DANGER_COLOR = Color(0.8, 0.2, 0.2, 1.0)
 const DANGER_EMISSION = Color(0.6, 0.1, 0.1, 1.0)
 
-const SPAWN_HEIGHT = 15.0
-const SPAWN_DURATION = 0.7
-const INITIAL_SCALE = 0.1
-const GROWTH_START = 0.1
-const GROWTH_PEAK = 0.6
-const GROWTH_CURVE = 0.4
-const SCALE_OVERSHOOT = 1.3
-const INITIAL_SPIN = 12.0
+const SPAWN_HEIGHT = 5.2
+const DROP_GRAVITY_SCALE = 1.3
+const INITIAL_DROP_SPEED = 2.25
+const GROWTH_DURATION = 0.28
+const INITIAL_SCALE = 0.84
+const INITIAL_SPIN = 5.0
+const LANDING_RIPPLE_DURATION = 0.2
+const LANDING_MARKER_Y = 0.018
 const BREAK_IMPULSE = 4.5
 const FRAGMENT_COUNT = 5
 const SHATTER_DURATION = 0.24
@@ -20,10 +20,12 @@ var is_dangerous: bool = false
 var is_initialized: bool = false
 var spawn_timer: float = 0.0
 var is_spawning: bool = true
-var spawn_progress: float = 0.0
 var is_shattering: bool = false
+var _drop_contact := false
 
 @onready var mesh: MeshInstance3D = $MeshInstance3D
+@onready var landing_marker: MeshInstance3D = $LandingMarker
+@onready var landing_material: ShaderMaterial = landing_marker.material_override
 @onready var break_sparks: GPUParticles3D = $BreakSparks
 
 func _ready() -> void:
@@ -45,12 +47,15 @@ func _ready() -> void:
 	physics_material_override.bounce = settings.bounce
 	physics_material_override.rough = true
 
-func finish_spawn() -> void:
+func _finish_spawn() -> void:
 	is_spawning = false
 	gravity_scale = 1.0
-	apply_physics_scale(1.0, true)
-	axis_lock_angular_x = false
-	axis_lock_angular_z = false
+	mesh.scale = Vector3.ONE
+	_position_landing_marker()
+	landing_material.set_shader_parameter("impact", 0.0)
+	var ripple := create_tween()
+	ripple.tween_property(landing_material, "shader_parameter/impact", 1.0, LANDING_RIPPLE_DURATION)
+	ripple.tween_callback(landing_marker.hide)
 
 func covers_pickup(point: Vector3) -> bool:
 	if is_spawning or is_shattering or collision_shape.disabled:
@@ -60,6 +65,8 @@ func covers_pickup(point: Vector3) -> bool:
 
 func setup_rock(spawn_position: Vector3) -> void:
 	is_initialized = true
+	is_spawning = true
+	_drop_contact = false
 	position = spawn_position + Vector3.UP * SPAWN_HEIGHT
 	physics_pos = position
 	visual_pos = position
@@ -67,14 +74,25 @@ func setup_rock(spawn_position: Vector3) -> void:
 	rotation = Vector3(randf_range(-PI, PI), randf_range(-PI, PI), randf_range(-PI, PI))
 	angular_velocity = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * INITIAL_SPIN
 	
-	apply_physics_scale(INITIAL_SCALE, true)
-	mesh.scale = Vector3.ONE * INITIAL_SCALE
-	cached_velocity = Vector3.ZERO
-	gravity_scale = 0.0
+	cached_velocity = Vector3.DOWN * INITIAL_DROP_SPEED
+	gravity_scale = DROP_GRAVITY_SCALE
 	spawn_timer = 0.0
-	
-	axis_lock_angular_x = true
-	axis_lock_angular_z = true
+	_update_drop_visuals()
+	landing_marker.reset_physics_interpolation()
+	reset_physics_interpolation()
+
+func _position_landing_marker() -> void:
+	var rock_position := global_position
+	landing_marker.global_position = Vector3(rock_position.x, LANDING_MARKER_Y, rock_position.z)
+
+func _update_drop_visuals() -> void:
+	var growth := smoothstep(0.0, GROWTH_DURATION, spawn_timer)
+	mesh.scale = Vector3.ONE * lerpf(INITIAL_SCALE, 1.0, growth)
+	_position_landing_marker()
+	var altitude := inverse_lerp(0.5, SPAWN_HEIGHT, global_position.y)
+	landing_material.set_shader_parameter("altitude", clampf(altitude, 0.0, 1.0))
+	landing_material.set_shader_parameter("impact", -1.0)
+	landing_marker.show()
 
 func _physics_process(delta: float) -> void:
 	if not is_initialized or is_shattering:
@@ -84,31 +102,21 @@ func _physics_process(delta: float) -> void:
 		return
 		
 	if is_spawning:
-		spawn_timer = min(spawn_timer + delta, SPAWN_DURATION)
-		spawn_progress = spawn_timer / SPAWN_DURATION
-		
-		var scale_progress = clampf((spawn_progress - GROWTH_START) / (GROWTH_PEAK - GROWTH_START), 0.0, 1.0)
-		var target_scale = INITIAL_SCALE
-		
-		if scale_progress > 0.0:
-			var growth = ease(scale_progress, GROWTH_CURVE)
-			target_scale = lerp(INITIAL_SCALE, SCALE_OVERSHOOT, growth)
-			
-			if spawn_progress > GROWTH_PEAK:
-				var settle = ease((spawn_progress - GROWTH_PEAK) / (1.0 - GROWTH_PEAK), 0.6)
-				target_scale = lerp(SCALE_OVERSHOOT, 1.0, settle)
-		
-		apply_physics_scale(target_scale, true)
-		gravity_scale = spawn_progress * spawn_progress
-		
-		if spawn_timer >= SPAWN_DURATION:
-			finish_spawn()
+		spawn_timer = minf(spawn_timer + delta, GROWTH_DURATION)
+		if _drop_contact:
+			_finish_spawn()
+		else:
+			_update_drop_visuals()
 	
 	_update_base_physics(delta)
 
 func _integrate_forces(state: PhysicsDirectBodyState3D):
-	if is_spawning or is_shattering:
+	if not is_initialized or is_shattering:
 		return
+	if is_spawning and state.get_contact_count() == 0:
+		super._integrate_forces(state)
+		return
+	_drop_contact = is_spawning
 	if not is_dangerous:
 		for index in state.get_contact_count():
 			var head = state.get_contact_collider_object(index) as Player
@@ -144,24 +152,24 @@ func restore_from_save_data(data: Dictionary) -> void:
 	rotation = _vector_from_data(data.get("rotation"), rotation)
 	angular_velocity = _vector_from_data(data.get("angular_velocity"), angular_velocity)
 	is_initialized = true
-	# Legacy saves have no entrance state and retain their full-sized restore.
+	# Older drops grew their collider as well as the mesh.
+	apply_physics_scale(1.0, true)
 	is_spawning = bool(data.get("is_spawning", false))
-	spawn_timer = clampf(float(data.get("spawn_timer", SPAWN_DURATION)), 0.0, SPAWN_DURATION)
-	spawn_progress = spawn_timer / SPAWN_DURATION
-	if is_spawning and spawn_timer < SPAWN_DURATION:
-		gravity_scale = spawn_progress * spawn_progress
-		axis_lock_angular_x = true
-		axis_lock_angular_z = true
+	spawn_timer = clampf(float(data.get("spawn_timer", GROWTH_DURATION)), 0.0, GROWTH_DURATION)
+	_drop_contact = false
+	gravity_scale = DROP_GRAVITY_SCALE if is_spawning else 1.0
+	if is_spawning:
+		_update_drop_visuals()
 	else:
-		spawn_timer = SPAWN_DURATION
-		spawn_progress = 1.0
-		finish_spawn()
+		landing_marker.hide()
+	landing_marker.reset_physics_interpolation()
 	reset_physics_interpolation()
 	if data.get("is_dangerous", false):
 		make_dangerous()
 
 func make_dangerous() -> void:
 	is_dangerous = true
+	landing_material.set_shader_parameter("marker_color", Color(1.0, 0.35, 0.22, 1.0))
 	target_color = DANGER_COLOR
 	current_color = DANGER_COLOR
 	state_color = DANGER_COLOR
@@ -183,6 +191,7 @@ func break_rock() -> void:
 	collision_layer = 0
 	collision_mask = 0
 	mesh.hide()
+	landing_marker.hide()
 	break_sparks.emitting = true
 	var tween = create_tween().set_parallel()
 	var to_local = global_basis.inverse()

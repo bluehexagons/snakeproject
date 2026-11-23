@@ -103,27 +103,31 @@ func run() -> void:
 	var test_rock = ROCK_SCENE.instantiate()
 	add_child(test_rock)
 	test_rock.setup_rock(Vector3(2, 0, 3))
-	test_rock._physics_process(0.25)
-	var saved_scale = test_rock.current_scale
+	test_rock._physics_process(0.12)
+	var saved_scale = test_rock.mesh.scale
+	var saved_velocity = test_rock.linear_velocity
 	var saved_gravity = test_rock.gravity_scale
 	var saved_rock_data = test_rock.get_save_data()
 	test_rock.position = Vector3.ZERO
 	test_rock.restore_from_save_data(saved_rock_data)
-	if test_rock.global_position.distance_to(Vector3(2, 15, 3)) > 0.001:
-		push_error("Rock restore did not preserve the saved transform")
+	if not test_rock.global_position.is_equal_approx(Vector3(2, Rock.SPAWN_HEIGHT, 3)) or not test_rock.linear_velocity.is_equal_approx(saved_velocity):
+		push_error("Rock restore did not preserve its saved position and drop velocity")
 		failed = true
-	if not test_rock.is_spawning or not is_equal_approx(test_rock.spawn_timer, 0.25) or not is_equal_approx(test_rock.current_scale, saved_scale) or not is_equal_approx(test_rock.gravity_scale, saved_gravity) or not test_rock.axis_lock_angular_x or not test_rock.axis_lock_angular_z:
+	if not test_rock.is_spawning or not test_rock.mesh.scale.is_equal_approx(saved_scale) or not is_equal_approx(test_rock.gravity_scale, saved_gravity) or not test_rock.landing_marker.visible:
 		push_error("Rock restore skipped its saved entrance animation")
 		failed = true
-	test_rock._physics_process(Rock.SPAWN_DURATION)
-	if test_rock.is_spawning or not is_equal_approx(test_rock.current_scale, 1.0) or not is_equal_approx(test_rock.gravity_scale, 1.0) or test_rock.axis_lock_angular_x or test_rock.axis_lock_angular_z:
-		push_error("Restored rock did not finish its entrance animation")
-		failed = true
 	var legacy_rock_data = saved_rock_data.duplicate(true)
+	legacy_rock_data.position.y = 13.0
+	legacy_rock_data.spawn_timer = 0.6
+	legacy_rock_data.current_scale = 1.2
+	test_rock.restore_from_save_data(legacy_rock_data)
+	if not test_rock.is_spawning or not test_rock.landing_marker.visible or not test_rock.collision_shape.scale.is_equal_approx(Vector3.ONE):
+		push_error("An older save interrupted its airborne rock or restored an oversized collider")
+		failed = true
 	legacy_rock_data.erase("is_spawning")
 	legacy_rock_data.erase("spawn_timer")
 	test_rock.restore_from_save_data(legacy_rock_data)
-	if test_rock.is_spawning or not is_equal_approx(test_rock.current_scale, 1.0):
+	if test_rock.is_spawning or not is_equal_approx(test_rock.current_scale, 1.0) or test_rock.landing_marker.visible:
 		push_error("Legacy rock save did not restore as a full-sized rock")
 		failed = true
 	test_rock.queue_free()

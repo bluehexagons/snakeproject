@@ -11,6 +11,7 @@ release movement. Once you start moving, make steady progress to survive. If
 you stop or get pinned, the head changes color and a countdown warns you
 before the three-second timeout.
 
+Ground rings mark incoming rocks and expand briefly on impact.
 Impacts flash briefly. A hard hit, such as a head-on lunge after eating, can
 shatter a gray rock. Red rocks and falling out of the arena are lethal. Food can
 be collected during small bounces, and solid obstacles block pickups. Food that
@@ -63,7 +64,7 @@ saves reconstruct the path from segment positions. Fallen segments return to
 the playing surface. Saves preserve queued lunges, active pickup boosts, the
 digestion pulse, and the current inactivity sample. Solid segments keep their
 collision and velocity when resumed.
-Rocks saved during their entrance animation resume at the same growth stage.
+Rocks saved mid-drop resume with their position, velocity, and ground marker.
 When resuming, the game refills food after restoring the rocks. If the center
 is crowded, placement searches farther out while keeping clear of obstacles.
 Active play retries any missing spawns on the five-second autosave interval.

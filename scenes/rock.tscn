@@ -1,6 +1,7 @@
-[gd_scene load_steps=10 format=3 uid="uid://bfkyxrptcfxi7"]
+[gd_scene load_steps=13 format=3 uid="uid://bfkyxrptcfxi7"]
 
 [ext_resource type="Script" uid="uid://d33w0sfa3jypc" path="res://scripts/rock.gd" id="1_rock_script"]
+[ext_resource type="Shader" path="res://shaders/rock_landing.gdshader" id="2_landing_shader"]
 
 [sub_resource type="FastNoiseLite" id="RockNoise"]
 frequency = 0.072
@@ -31,6 +32,13 @@ radial_segments = 10
 rings = 5
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_rock"]
+
+[sub_resource type="ShaderMaterial" id="LandingMaterial"]
+resource_local_to_scene = true
+shader = ExtResource("2_landing_shader")
+
+[sub_resource type="PlaneMesh" id="LandingMesh"]
+size = Vector2(3, 3)
 
 [sub_resource type="ParticleProcessMaterial" id="BreakSparkMotion"]
 emission_shape = 1
@@ -66,6 +74,13 @@ mesh = SubResource("SphereMesh_rock")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("SphereShape3D_rock")
+
+[node name="LandingMarker" type="MeshInstance3D" parent="."]
+top_level = true
+visible = false
+cast_shadow = 0
+material_override = SubResource("LandingMaterial")
+mesh = SubResource("LandingMesh")
 
 [node name="BreakSparks" type="GPUParticles3D" parent="."]
 cast_shadow = 0

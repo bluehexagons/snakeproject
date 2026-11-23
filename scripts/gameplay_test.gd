@@ -29,6 +29,7 @@ func run() -> void:
 	player.freeze = true
 	player.position = Vector3(0, 0.5, 0)
 	await get_tree().physics_frame
+	await _check_rock_drop(main.gameplay_container)
 	player.freeze = false
 	player.rebuild_trail()
 	for frame in 30:
@@ -162,6 +163,31 @@ func run() -> void:
 	if not failed:
 		print("Gameplay regression passed")
 	get_tree().quit(1 if failed else 0)
+
+func _check_rock_drop(container: Node3D) -> void:
+	var rock: Rock = ROCK.instantiate()
+	container.add_child(rock)
+	rock.setup_rock(Vector3(5, 0, 5))
+	check(rock.position.y < 6.0 and rock.linear_velocity.y < -1.0, "A new rock spawned too high or hung in the air")
+	check(rock.landing_marker.visible and rock.landing_marker.global_position.distance_to(Vector3(5, 0, 5)) < 0.05,
+		"The drop marker did not appear on the floor below the rock")
+	var landing_frame := 0
+	for frame in 45:
+		await get_tree().physics_frame
+		check(rock.collision_shape.scale.is_equal_approx(Vector3.ONE) and is_equal_approx(rock.mass, rock.base_mass),
+			"The drop animation changed the rock's collider or mass")
+		if not rock.is_spawning:
+			landing_frame = frame + 1
+			break
+	check(landing_frame >= 20 and landing_frame <= 38 and rock.position.y < 0.55,
+		"Rock did not complete its drop on ground contact within the expected time")
+	check(is_equal_approx(rock.gravity_scale, 1.0) and rock.mesh.scale.is_equal_approx(Vector3.ONE),
+		"The landed rock retained its drop gravity or visual scale")
+	print("Rock drop: first landing after %d physics ticks" % landing_frame)
+	for frame in 20:
+		await get_tree().physics_frame
+	check(not rock.landing_marker.visible, "The landing marker stayed visible after impact")
+	rock.free()
 
 func _check_body_contacts() -> void:
 	var fixture = {
