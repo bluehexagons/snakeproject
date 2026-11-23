@@ -1,6 +1,9 @@
-# Godot 4+ specific ignores
+# Godot editor data and exports
 .godot/
 /export_credentials.cfg
 /android/
-/build/
+/build/*
+!/build/.gdignore
+
+# Python verification
 __pycache__/

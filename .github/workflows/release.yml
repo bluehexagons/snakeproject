@@ -25,16 +25,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Check the tagged commit and version
+      - name: Check that the tagged commit is on main
         run: |
           git merge-base --is-ancestor HEAD origin/main || {
             echo "Release tags must point to a commit on main." >&2
             exit 1
           }
-          version="${GITHUB_REF_NAME#v}"
-          grep -Fx "config/version=\"$version\"" project.godot
-          grep -Fx "application/file_version=\"$version.0\"" export_presets.cfg
-          grep -Fx "application/product_version=\"$version.0\"" export_presets.cfg
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.13'
@@ -42,17 +38,20 @@ jobs:
         with:
           export-templates: 'true'
       - name: Build Windows and Web release packages
-        run: bash scripts/package_release.sh "$GITHUB_REF_NAME"
+        id: package
+        run: |
+          directory="$(bash scripts/package_release.sh "$GITHUB_REF_NAME")"
+          printf 'directory=%s\n' "$directory" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-release
-          path: build/release/*.zip
+          path: ${{ steps.package.outputs.directory }}/*.zip
           if-no-files-found: error
           compression-level: 0
           overwrite: true
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: build/web
+          path: ${{ steps.package.outputs.directory }}/web
           retention-days: 7
 
   publish:

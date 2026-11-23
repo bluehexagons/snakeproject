@@ -31,7 +31,8 @@ Food that stays trapped inside a rock is moved to a clear spot.
 
 **Space** pauses gameplay, **Escape** opens the pause menu, and **F** switches
 between overhead and angled arena views. Retry starts a fresh run after death.
-Switching away from the window pauses and saves the run; resume explicitly when you return.
+Switching away from the window pauses and saves the run. Resume explicitly
+when you return.
 Menus support keyboard navigation with arrow keys, Tab, and Enter.
 The pause menu returns to the main menu with a resumable save. If an exit save
 fails, the game stays paused so you can try again. Active games autosave every
@@ -82,110 +83,17 @@ is crowded, placement searches farther out while keeping clear of obstacles.
 Active play retries any missing spawns on the five-second autosave interval.
 New rocks and food leave room around the snake's body.
 
-## Verification
+On Windows, saves live in `%APPDATA%\Godot\app_userdata\snake3d`. Save
+replacement retains a `.bak` recovery copy before promoting the new file.
+Continuing a run or loading a best score uses a valid backup if the primary
+file is missing or damaged. Later writes preserve that backup until a valid
+primary is available. Starting or ending a run clears the old session's
+backup and temporary files.
 
-Automated verification requires **Python 3.10+** and Godot on PATH. On native
-Windows, use PowerShell:
+## Contributing
 
-```powershell
-.\scripts\verify_project.ps1
-.\scripts\verify_project.ps1 -Rendered
-# If Godot is not on PATH, select the console executable explicitly:
-.\scripts\verify_project.ps1 -Godot 'C:\Tools\Godot\Godot_v4.7.2-stable_win64_console.exe'
-```
-
-On Linux or macOS:
-
-```sh
-./scripts/verify_project.sh
-```
-
-You can also invoke the shared runner directly from the project root:
-
-```sh
-python scripts/verify_project.py --godot godot --timeout 120
-```
-
-Use `python3` on systems where Python is installed under that name. `GODOT`
-also selects the engine executable. The runner imports resources, then requires
-successful completion of both smoke and gameplay regression scenes. Engine
-errors, missing success markers, nonzero exits, and per-check timeouts fail
-verification. On Windows, timeout cleanup includes the launcher's child engine.
-Use `--rendered` (PowerShell: `-Rendered`) to run both scenes with native graphics.
-
-Both saves and best scores go to a temporary directory through the debug-only
-`SNAKE3D_TEST_DATA_DIR` override, which must be an existing absolute path. The
-directory is removed after verification; no APPDATA or XDG overrides are needed.
-Test scenes refuse to run against player saves. Release builds ignore this
-override. Normal Windows saves remain in
-`%APPDATA%\Godot\app_userdata\snake3d`; the project name stays stable to preserve
-existing saves. Save replacement retains a `.bak` recovery copy before promoting
-the new file. Continue, gameplay loading, and best-score loading use a valid
-backup if the primary is missing or damaged. Subsequent writes preserve that
-backup until a valid primary is available. Starting a new run or ending a run
-clears the session's backup and temporary files as well, preventing an old
-session from reappearing.
-
-Coverage includes rapid pickups, speed-based scoring, capped forward impulses,
-momentum through turns and after releasing input, reversals, diagonal steering,
-body deflection and free rolling, head and rock contact with the body, rock
-impacts and breakage, wall-touched pieces turning lethal,
-grounded body persistence, recovery of fallen saved paths, braking, pause,
-focus-loss save/pause, keyboard focus, save/resume ordering, momentum, stuck warnings,
-recovery, loss while stopped or blocked, arena falls, death and body breakup,
-interrupted or corrupt save recovery, recovery-file cleanup, key-repeat
-handling, malformed save validation, rock entrance recovery, and pickups and
-spawns around obstacles. Headless tests do not establish GPU, sound,
-or display scaling behavior; also check the native window on target hardware.
-
-## Exporting
-
-Install **4.7.2 export templates** from Godot's **Editor → Manage Export
-Templates** before exporting. Create the output directory and export from the
-project root, or select a preset in Godot's **Project → Export** dialog.
-
-Export Windows from PowerShell with these commands.
-
-```powershell
-New-Item -ItemType Directory -Force build/windows | Out-Null
-godot --headless --path . --export-release 'Windows Desktop'
-```
-
-The x86-64 Windows preset produces `snake3d.exe` and `snake3d.pck` in
-`build/windows`. Keep both files together.
-
-Export Web from a POSIX shell with these commands.
-
-```sh
-mkdir -p build/web
-godot --headless --path . --export-release Web
-python3 -m http.server --bind 127.0.0.1 --directory build/web
-```
-
-Open `http://127.0.0.1:8000/` to play the local Web export. Keep all generated
-web files together when hosting the build. Both presets exclude the test
-scenes and verification scripts. Git ignores the `build/` directory.
-
-A Web export made with `--export-debug` exposes a local physics sample buffer
-in `window.__godotPhysicsTrace` when Space pauses a capture.
-
-## Publishing a release
-
-CI runs the Godot smoke and gameplay checks on Linux and Windows for pull
-requests and pushes to `main`. To publish a version, update `config/version` in
-`project.godot` and the Windows file and product versions in `export_presets.cfg`.
-After CI passes on `main`, push a matching tag of the form `vMAJOR.MINOR.PATCH`.
-For example, to release version `0.4.1` from its tested commit:
-
-```sh
-git tag -a v0.4.1 -m 'Snake 3D v0.4.1'
-git push origin v0.4.1
-```
-
-The tag runs both checks again, publishes a Windows x86-64 ZIP with license
-notices to GitHub Releases, and puts the matching Web build on GitHub Pages.
-The `github-pages` deployment environment allows version tags. If a job fails,
-rerun the failed jobs from the Actions run.
+See the [contributor guide](CONTRIBUTING.md) for local tests, GitHub Actions,
+manual exports, and the tagged release process.
 
 ## License
 

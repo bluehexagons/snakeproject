@@ -1,1 +1,3 @@
-This is a real-time physics-based 3D game loosely inspired by Snake, in Godot 4.7.2, programmed using GDScript.
+Snake 3D is a physics-based GDScript game built with Godot 4.7.2.
+Follow the [repository guidance](../AGENTS.md) and the
+[test, CI, and release procedures](../CONTRIBUTING.md).
