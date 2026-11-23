@@ -208,7 +208,9 @@ func _check_body_contacts() -> void:
 			"position": {"x": 0, "y": 0.4, "z": 0},
 			"segments": [{"position": {"x": -0.8, "y": 0.35, "z": 0}, "growth": 1.0}],
 		},
-		"food_positions": [{"x": 6, "y": 0, "z": 6}],
+		"food_positions": [
+			{"x": 6, "y": 0, "z": 6}, {"x": 7, "y": 0, "z": -6}, {"x": 0, "y": 0, "z": 7},
+		],
 	}
 	check(GameState.save_game_state(fixture), "Failed to write body collision fixture")
 	var main = MAIN.instantiate()
@@ -299,7 +301,9 @@ func _check_stuck_loss() -> void:
 	var fixture = {
 		"score": 0,
 		"player_state": {"position": {"x": 0, "y": 0.4, "z": 0}},
-		"food_positions": [{"x": -6, "y": 0, "z": -6}],
+		"food_positions": [
+			{"x": -6, "y": 0, "z": -6}, {"x": -7, "y": 0, "z": 0}, {"x": -6, "y": 0, "z": 6},
+		],
 	}
 	check(GameState.save_game_state(fixture), "Failed to write inactivity fixture")
 	var main = MAIN.instantiate()
@@ -344,7 +348,8 @@ func _check_stuck_loss() -> void:
 	for frame in 130:
 		await get_tree().physics_frame
 	check(not main.is_game_over, "A stop ended the run before the three-second timeout")
-	for frame in 105:
+	# The inactivity window starts once the longer coast stops making progress.
+	for frame in 150:
 		await get_tree().physics_frame
 		if main.is_game_over:
 			break
