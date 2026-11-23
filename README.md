@@ -6,10 +6,10 @@ Move with **WASD or arrow keys**, collect glowing food, and avoid red walls and
 red rocks. Each pickup adds a body piece, awards 10 to 30 points based on your
 speed, increases cruising speed slightly, and gives the snake a forward impulse.
 The head bumps into blue body pieces, and rocks can deflect the body. A piece
-that hits a wall turns red and is lethal to the head. Releasing movement brakes
-the head. Once you start moving, make steady progress to survive. If you stop
-or get pinned, the head changes color and a countdown warns you before the
-three-second timeout.
+that hits a wall turns red and is lethal to the head. The head coasts when you
+release movement. Once you start moving, make steady progress to survive. If
+you stop or get pinned, the head changes color and a countdown warns you
+before the three-second timeout.
 
 Impacts flash briefly. A hard hit, such as a head-on lunge after eating, can
 shatter a gray rock. Red rocks and falling out of the arena are lethal. Food can
@@ -27,10 +27,11 @@ when already paused. Holding a pause or camera key does not repeatedly toggle it
 
 ## Gameplay systems
 
-The head builds speed quickly and carries it through turns. It brakes before
-reversing direction and coasts briefly when you release movement. Body pieces
-track the recorded path using grounded rigid bodies. A new piece becomes solid
-once it has grown and has room for its collider. The body breaks apart on death.
+The head builds speed quickly and carries it through turns. Pressing the
+opposite direction brakes before reversing. Body pieces retain some sideways
+motion from hits as they return to the recorded path. Rocks and detached pieces
+keep rolling after impact. A new piece becomes solid once it has grown and has
+room for its collider. The body breaks apart on death.
 Godot physics interpolation smooths transforms. Both camera views keep the arena
 visible and control axes stable.
 
@@ -97,8 +98,9 @@ clears the session's backup and temporary files as well, preventing an old
 session from reappearing.
 
 Coverage includes rapid pickups, speed-based scoring, capped forward impulses,
-momentum through turns, reversals, diagonal steering, head and rock contact
-with the body, rock impacts and breakage, wall-touched pieces turning lethal,
+momentum through turns and after releasing input, reversals, diagonal steering,
+body deflection and free rolling, head and rock contact with the body, rock
+impacts and breakage, wall-touched pieces turning lethal,
 grounded body persistence, recovery of fallen saved paths, braking, pause,
 focus-loss save/pause, keyboard focus, save/resume ordering, momentum, stuck warnings,
 recovery, loss while stopped or blocked, arena falls, death and body breakup,

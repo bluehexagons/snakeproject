@@ -2,7 +2,7 @@ extends RefCounted
 class_name PhysicsConstants
 
 const GRAVITY = 25.0
-const BASE_DRAG_COEFFICIENT = 0.3
+const BASE_DRAG_COEFFICIENT = 0.045
 const PLAYER_DRAG = 0.4
 
 const PLAYER_MAX_SPEED = 12.0
@@ -12,18 +12,18 @@ const FALL_LIMIT_Y = -3.0
 
 const BASE_DYNAMIC_FRICTION = 0.01
 
-const ROCK_DYNAMIC_FRICTION = 0.15
+const ROCK_DYNAMIC_FRICTION = 0.025
 
-const SEGMENT_DYNAMIC_FRICTION = 0.04
+const SEGMENT_DYNAMIC_FRICTION = 0.025
 
 const PLAYER_DYNAMIC_FRICTION = 0.005
 const ROLLING_THRESHOLD = 0.5
 
 const GROUND_FRICTION_COEFFICIENTS = {
-	"segment": [0.1, 0.05],
-	"player": [0.02, 0.01],
-	"rock": [0.08, 0.04],
-	"default": [0.1, 0.05]
+	"segment": [0.012, 0.006],
+	"player": [0.005, 0.0025],
+	"rock": [0.018, 0.009],
+	"default": [0.018, 0.009]
 }
 
 const MATERIAL_SEGMENT = "segment"
@@ -41,8 +41,8 @@ const ROCK_MAX_CONTACTS = 4
 
 const RIGID_BODY_SETTINGS = {
 	"rock": {
-		"linear_damp": 0.2,
-		"angular_damp": 3.0,
+		"linear_damp": 0.04,
+		"angular_damp": 0.55,
 		"friction": ROCK_DYNAMIC_FRICTION,
 		"bounce": 0.01,
 		"max_contacts": 4

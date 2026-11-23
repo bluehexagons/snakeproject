@@ -100,8 +100,10 @@ func _ready():
 	max_contacts_reported = MAX_CONTACTS
 	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	
-	linear_damp = 0.1
-	angular_damp = 2.0
+	linear_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	angular_damp_mode = RigidBody3D.DAMP_MODE_REPLACE
+	linear_damp = 0.03
+	angular_damp = 0.45
 	
 	var physics_material = PhysicsMaterial.new()
 	physics_material.friction = dynamic_friction

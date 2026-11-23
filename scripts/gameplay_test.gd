@@ -67,14 +67,14 @@ func run() -> void:
 	# Contact can temporarily stretch a link while a new piece rounds a corner.
 	check(max_link < 1.25, "Body stretched too far during a turn: %f" % max_link)
 	check(max_step < 0.3, "Tail teleported during movement: %f" % max_step)
-	for frame in 15:
+	for frame in 42:
 		await get_tree().physics_frame
-	check(player.linear_velocity.length() < 0.2, "Player did not brake promptly after releasing input")
-	for frame in 45:
+	check(player.linear_velocity.length() < 0.2, "Player did not settle after coasting")
+	for frame in 18:
 		await get_tree().physics_frame
 	for segment in player.segments:
 		check(segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "A grown segment never became solid after moving clear")
-		check(segment.global_position.distance_to(segment.target.global_position) < 1.0, "Body did not close up after braking")
+		check(segment.global_position.distance_to(segment.target.global_position) < 1.0, "Body did not close up after coasting")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
 	check(main.is_paused and GameState.has_saved_game(), "Focus loss did not pause and save the run")
 	check(main.ui.get_node("PauseMenu/VBoxContainer/ResumeButton").has_focus(), "Pause menu has no keyboard focus")
@@ -149,6 +149,7 @@ func run() -> void:
 	await _check_speed_scoring()
 	await _check_resume_momentum()
 	await _check_handling()
+	await _check_passive_momentum()
 	await _check_rock_impacts()
 	await _check_pickup_clearance()
 	await _check_arena_fall()
@@ -401,7 +402,7 @@ func _check_handling() -> void:
 	var fixture = {
 		"score": 0,
 		"player_state": {"position": {"x": 0, "y": 0.5, "z": -3}},
-		"food_positions": [{"x": -7, "y": 0, "z": -7}],
+		"food_positions": [{"x": -7, "y": 0, "z": -7}, {"x": 0, "y": 0, "z": 7}, {"x": 7, "y": 0, "z": -7}],
 	}
 	check(GameState.save_game_state(fixture), "Failed to write handling fixture")
 	var main = MAIN.instantiate()
@@ -447,13 +448,59 @@ func _check_handling() -> void:
 	var coast_start = player.position
 	for frame in 15:
 		await get_tree().physics_frame
+	var coast_speed = player.linear_velocity.length()
+	for frame in 24:
+		await get_tree().physics_frame
 	var coast_distance = player.position.distance_to(coast_start)
-	check(player.linear_velocity.length() < 0.2 and coast_distance < 0.95, "The head coasted too far after release")
+	check(coast_speed > 3.5 and coast_distance > 1.8, "Releasing the input canceled too much momentum")
+	check(player.linear_velocity.length() < 0.2 and coast_distance < 2.8, "The head did not settle after a controlled coast")
 	check(not main.is_game_over and player.food_eaten == 0, "The handling fixture hit a wall or picked up food")
-	print("Handling regression: cruise %.2f, turn minimum %.2f, turn drift %.2f, coast %.2f" %
-		[cruise_speed, min_turn_speed, turn_drift, coast_distance])
+	print("Handling regression: cruise %.2f, turn minimum %.2f, turn drift %.2f, coast speed %.2f, coast distance %.2f" %
+		[cruise_speed, min_turn_speed, turn_drift, coast_speed, coast_distance])
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear handling fixture")
+
+func _check_passive_momentum() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {
+			"position": {"x": 0, "y": 0.4, "z": 0},
+			"segments": [{"position": {"x": -0.8, "y": 0.35, "z": 0}, "growth": 1.0}],
+		},
+		"food_positions": [{"x": 6, "y": 0, "z": 6}],
+		"rocks": [{"position": {"x": 5, "y": 0.5, "z": -5}}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write passive momentum fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	var segment: Segment = main.player.segments[0]
+	var rock: Rock = get_tree().get_first_node_in_group("rock")
+	for frame in 10:
+		await get_tree().physics_frame
+	check(not segment.freeze, "Momentum fixture body piece never became solid")
+
+	segment.linear_velocity = Vector3.BACK * 5.0
+	for frame in 3:
+		await get_tree().physics_frame
+	var attached_drift = segment.position.z
+	for frame in 60:
+		await get_tree().physics_frame
+	check(absf(segment.position.z) < 0.05, "A deflected body piece did not return to its path")
+
+	segment.release_from_chain()
+	segment.linear_velocity = Vector3.BACK * 5.0
+	rock.linear_velocity = Vector3.BACK * 5.0
+	for frame in 30:
+		await get_tree().physics_frame
+	var detached_speed = segment.linear_velocity.z
+	var rock_speed = rock.linear_velocity.z
+	check(attached_drift > 0.13, "The body follower canceled a sideways impulse too quickly")
+	check(detached_speed > 3.5, "A detached body piece lost momentum too quickly")
+	check(rock_speed > 3.5, "A rolling rock lost momentum too quickly")
+	print("Passive momentum: attached drift %.2f, detached speed %.2f, rock speed %.2f" %
+		[attached_drift, detached_speed, rock_speed])
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear passive momentum fixture")
 
 func _check_rock_impacts() -> void:
 	# Use the real input and pickup path so the break is reachable in play.

@@ -1,8 +1,8 @@
 extends "res://scripts/physics_object.gd"
 class_name Segment
 
-const FOLLOW_GAIN = 22.0
-const FOLLOW_ACCELERATION = 180.0
+const FOLLOW_GAIN = 21.0
+const FOLLOW_ACCELERATION = 120.0
 const MAX_FOLLOW_SPEED = 18.0
 const BODY_MASS = 0.6
 const SOLID_MASK = PhysicsConstants.LAYER_BARRIER | PhysicsConstants.LAYER_PHYSICAL | PhysicsConstants.LAYER_PLAYER | PhysicsConstants.LAYER_SEGMENT
@@ -16,6 +16,7 @@ var is_detached: bool = false
 
 func _ready() -> void:
 	super()
+	material_type = PhysicsConstants.MATERIAL_SEGMENT
 	path_target = global_position
 	freeze = true
 	gravity_scale = 0.0
@@ -77,7 +78,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	_flash_contacts(state)
 	var error = path_target - state.transform.origin
 	error.y = 0.0
-	# Follow the moving path slot and correct any displacement from contact.
+	# Follow the moving path slot without immediately canceling contact impulses.
 	var desired = (path_velocity + error * FOLLOW_GAIN).limit_length(MAX_FOLLOW_SPEED)
 	state.linear_velocity = state.linear_velocity.move_toward(desired, FOLLOW_ACCELERATION * state.step)
 	if is_dangerous:
@@ -101,7 +102,7 @@ func release_from_chain() -> void:
 	lock_rotation = false
 	gravity_scale = 1.0
 	collision_mask |= PhysicsConstants.LAYER_DEFAULT
-	physics_material_override.friction = 0.15
+	physics_material_override.friction = PhysicsConstants.SEGMENT_DYNAMIC_FRICTION
 
 func make_dangerous() -> void:
 	is_dangerous = true

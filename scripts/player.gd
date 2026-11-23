@@ -21,7 +21,8 @@ const BONUS_SPEED_PER_FEED = 0.025
 const MAX_SPEED_BOOST = 1.5
 const DRIVE_ACCELERATION = 46.0
 const DRIVE_RESPONSE = 18.0
-const BRAKE_ACCELERATION = 45.0
+const COAST_DECELERATION = 14.0
+const OVERSPEED_DECELERATION = 16.0
 const REVERSE_BRAKE_ACCELERATION = 68.0
 const REVERSE_ALIGNMENT = -0.966
 const TURN_RATE = 12.0
@@ -358,7 +359,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 
 func _drive_velocity(velocity: Vector3, step: float) -> Vector3:
 	if has_lost or input_dir.is_zero_approx():
-		return velocity.move_toward(Vector3.ZERO, BRAKE_ACCELERATION * step)
+		return velocity.move_toward(Vector3.ZERO, COAST_DECELERATION * step)
 
 	var direction = input_dir.normalized()
 	var speed = velocity.length()
@@ -373,6 +374,6 @@ func _drive_velocity(velocity: Vector3, step: float) -> Vector3:
 	heading = heading.rotated(Vector3.UP, clampf(angle, -turn_limit, turn_limit))
 	var target_speed = (max_speed + pickup_speed_bonus) * input_dir.length()
 	var speed_error = target_speed - speed
-	var acceleration = minf(DRIVE_ACCELERATION, speed_error * DRIVE_RESPONSE) if speed_error > 0.0 else BRAKE_ACCELERATION
+	var acceleration = minf(DRIVE_ACCELERATION, speed_error * DRIVE_RESPONSE) if speed_error > 0.0 else OVERSPEED_DECELERATION
 	speed = move_toward(speed, target_speed, acceleration * step)
 	return heading * minf(speed, max_speed + MAX_PICKUP_BOOST)
