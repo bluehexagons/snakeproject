@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the tagged commit and version
+        run: |
+          git merge-base --is-ancestor HEAD origin/main || {
+            echo "Release tags must point to a commit on main." >&2
+            exit 1
+          }
+          version="${GITHUB_REF_NAME#v}"
+          grep -Fx "config/version=\"$version\"" project.godot
+          grep -Fx "application/file_version=\"$version.0\"" export_presets.cfg
+          grep -Fx "application/product_version=\"$version.0\"" export_presets.cfg
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - uses: ./.github/actions/setup-godot
+        with:
+          export-templates: 'true'
+      - name: Build Windows and Web release packages
+        run: bash scripts/package_release.sh "$GITHUB_REF_NAME"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-release
+          path: build/release/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/web
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-release
+      - name: Publish the tagged GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          archive="snake3d-$GITHUB_REF_NAME-windows-x86_64.zip"
+          if gh release view "$GITHUB_REF_NAME" --json isDraft,assets > release.json; then
+            jq -e --arg archive "$archive" \
+              '.isDraft == false and any(.assets[]; .name == $archive and .state == "uploaded")' release.json
+          else
+            gh release create "$GITHUB_REF_NAME" "$archive" --verify-tag --generate-notes
+          fi
+
+  pages:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Check whether this release is current
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
+          if [[ "$latest" == "$GITHUB_REF_NAME" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Pages stays on $latest because $GITHUB_REF_NAME is no longer the latest release."
+          fi
+      - name: Deploy the matching build to GitHub Pages
+        id: deploy
+        if: steps.release.outputs.current == 'true'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

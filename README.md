@@ -2,6 +2,9 @@
 
 A 3D survival game built with Godot 4.7.2.
 
+[Play in your browser](https://bluehexagons.github.io/snakeproject/) or
+[download the Windows build](https://github.com/bluehexagons/snakeproject/releases/latest).
+
 ## Getting started
 
 Open `project.godot` in the [standard Godot 4.7.2 editor](https://godotengine.org/download/archive/4.7.2-stable/)
@@ -165,6 +168,24 @@ scenes and verification scripts. Git ignores the `build/` directory.
 
 A Web export made with `--export-debug` exposes a local physics sample buffer
 in `window.__godotPhysicsTrace` when Space pauses a capture.
+
+## Publishing a release
+
+CI runs the Godot smoke and gameplay checks on Linux and Windows for pull
+requests and pushes to `main`. To publish a version, update `config/version` in
+`project.godot` and the Windows file and product versions in `export_presets.cfg`.
+After CI passes on `main`, push a matching tag of the form `vMAJOR.MINOR.PATCH`.
+For example, to release version `0.4.1` from its tested commit:
+
+```sh
+git tag -a v0.4.1 -m 'Snake 3D v0.4.1'
+git push origin v0.4.1
+```
+
+The tag runs both checks again, publishes a Windows x86-64 ZIP with license
+notices to GitHub Releases, and puts the matching Web build on GitHub Pages.
+The `github-pages` deployment environment allows version tags. If a job fails,
+rerun the failed jobs from the Actions run.
 
 ## License
 

@@ -1,0 +1,62 @@
+name: Set up Godot 4.7.2
+description: Install the official Godot editor and optionally the release templates
+inputs:
+  export-templates:
+    description: Install the Windows and Web release templates on Linux
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Download and verify Godot
+      shell: bash
+      env:
+        EXPORT_TEMPLATES: ${{ inputs.export-templates }}
+      run: |
+        set -euo pipefail
+        version=4.7.2
+        release="https://github.com/godotengine/godot-builds/releases/download/$version-stable"
+        prefix="Godot_v$version-stable"
+        case "$RUNNER_OS" in
+          Linux)
+            install_dir="$RUNNER_TEMP/godot"
+            asset="$prefix"_linux.x86_64.zip
+            checksum=cadd3204e728a35d3f13adb7fd0d7902636b79f6b95c40c265eb73b6c35329e4
+            executable="$install_dir/${asset%.zip}"
+            ;;
+          Windows)
+            install_dir="$(cygpath -u "$RUNNER_TEMP")/godot"
+            asset="$prefix"_win64.exe.zip
+            checksum=731980f9608d61333e5baf54a2ef17210acc7a538446c0cb9969f002aca1e953
+            executable="$install_dir/${asset%.exe.zip}_console.exe"
+            ;;
+          *)
+            echo "Unsupported runner OS: $RUNNER_OS" >&2
+            exit 1
+            ;;
+        esac
+
+        mkdir -p "$install_dir"
+        download() {
+          curl --fail --location --silent --show-error --retry 4 --output "$install_dir/$1" "$release/$1"
+          printf '%s  %s\n' "$2" "$install_dir/$1" | sha256sum --check
+        }
+
+        download "$asset" "$checksum"
+        python -m zipfile -e "$install_dir/$asset" "$install_dir"
+        if [[ "$RUNNER_OS" == Windows ]]; then
+          "$executable" --version
+          executable="$(cygpath -w "$executable")"
+        else
+          chmod +x "$executable"
+          "$executable" --version
+        fi
+        printf 'GODOT=%s\n' "$executable" >> "$GITHUB_ENV"
+
+        if [[ "$EXPORT_TEMPLATES" == true ]]; then
+          template_archive="$prefix"_export_templates.tpz
+          download "$template_archive" f298490b8d44d934be425a5a65a51bf15f422428b229a06a6e11d9ffea248011
+          template_dir="${XDG_DATA_HOME:-$HOME/.local/share}/godot/export_templates/$version.stable"
+          mkdir -p "$template_dir"
+          unzip -jo "$install_dir/$template_archive" templates/windows_release_x86_64.exe \
+            templates/web_nothreads_release.zip -d "$template_dir"
+        fi
