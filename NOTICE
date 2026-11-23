@@ -1,0 +1,12 @@
+Snake 3D
+Copyright 2025–2026 bluehexagons llc
+
+This project uses Godot Engine, which is distributed under the MIT License.
+Godot Engine license: https://godotengine.org/license/
+Godot 4.7.2 third-party notices:
+https://github.com/godotengine/godot/blob/4.7.2-stable/COPYRIGHT.txt
+
+Earlier revisions include Godot's default project icon, incorporating the
+Godot Engine logo (Copyright 2017 Andrea Calabró, CC BY 4.0).
+Icon source: https://github.com/godotengine/godot/blob/4.7.2-stable/editor/icons/DefaultProjectIcon.svg
+Logo license: https://creativecommons.org/licenses/by/4.0/

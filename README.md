@@ -2,6 +2,14 @@
 
 A 3D survival game built with Godot 4.7.2.
 
+## Getting started
+
+Open `project.godot` in the [standard Godot 4.7.2 editor](https://godotengine.org/download/archive/4.7.2-stable/)
+and press **F5** to run the game. The project uses GDScript, the Compatibility
+renderer, and Jolt physics.
+
+## Controls and gameplay
+
 Move with **WASD or arrow keys**, collect glowing food, and avoid red walls and
 red rocks. Each pickup adds a body piece, awards 10 to 30 points based on your
 speed, increases cruising speed slightly, and gives the snake a forward impulse.
@@ -72,10 +80,6 @@ New rocks and food leave room around the snake's body.
 
 ## Verification
 
-Use the standard (non-.NET) Godot **4.7.2** editor. The project uses the
-Compatibility renderer and Jolt physics on Windows and Linux. No Basaltwater
-installation is required. Open `project.godot` and run the main scene.
-
 Automated verification requires **Python 3.10+** and Godot on PATH. On native
 Windows, use PowerShell:
 
@@ -133,36 +137,40 @@ or display scaling behavior; also check the native window on target hardware.
 ## Exporting
 
 Install **4.7.2 export templates** from Godot's **Editor → Manage Export
-Templates** before exporting. Create output folders first:
+Templates** before exporting. Create the output directory and export from the
+project root, or select a preset in Godot's **Project → Export** dialog.
+
+Export Windows from PowerShell with these commands.
 
 ```powershell
 New-Item -ItemType Directory -Force build/windows | Out-Null
 godot --headless --path . --export-release 'Windows Desktop'
 ```
 
-The x86-64 Windows preset writes `build/windows/snake3d.exe` and its companion
-`.pck`; distribute them together. Test the release on Windows, including resizing,
-Alt-Tab, keyboard menu navigation, pause/resume, and closing a live run. No signing
-credentials are configured. The Web preset writes `build/web/index.html` (create
-`build/web` first). Serve the generated web files through an HTTP server rather
-than opening the HTML file directly. Build outputs are ignored by Git, and test
-scenes and verification tools are excluded from both export presets.
+The x86-64 Windows preset produces `snake3d.exe` and `snake3d.pck` in
+`build/windows`. Keep both files together.
 
-On the Basaltwater host with the Godot web bundle, refresh the LAN playtest
-after pushing gameplay or web export changes to `main`. Publish from the
-updated `main` checkout using the existing `snake3d` name so players keep the
-same HTTPS URL.
+Export Web from a POSIX shell with these commands.
 
 ```sh
-basaltw agent doctor --capability development --json
-basaltwater-web publish godot snake3d --preset Web --json
-basaltwater-web doctor snake3d
+mkdir -p build/web
+godot --headless --path . --export-release Web
+python3 -m http.server --bind 127.0.0.1 --directory build/web
 ```
 
-Use the returned HTTPS URL with the session's configured browser tools, following
-the shared `basaltwater-godot-web` skill. Native exports through Godot's Export
-dialog remain available without the gateway. A separate `--debug` export
-exposes bounded physics samples in `window.__godotPhysicsTrace` when Space pauses
-a capture. Release builds do not collect or expose telemetry. For exact physics
-regressions, use the project test scenes; browser screenshots establish appearance
-and input behavior, not a hardware-independent frame-rate guarantee.
+Open `http://127.0.0.1:8000/` to play the local Web export. Keep all generated
+web files together when hosting the build. Both presets exclude the test
+scenes and verification scripts. Git ignores the `build/` directory.
+
+A Web export made with `--export-debug` exposes a local physics sample buffer
+in `window.__godotPhysicsTrace` when Space pauses a capture.
+
+## License
+
+The game code and assets are licensed under the [Apache License 2.0](LICENSE).
+See [NOTICE](NOTICE) for attribution.
+
+When distributing builds, include the project license and notice, the
+[Godot Engine license](https://godotengine.org/license/), and the
+[third-party notices for Godot 4.7.2](https://github.com/godotengine/godot/blob/4.7.2-stable/COPYRIGHT.txt).
+For a hosted Web build, make these files available alongside the game.
