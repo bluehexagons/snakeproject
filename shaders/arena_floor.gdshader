@@ -1,8 +1,9 @@
 shader_type spatial;
+render_mode blend_mix, depth_draw_never;
 
-uniform vec4 panel_color : source_color = vec4(0.16, 0.23, 0.28, 1.0);
-uniform vec4 seam_color : source_color = vec4(0.048, 0.091, 0.12, 1.0);
-uniform vec4 marking_color : source_color = vec4(0.17, 0.40, 0.46, 1.0);
+uniform vec4 panel_color : source_color = vec4(0.08, 0.20, 0.30, 1.0);
+uniform vec4 seam_color : source_color = vec4(0.035, 0.075, 0.13, 1.0);
+uniform vec4 marking_color : source_color = vec4(0.30, 0.63, 0.77, 1.0);
 
 varying vec2 surface_position;
 
@@ -21,13 +22,16 @@ void fragment() {
 	vec2 border = min(cell, 1.0 - cell) * 2.0;
 	float seam_distance = min(border.x, border.y);
 	float seam = stroke(seam_distance, 0.024);
-	float bevel = stroke(seam_distance, 0.075);
 	vec2 tile = floor((p + 11.0) * 0.5);
 	float tile_tone = fract(sin(dot(tile, vec2(74.57, 21.41))) * 5312.8);
-	float grain = sin(p.x * 47.0) * sin(p.y * 53.0);
+	float bevel = stroke(min(cell.x, cell.y) * 2.0, 0.065) * (1.0 - seam);
 	float center_light = 1.0 - smoothstep(2.0, 15.0, length(p));
-	vec3 panel = panel_color.rgb * (0.74 + 0.26 * center_light + (tile_tone - 0.5) * 0.12 + grain * 0.014);
-	ALBEDO = mix(panel * (1.0 + bevel * 0.14), seam_color.rgb, seam * 0.68);
+	float sweep = p.x + p.y * 0.68 + sin(p.y * 0.25 + TIME * 0.19) * 1.5;
+	float sheen = exp(-abs(sweep + 6.5) * 0.23);
+	float caustic = exp(-abs(sweep + 5.4) * 1.6) * 0.55
+		+ exp(-abs(sweep - 4.7) * 1.1) * 0.30;
+	vec3 panel = panel_color.rgb * (0.77 + 0.23 * center_light + (tile_tone - 0.5) * 0.18);
+	ALBEDO = mix(panel, seam_color.rgb, seam * 0.82);
 
 	vec2 edge = abs(p);
 	float edge_distance = max(edge.x, edge.y);
@@ -40,7 +44,9 @@ void fragment() {
 	float corner = stroke(abs(edge_distance - 9.37), 0.034) * smoothstep(8.7, 8.8, min(edge.x, edge.y));
 	float markings = rail * 0.85 + ticks * 0.35 + center_ring * 0.25 + corner * 0.65;
 	ALBEDO = mix(ALBEDO, marking_color.rgb, markings * 0.75);
-	EMISSION = marking_color.rgb * markings * 0.18;
-	METALLIC = 0.32;
-	ROUGHNESS = 0.50 + seam * 0.26 - grain * 0.015;
+	EMISSION = marking_color.rgb * (markings * 0.16 + bevel * 0.10 + sheen * 0.11)
+		+ vec3(0.34, 0.66, 1.0) * caustic * (1.0 - seam) * 0.24;
+	METALLIC = 0.10;
+	ROUGHNESS = 0.30 + seam * 0.32;
+	ALPHA = 0.71 + seam * 0.16 + markings * 0.10;
 }

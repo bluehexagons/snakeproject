@@ -21,8 +21,8 @@ void fragment() {
 	float vents = smoothstep(0.14, 0.48, fract(along * 1.45 + world_position.y * 2.4));
 	float signal = mix(lamp, 1.0, corner) * strip * upper_face;
 	vec3 casing = mix(rail_color.rgb, vec3(0.17, 0.09, 0.105), corner);
-	ALBEDO = casing * (0.64 + upper_face * (0.24 + vents * 0.25 * (1.0 - corner)));
+	ALBEDO = casing * (0.62 + upper_face * (0.30 + vents * 0.22 * (1.0 - corner)));
 	EMISSION = lamp_color.rgb * (signal * 1.6 + lamp * 0.04 * (1.0 - corner));
-	METALLIC = 0.56;
-	ROUGHNESS = 0.32;
+	METALLIC = 0.20;
+	ROUGHNESS = 0.22;
 }

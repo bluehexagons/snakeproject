@@ -1,24 +1,17 @@
-[gd_scene load_steps=5 format=3 uid="uid://xwsutxumcfb3"]
+[gd_scene load_steps=6 format=3 uid="uid://xwsutxumcfb3"]
 
 [ext_resource type="Script" uid="uid://m5hsgvwsmtos" path="res://scripts/segment.gd" id="1_script"]
+[ext_resource type="Shader" path="res://shaders/glass_surface.gdshader" id="glass_shader"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
-resource_local_to_scene = true
-resource_name = "SegmentMaterial"
-albedo_color = Color(0.3, 0.8, 1, 1)
-metallic = 0.42
-metallic_specular = 0.8
-roughness = 0.27
-clearcoat_enabled = true
-clearcoat = 0.48
-clearcoat_roughness = 0.22
-emission_enabled = true
-emission = Color(0.2, 0.6, 0.6, 1)
-emission_energy_multiplier = 0.6
+[sub_resource type="ShaderMaterial" id="GlassMaterial"]
+shader = ExtResource("glass_shader")
+shader_parameter/glass_tint = Color(0.3, 0.8, 1.0, 1)
+shader_parameter/glow_tint = Color(0.3, 0.8, 1.0, 1)
+shader_parameter/glow_strength = 0.4
+shader_parameter/opacity = 0.46
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
-resource_local_to_scene = true
-material = SubResource("StandardMaterial3D_1")
+material = SubResource("GlassMaterial")
 radius = 0.35
 height = 0.7
 
@@ -32,6 +25,7 @@ can_sleep = false
 script = ExtResource("1_script")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+cast_shadow = 0
 mesh = SubResource("SphereMesh_1")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

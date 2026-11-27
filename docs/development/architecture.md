@@ -37,6 +37,19 @@ run, and Continue loads a valid save.
   samples body state and aggregates contacts in
   [Web debug builds](testing.md#web-physics-traces).
 
+## Rendering and interface
+
+The [glass surface shader](../../shaders/glass_surface.gdshader) uses alpha blending and
+view-dependent reflections for the snake, rocks, and food. It uses procedural
+highlights without a screen texture, so moving bodies share the same shader
+under Compatibility rendering. Physics objects keep their tint and impact
+flash in per-object materials while sharing their meshes. The floor and
+hazard walls use separate shaders for their translucent panes.
+
+The main menu and HUD share [the arena theme](../../resources/arena_theme.tres)
+for panel and button styling. Menu panels layer a
+[glass reflection](../../resources/menu_glass.tres) behind their controls.
+
 ## Saved runs
 
 [GameState](../../scripts/game_state.gd) validates and stores the run and best

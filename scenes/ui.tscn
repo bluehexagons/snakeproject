@@ -1,15 +1,19 @@
-[gd_scene load_steps=5 format=3 uid="uid://dbkt4gaf6xf28"]
+[gd_scene load_steps=6 format=3 uid="uid://dbkt4gaf6xf28"]
 
 [ext_resource type="Script" uid="uid://c4lkjrkm6ousk" path="res://scripts/ui.gd" id="1_script"]
 
 [ext_resource type="Theme" path="res://resources/arena_theme.tres" id="2_theme"]
 
 [ext_resource type="Script" path="res://scripts/gameplay_steering.gd" id="3_steering"]
+[ext_resource type="Material" path="res://resources/menu_glass.tres" id="menu_glass"]
 
 [sub_resource type="StyleBoxFlat" id="HudBackground"]
-bg_color = Color(0.026, 0.059, 0.091, 0.86)
+bg_color = Color(0.14, 0.29, 0.41, 0.47)
+border_width_left = 1
+border_width_top = 2
+border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.25, 0.49, 0.55, 0.8)
+border_color = Color(0.50, 0.78, 0.90, 0.36)
 corner_radius_top_left = 5
 corner_radius_top_right = 5
 corner_radius_bottom_right = 5
@@ -147,7 +151,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.015, 0.036, 0.06, 0.52)
+color = Color(0.020, 0.030, 0.069, 0.38)
 
 [node name="PauseMenu" type="Panel" parent="."]
 visible = false
@@ -164,6 +168,18 @@ offset_right = 150.0
 offset_bottom = 155.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="GlassReflection" type="ColorRect" parent="PauseMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 3.0
+offset_right = -7.0
+offset_bottom = -7.0
+mouse_filter = 2
+material = ExtResource("menu_glass")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="PauseMenu"]
 layout_mode = 1
@@ -222,6 +238,18 @@ offset_right = 150.0
 offset_bottom = 155.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="GlassReflection" type="ColorRect" parent="GameOverMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 3.0
+offset_right = -7.0
+offset_bottom = -7.0
+mouse_filter = 2
+material = ExtResource("menu_glass")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="GameOverMenu"]
 layout_mode = 1

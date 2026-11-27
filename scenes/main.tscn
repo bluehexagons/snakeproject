@@ -44,6 +44,7 @@ volumetric_fog_albedo = Color(0.32, 0.47, 0.55, 1)
 volumetric_fog_sky_affect = 0.1
 
 [sub_resource type="ShaderMaterial" id="FloorMaterial"]
+render_priority = -10
 shader = ExtResource("5_floor")
 
 [sub_resource type="PlaneMesh" id="FloorMesh"]

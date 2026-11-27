@@ -1,21 +1,17 @@
-[gd_scene load_steps=9 format=3 uid="uid://dx8j5p2kqv4ur"]
+[gd_scene load_steps=10 format=3 uid="uid://dx8j5p2kqv4ur"]
 
 [ext_resource type="Script" uid="uid://i615h83spto7" path="res://scripts/player.gd" id="1_script"]
+[ext_resource type="Shader" path="res://shaders/glass_surface.gdshader" id="glass_shader"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1"]
-albedo_color = Color(0.2, 0.4, 1, 1)
-metallic = 0.52
-metallic_specular = 1.0
-roughness = 0.26
-clearcoat_enabled = true
-clearcoat = 0.72
-clearcoat_roughness = 0.18
-emission_enabled = true
-emission = Color(0.2, 0.3, 1, 1)
-emission_energy_multiplier = 0.8
+[sub_resource type="ShaderMaterial" id="GlassMaterial"]
+shader = ExtResource("glass_shader")
+shader_parameter/glass_tint = Color(0.18, 0.49, 1.0, 1)
+shader_parameter/glow_tint = Color(0.12, 0.42, 1.0, 1)
+shader_parameter/glow_strength = 0.6
+shader_parameter/opacity = 0.62
 
 [sub_resource type="SphereMesh" id="SphereMesh_1"]
-material = SubResource("StandardMaterial3D_1")
+material = SubResource("GlassMaterial")
 radius = 0.4
 height = 0.8
 
@@ -55,6 +51,7 @@ max_contacts_reported = 4
 script = ExtResource("1_script")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+cast_shadow = 0
 mesh = SubResource("SphereMesh_1")
 
 [node name="LeftEye" type="Node3D" parent="MeshInstance3D"]

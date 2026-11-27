@@ -1,8 +1,8 @@
 extends "res://scripts/physics_object.gd"
 class_name Rock
 
-const DANGER_COLOR = Color(0.68, 0.14, 0.10, 1.0)
-const DANGER_EMISSION = Color(0.34, 0.042, 0.023, 1.0)
+const DANGER_COLOR = Color(0.89, 0.18, 0.13, 1.0)
+const DANGER_GLOW = Color(0.68, 0.065, 0.038, 1.0)
 
 const SPAWN_HEIGHT = 5.2
 const DROP_GRAVITY_SCALE = 1.3
@@ -78,7 +78,7 @@ static func _build_stone_mesh(source: Mesh) -> ArrayMesh:
 			surface.set_uv(uvs[index])
 			surface.add_vertex(vertices[index])
 	surface.generate_normals()
-	surface.generate_tangents()
+	surface.set_material(source.surface_get_material(0))
 	return surface.commit()
 
 func _finish_spawn() -> void:
@@ -193,14 +193,7 @@ func restore_from_save_data(data: Dictionary) -> void:
 func make_dangerous() -> void:
 	is_dangerous = true
 	landing_material.set_shader_parameter("marker_color", Color(1.0, 0.35, 0.22, 1.0))
-	target_color = DANGER_COLOR
-	current_color = DANGER_COLOR
-	state_color = DANGER_COLOR
-	base_emission = DANGER_EMISSION
-	state_emission = DANGER_EMISSION
-	base_emission_energy = 1.0
-	state_emission_energy = 1.0
-	apply_color(DANGER_COLOR, DANGER_EMISSION, 1.0)
+	apply_color(DANGER_COLOR, DANGER_GLOW, 1.0)
 	add_to_group("dangerous")
 
 func dead_eat() -> float:
@@ -224,6 +217,7 @@ func break_rock() -> void:
 		var direction = Vector3(cos(angle), 0.4 + 0.15 * (index % 3), sin(angle))
 		var fragment = MeshInstance3D.new()
 		fragment.mesh = mesh.mesh
+		fragment.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		fragment.position = direction * 0.2
 		fragment.scale = Vector3.ONE * 0.35
 		shatter_effect.add_child(fragment)

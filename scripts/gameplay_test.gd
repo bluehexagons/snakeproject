@@ -361,6 +361,11 @@ func _check_rock_drop(container: Node3D) -> void:
 		"The shatter effect moved away from the rock's impact position")
 	check(rock.shatter_effect.get_child_count() == Rock.FRAGMENT_COUNT + 1,
 		"The rock fragments were not attached to the shatter effect")
+	for child in rock.shatter_effect.get_children():
+		if child is MeshInstance3D:
+			var material := child.get_active_material(0) as ShaderMaterial
+			check(material != null and material.shader == rock.current_material.shader,
+				"A rock fragment lost its glass material")
 	rock.free()
 
 func _check_body_contacts() -> void:

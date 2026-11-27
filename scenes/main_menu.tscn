@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://brxsk2ks8iyg6"]
+[gd_scene load_steps=6 format=3 uid="uid://brxsk2ks8iyg6"]
 
 [ext_resource type="Script" uid="uid://dwopllc81wn6g" path="res://scripts/main_menu.gd" id="1_script"]
 
 [ext_resource type="Theme" path="res://resources/arena_theme.tres" id="2_theme"]
 [ext_resource type="Shader" path="res://shaders/menu_backdrop.gdshader" id="3_backdrop"]
+[ext_resource type="Material" path="res://resources/menu_glass.tres" id="menu_glass"]
 
 [sub_resource type="ShaderMaterial" id="BackgroundMaterial"]
 shader = ExtResource("3_backdrop")
@@ -41,6 +42,18 @@ offset_right = 180.0
 offset_bottom = 218.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="GlassReflection" type="ColorRect" parent="Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 3.0
+offset_right = -7.0
+offset_bottom = -7.0
+mouse_filter = 2
+material = ExtResource("menu_glass")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="Panel"]
 layout_mode = 1

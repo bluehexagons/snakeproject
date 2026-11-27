@@ -3,7 +3,7 @@ class_name PhysicsObject
 
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
-@onready var current_material: StandardMaterial3D = _duplicate_mesh_material()
+@onready var current_material: ShaderMaterial = _duplicate_mesh_material()
 
 const IMPACT_FLASH_DURATION = 0.15
 const IMPACT_MIN_IMPULSE = 1.0
@@ -11,18 +11,12 @@ const IMPACT_FULL_IMPULSE = 6.0
 
 var impact_tween: Tween
 
-var target_color: Color
-var base_emission: Color
-var base_emission_energy: float = 0.3
-var color_change_speed: float = 5.0
-
 var drag_coefficient: float = PhysicsConstants.BASE_DRAG_COEFFICIENT
 var max_speed: float = PhysicsConstants.MAX_SPEED
 
-var state_color: Color = Color.WHITE
 var current_color: Color = Color.WHITE
-var state_emission: Color = Color.BLACK
-var state_emission_energy: float = 0.0
+var current_glow: Color = Color.BLACK
+var current_glow_strength: float = 0.0
 
 var dynamic_friction: float = PhysicsConstants.BASE_DYNAMIC_FRICTION
 
@@ -54,24 +48,19 @@ const RESTITUTION: float = 0.01
 const MAX_CONTACTS = 4
 const CONTACT_MONITOR_ENABLED = true
 
-func _duplicate_mesh_material() -> StandardMaterial3D:
+func _duplicate_mesh_material() -> ShaderMaterial:
 	if not mesh_instance or not mesh_instance.mesh:
 		return null
-	var material = mesh_instance.mesh.surface_get_material(0)
-	return material.duplicate() as StandardMaterial3D if material is StandardMaterial3D else null
+	var material := mesh_instance.mesh.surface_get_material(0) as ShaderMaterial
+	return material.duplicate() as ShaderMaterial if material else null
 
 func _ready():
-	# Each instance owns its mesh resource so changing a material on one rock,
-	# segment, or player cannot change every other instance in the scene.
-	if mesh_instance and mesh_instance.mesh:
-		mesh_instance.mesh = mesh_instance.mesh.duplicate()
-	if mesh_instance and current_material:
-		mesh_instance.mesh.surface_set_material(0, current_material)
-		base_emission = current_material.emission
-		state_color = current_material.albedo_color
-		current_color = state_color
-		state_emission = base_emission
-		state_emission_energy = base_emission_energy
+	if current_material:
+		# Tint and impact feedback are per object. The geometry stays shared.
+		mesh_instance.set_surface_override_material(0, current_material)
+		current_color = current_material.get_shader_parameter("glass_tint")
+		current_glow = current_material.get_shader_parameter("glow_tint")
+		current_glow_strength = current_material.get_shader_parameter("glow_strength")
 		mesh_instance.global_position = global_position
 
 	mass = base_mass
@@ -187,10 +176,6 @@ func _update_base_physics(delta: float) -> void:
 		push_warning("Invalid velocity detected, resetting")
 		linear_velocity = Vector3.ZERO
 
-	if current_material:
-		current_color = current_color.lerp(state_color, delta * color_change_speed)
-		apply_color(current_color, state_emission, state_emission_energy)
-
 func get_save_data() -> Dictionary:
 	return {
 		"position": SaveVector.encode(global_position),
@@ -226,27 +211,32 @@ func _flash_contacts(state: PhysicsDirectBodyState3D) -> void:
 	var flash_intensity = remap(clampf(peak_impulse, IMPACT_MIN_IMPULSE, IMPACT_FULL_IMPULSE), IMPACT_MIN_IMPULSE, IMPACT_FULL_IMPULSE, 0.0, 1.0)
 	if impact_tween:
 		impact_tween.kill()
-	var flash_material = mesh_instance.material_override as StandardMaterial3D
+	var flash_material := mesh_instance.material_override as ShaderMaterial
 	if not flash_material:
 		flash_material = current_material.duplicate()
-	var flash_emission = current_material.emission
-	flash_material.albedo_color = current_color
-	flash_material.emission = flash_emission.lerp(Color.WHITE, flash_intensity)
-	flash_material.emission_energy_multiplier = state_emission_energy + flash_intensity * 2.0
+	flash_material.set_shader_parameter("impact", flash_intensity)
 	mesh_instance.material_override = flash_material
 
 	impact_tween = create_tween()
-	impact_tween.tween_property(flash_material, "emission", flash_emission, IMPACT_FLASH_DURATION)
-	impact_tween.parallel().tween_property(flash_material, "emission_energy_multiplier",
-		state_emission_energy, IMPACT_FLASH_DURATION).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	impact_tween.tween_property(flash_material, "shader_parameter/impact", 0.0,
+		IMPACT_FLASH_DURATION).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 	impact_tween.tween_callback(func(): mesh_instance.material_override = null)
 
-func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: float = -1.0) -> void:
-	if current_material:
-		current_material.albedo_color = color
-		current_material.emission = emission if emission != Color.BLACK else base_emission
-		current_material.emission_enabled = true
-		current_material.emission_energy_multiplier = emission_energy if emission_energy >= 0 else base_emission_energy
-		current_color = color
-		state_emission = emission
-		state_emission_energy = emission_energy if emission_energy >= 0 else base_emission_energy
+func apply_color(color: Color, glow: Color, glow_strength: float) -> void:
+	if not current_material:
+		return
+	if (current_color.is_equal_approx(color) and current_glow.is_equal_approx(glow)
+			and is_equal_approx(current_glow_strength, glow_strength)):
+		return
+	current_color = color
+	current_glow = glow
+	current_glow_strength = glow_strength
+	_apply_glass_tint(current_material)
+	var flash_material := mesh_instance.material_override as ShaderMaterial
+	if flash_material:
+		_apply_glass_tint(flash_material)
+
+func _apply_glass_tint(material: ShaderMaterial) -> void:
+	material.set_shader_parameter("glass_tint", current_color)
+	material.set_shader_parameter("glow_tint", current_glow)
+	material.set_shader_parameter("glow_strength", current_glow_strength)
