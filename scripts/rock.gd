@@ -102,13 +102,11 @@ func setup_rock(spawn_position: Vector3) -> void:
 	is_spawning = true
 	_drop_contact = false
 	position = spawn_position + Vector3.UP * SPAWN_HEIGHT
-	physics_pos = position
-	visual_pos = position
 	
 	rotation = Vector3(randf_range(-PI, PI), randf_range(-PI, PI), randf_range(-PI, PI))
 	angular_velocity = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)).normalized() * INITIAL_SPIN
 	
-	cached_velocity = Vector3.DOWN * INITIAL_DROP_SPEED
+	linear_velocity = Vector3.DOWN * INITIAL_DROP_SPEED
 	gravity_scale = DROP_GRAVITY_SCALE
 	spawn_timer = 0.0
 	_update_drop_visuals()

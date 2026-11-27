@@ -1,9 +1,6 @@
 extends RigidBody3D
 class_name PhysicsObject
 
-var physics_pos: Vector3
-var visual_pos: Vector3
-
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var current_material: StandardMaterial3D = _duplicate_mesh_material()
@@ -40,20 +37,6 @@ var material_type: String = "default"
 	get:
 		return base_mass
 
-var cached_velocity: Vector3:
-	get: return linear_velocity
-	set(v): 
-		if is_valid_vector(v):
-			linear_velocity = v
-		else:
-			push_warning("Invalid velocity value attempted")
-
-func apply_central_velocity(vel: Vector3) -> void:
-	cached_velocity = vel
-
-var accumulated_force: Vector3 = Vector3.ZERO
-var accumulated_impulse: Vector3 = Vector3.ZERO
-
 var current_scale: float = 1.0
 var target_scale: float = 1.0
 var scale_velocity: float = 0.0
@@ -78,8 +61,6 @@ func _duplicate_mesh_material() -> StandardMaterial3D:
 	return material.duplicate() as StandardMaterial3D if material is StandardMaterial3D else null
 
 func _ready():
-	physics_pos = global_position
-	visual_pos = global_position
 	# Each instance owns its mesh resource so changing a material on one rock,
 	# segment, or player cannot change every other instance in the scene.
 	if mesh_instance and mesh_instance.mesh:
@@ -112,7 +93,7 @@ func _ready():
 	physics_material_override = physics_material
 
 func update_physical_properties() -> void:
-	set_effective_mass(base_mass * current_scale * current_scale)
+	mass = base_mass * current_scale * current_scale
 	if mesh_instance:
 		mesh_instance.scale = Vector3.ONE * current_scale
 	if collision_shape:
@@ -182,21 +163,10 @@ func _integrate_forces(state: PhysicsDirectBodyState3D):
 			var friction = friction_coeffs[1]
 			if horizontal_velocity.length() < PhysicsConstants.ROLLING_THRESHOLD:
 				friction = friction_coeffs[0]
-			state.apply_central_force(-horizontal_velocity.normalized() * friction * get_effective_mass() * PhysicsConstants.GRAVITY)
-
-	if accumulated_force != Vector3.ZERO:
-		state.apply_central_force(accumulated_force)
-		accumulated_force = Vector3.ZERO
-
-	if accumulated_impulse != Vector3.ZERO:
-		state.apply_central_impulse(accumulated_impulse)
-		accumulated_impulse = Vector3.ZERO
+			state.apply_central_force(-horizontal_velocity.normalized() * friction * mass * PhysicsConstants.GRAVITY)
 
 	if state.linear_velocity.length_squared() > max_speed * max_speed:
 		state.linear_velocity = state.linear_velocity.normalized() * max_speed
-
-	cached_velocity = state.linear_velocity
-	physics_pos = state.transform.origin
 
 func _physics_process(delta: float):
 	_update_base_physics(delta)
@@ -213,19 +183,9 @@ func _update_base_physics(delta: float) -> void:
 	if abs(scale_error) > 0.001 or abs(scale_velocity) > 0.001:
 		update_physical_properties()
 
-	if not is_valid_vector(accumulated_force):
-		push_warning("Invalid accumulated force detected, resetting")
-		accumulated_force = Vector3.ZERO
-	
-	if not is_valid_vector(accumulated_impulse):
-		push_warning("Invalid accumulated impulse detected, resetting")
-		accumulated_impulse = Vector3.ZERO
-	
-	if not is_valid_vector(cached_velocity):
+	if not is_valid_vector(linear_velocity):
 		push_warning("Invalid velocity detected, resetting")
-		cached_velocity = Vector3.ZERO
-
-	physics_pos = global_position
+		linear_velocity = Vector3.ZERO
 
 	if current_material:
 		current_color = current_color.lerp(state_color, delta * color_change_speed)
@@ -234,9 +194,7 @@ func _update_base_physics(delta: float) -> void:
 func get_save_data() -> Dictionary:
 	return {
 		"position": SaveVector.encode(global_position),
-		"physics_pos": SaveVector.encode(physics_pos),
-		"visual_pos": SaveVector.encode(visual_pos),
-		"velocity": SaveVector.encode(cached_velocity),
+		"velocity": SaveVector.encode(linear_velocity),
 		"current_scale": current_scale,
 		"is_grounded": is_grounded,
 		"ground_contact_timer": ground_contact_timer,
@@ -244,9 +202,7 @@ func get_save_data() -> Dictionary:
 
 func restore_from_save_data(data: Dictionary) -> void:
 	global_position = SaveVector.decode(data.get("position"), global_position)
-	physics_pos = SaveVector.decode(data.get("physics_pos"), physics_pos)
-	visual_pos = SaveVector.decode(data.get("visual_pos"), visual_pos)
-	cached_velocity = SaveVector.decode(data.get("velocity"), cached_velocity)
+	linear_velocity = SaveVector.decode(data.get("velocity"), linear_velocity)
 	if data.has("current_scale"):
 		apply_physics_scale(float(data.get("current_scale", current_scale)), true)
 	is_grounded = bool(data.get("is_grounded", false))
@@ -294,21 +250,3 @@ func apply_color(color: Color, emission: Color = Color.BLACK, emission_energy: f
 		current_color = color
 		state_emission = emission
 		state_emission_energy = emission_energy if emission_energy >= 0 else base_emission_energy
-
-func add_physics_force(force: Vector3) -> void:
-	if not is_valid_vector(force):
-		push_warning("Invalid force vector detected: ", force)
-		return
-	accumulated_force += force
-
-func add_physics_impulse(impulse: Vector3) -> void:
-	if not is_valid_vector(impulse):
-		push_warning("Invalid impulse vector detected: ", impulse)
-		return
-	accumulated_impulse += impulse
-
-func get_effective_mass() -> float:
-	return mass
-
-func set_effective_mass(value: float) -> void:
-	mass = value

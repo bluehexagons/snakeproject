@@ -15,10 +15,11 @@ include any required third-party attribution in [NOTICE](NOTICE).
 
 ## Project structure
 
-- [GameManager](scripts/game_manager.gd) connects the arena and HUD, handles
-  scoring and pause, and coordinates spawning, autosave, and resume. On
-  resume, it places saved rocks before refilling food so placement accounts
-  for restored hazards.
+- [GameManager](scripts/game_manager.gd) coordinates scoring, autosave, and
+  resume. Its session mode drives simulation, input, and the pause UI.
+  [ArenaSpawner](scripts/arena_spawner.gd) owns food and rock placement.
+  On resume, the manager places saved rocks before refilling food so
+  placement accounts for restored hazards.
 - [Player](scripts/player.gd) handles head movement, pickups, and the recorded
   body path. Each physics tick it walks the path from the head and assigns
   slots at fixed distances. [Segment](scripts/segment.gd) follows those slots,

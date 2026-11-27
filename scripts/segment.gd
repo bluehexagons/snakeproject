@@ -41,8 +41,6 @@ func _physics_process(delta: float) -> void:
 		global_position = global_position.move_toward(path_target, MAX_FOLLOW_SPEED * delta)
 		if growth_timer >= SegmentConstants.GROWTH_DURATION:
 			_enable_collisions_if_clear()
-	physics_pos = global_position
-	visual_pos = global_position
 
 func _update_growth() -> void:
 	current_scale = lerpf(SegmentConstants.INITIAL_SCALE, 1.0, growth_timer / SegmentConstants.GROWTH_DURATION)

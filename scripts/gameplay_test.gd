@@ -89,35 +89,50 @@ func run() -> void:
 		check(is_instance_valid(segment.target) and segment.global_position.distance_to(segment.target.global_position) < 1.0,
 			"Body did not close up after coasting")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
-	check(main.is_paused and GameState.has_saved_game(), "Focus loss did not pause and save the run")
+	check(main.session_mode == main.SessionMode.MENU_PAUSED and GameState.has_saved_game(), "Focus loss did not pause and save the run")
 	check(main.ui.get_node("PauseMenu/VBoxContainer/ResumeButton").has_focus(), "Pause menu has no keyboard focus")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
-	check(main.is_paused, "Repeated focus loss resumed gameplay")
+	check(main.session_mode == main.SessionMode.MENU_PAUSED, "Repeated focus loss resumed gameplay")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_IN)
-	check(main.is_paused, "Returning to the window resumed gameplay without consent")
+	check(main.session_mode == main.SessionMode.MENU_PAUSED, "Returning to the window resumed gameplay without consent")
 	main.toggle_pause()
 	main.toggle_gameplay_pause()
 	check(GameState.delete_save_game(), "Failed to clear focus-loss fixture")
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
-	check(main.is_gameplay_paused and not main.is_paused, "Focus loss changed an existing Space pause")
+	check(main.session_mode == main.SessionMode.QUICK_PAUSED, "Focus loss changed an existing Space pause")
 	check(GameState.has_saved_game(), "Focus loss while already paused did not save")
 	var repeated_pause = InputEventKey.new()
 	repeated_pause.keycode = KEY_ESCAPE
 	repeated_pause.pressed = true
 	repeated_pause.echo = true
 	main._unhandled_input(repeated_pause)
-	check(main.is_gameplay_paused and not main.is_paused, "Key repeat changed the pause state")
+	check(main.session_mode == main.SessionMode.QUICK_PAUSED, "Key repeat changed the pause state")
 	var paused_position = player.global_position
 	var paused_growth = player.segments[0].growth_timer
 	for frame in 30:
 		await get_tree().physics_frame
 	check(player.global_position.is_equal_approx(paused_position), "Pause did not freeze physics")
 	check(is_equal_approx(player.segments[0].growth_timer, paused_growth), "Pause did not freeze growth")
-	main.toggle_gameplay_pause()
+	var open_menu = InputEventAction.new()
+	open_menu.action = "gameplay_menu"
+	open_menu.pressed = true
+	main._unhandled_input(open_menu)
+	check(main.session_mode == main.SessionMode.MENU_PAUSED and main.ui.pause_menu.visible
+		and not main.ui.gameplay_pause_label.visible and not main.ui.steering.steering_enabled,
+		"Opening the menu from quick pause left the session in a mixed state")
+	main.ui.resume_requested.emit()
+	check(main.session_mode == main.SessionMode.PLAYING and not main.ui.pause_menu.visible
+		and main.ui.steering.steering_enabled and main.gameplay_container.process_mode == Node.PROCESS_MODE_INHERIT,
+		"Resuming from the pause menu failed to restore gameplay")
 	main.save_game_state()
 	var saved_positions := player.get_segment_save_data()
 	# Legacy recovery must repair the recorded path as well as each piece.
 	var fallen_save = GameState.load_game_state()
+	check(not fallen_save.player_state.has("physics_pos") and not fallen_save.player_state.has("visual_pos"),
+		"New saves still include redundant body positions")
+	fallen_save.player_state.physics_pos = {"x": 1.0, "y": 1.0, "z": 1.0}
+	fallen_save.player_state.visual_pos = {"x": 2.0, "y": 2.0, "z": 2.0}
+	var saved_head_position := SaveVector.decode(fallen_save.player_state.position)
 	for segment_data in fallen_save.player_state.segments:
 		segment_data.position.y = -3.0
 		segment_data.erase("is_solid")
@@ -129,6 +144,7 @@ func run() -> void:
 	main = MAIN.instantiate()
 	add_child(main)
 	player = main.player
+	check(player.global_position.is_equal_approx(saved_head_position), "Legacy position aliases overrode the saved head position")
 	check(main.score == 60 and player.segments.size() == 6, "Save/resume lost score or body length")
 	for index in player.segments.size():
 		var saved = saved_positions[index].position
@@ -143,14 +159,18 @@ func run() -> void:
 	for segment in player.segments:
 		check(segment.position.y > 0.3 and is_equal_approx(segment.current_scale, 1.0), "Resumed body disappeared or failed to finish growth")
 		check(segment.collision_layer == PhysicsConstants.LAYER_SEGMENT, "Resumed body stayed intangible")
-	# Real wall contact must still end the session once, and prevent more food.
+	# Isolate wall contact and breakup of the restored solid body. A random
+	# pickup on this route could add a frozen segment just before the collision.
+	main.set_process(false)
+	for food in get_tree().get_nodes_in_group("food"):
+		food.queue_free()
 	Input.action_press("move_right")
 	for frame in 240:
 		await get_tree().physics_frame
-		if main.is_game_over:
+		if main.session_mode == main.SessionMode.GAME_OVER:
 			break
 	Input.action_release("move_right")
-	check(main.is_game_over and player.has_lost, "Wall collision failed to end the run")
+	check(main.session_mode == main.SessionMode.GAME_OVER and player.has_lost, "Wall collision failed to end the run")
 	check(not GameState.has_saved_game() and not FileAccess.file_exists(GameState.save_file_path + ".bak"), "Game over retained a resumable dead session")
 	await get_tree().process_frame
 	for segment in player.segments:
@@ -255,7 +275,7 @@ func _check_device_controls() -> void:
 	button.button_index = JOY_BUTTON_START
 	button.pressed = true
 	_send_input(button)
-	check(main.is_paused, "Start did not open the pause menu")
+	check(main.session_mode == main.SessionMode.MENU_PAUSED, "Start did not open the pause menu")
 	button.pressed = false
 	_send_input(button)
 	await get_tree().process_frame
@@ -266,7 +286,7 @@ func _check_device_controls() -> void:
 	check(main.ui.get_node("PauseMenu/VBoxContainer/MainMenuButton").has_focus(), "D-pad did not navigate the pause menu")
 	button.button_index = JOY_BUTTON_START
 	_send_input(button)
-	check(not main.is_paused, "Start did not resume gameplay")
+	check(main.session_mode == main.SessionMode.PLAYING, "Start did not resume gameplay")
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	check(player.input_dir.is_zero_approx(), "Held menu direction steered immediately after resuming")
@@ -296,7 +316,7 @@ func _check_device_controls() -> void:
 	button.button_index = JOY_BUTTON_B
 	button.pressed = true
 	_send_input(button)
-	check(main.is_paused, "B did not open the pause menu")
+	check(main.session_mode == main.SessionMode.MENU_PAUSED, "B did not open the pause menu")
 	button.pressed = false
 	_send_input(button)
 	await get_tree().process_frame
@@ -305,7 +325,7 @@ func _check_device_controls() -> void:
 	_send_input(button)
 	button.pressed = false
 	_send_input(button)
-	check(not main.is_paused, "A did not activate the focused Resume button")
+	check(main.session_mode == main.SessionMode.PLAYING, "A did not activate the focused Resume button")
 	main.free()
 	window.size = original_size
 
@@ -431,10 +451,10 @@ func _check_body_contacts() -> void:
 	Input.action_press("move_left")
 	for frame in 18:
 		await get_tree().physics_frame
-		if main.is_game_over:
+		if main.session_mode == main.SessionMode.GAME_OVER:
 			break
 	Input.action_release("move_left")
-	check(main.is_game_over, "Head contact with a red body piece did not end the run")
+	check(main.session_mode == main.SessionMode.GAME_OVER, "Head contact with a red body piece did not end the run")
 	main.free()
 	Engine.time_scale = 1.0
 	check(GameState.delete_save_game(), "Failed to clear body collision fixture")
@@ -453,7 +473,7 @@ func _check_stuck_loss() -> void:
 	var player: Player = main.player
 	for frame in 190:
 		await get_tree().physics_frame
-	check(not main.is_game_over and player.stuck_elapsed == 0.0, "Inactivity killed the player before their first move")
+	check(main.session_mode != main.SessionMode.GAME_OVER and player.stuck_elapsed == 0.0, "Inactivity killed the player before their first move")
 
 	Input.action_press("move_right")
 	for frame in 24:
@@ -461,7 +481,7 @@ func _check_stuck_loss() -> void:
 	Input.action_release("move_right")
 	for frame in 140:
 		await get_tree().physics_frame
-	check(player.stuck_elapsed >= Player.STUCK_WARNING_START and not main.is_game_over, "Stopping did not give the player time to recover")
+	check(player.stuck_elapsed >= Player.STUCK_WARNING_START and main.session_mode != main.SessionMode.GAME_OVER, "Stopping did not give the player time to recover")
 	await get_tree().process_frame
 	check(main.ui.hint_label.visible and main.ui.hint_label.text.begins_with("KEEP MOVING"), "Stuck warning was missing from the HUD")
 
@@ -472,7 +492,7 @@ func _check_stuck_loss() -> void:
 	main.notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
 	for frame in 125:
 		await get_tree().physics_frame
-	check(is_equal_approx(player.stuck_elapsed, before_pause) and not main.is_game_over, "Inactivity advanced while the run was paused")
+	check(is_equal_approx(player.stuck_elapsed, before_pause) and main.session_mode != main.SessionMode.GAME_OVER, "Inactivity advanced while the run was paused")
 	check(is_equal_approx(player.motion_sample_elapsed, partial_sample), "The partial motion sample advanced while paused")
 	main.free()
 	main = MAIN.instantiate()
@@ -485,17 +505,17 @@ func _check_stuck_loss() -> void:
 	for frame in 24:
 		await get_tree().physics_frame
 	Input.action_release("move_down")
-	check(is_zero_approx(player.stuck_elapsed) and not main.is_game_over, "Moving before the deadline did not clear the warning")
+	check(is_zero_approx(player.stuck_elapsed) and main.session_mode != main.SessionMode.GAME_OVER, "Moving before the deadline did not clear the warning")
 
 	for frame in 130:
 		await get_tree().physics_frame
-	check(not main.is_game_over, "A stop ended the run before the three-second timeout")
+	check(main.session_mode != main.SessionMode.GAME_OVER, "A stop ended the run before the three-second timeout")
 	# The inactivity window starts once the longer coast stops making progress.
 	for frame in 150:
 		await get_tree().physics_frame
-		if main.is_game_over:
+		if main.session_mode == main.SessionMode.GAME_OVER:
 			break
-	check(main.is_game_over and not GameState.has_saved_game(), "Staying stopped did not end the live run and clear its save")
+	check(main.session_mode == main.SessionMode.GAME_OVER and not GameState.has_saved_game(), "Staying stopped did not end the live run and clear its save")
 	main.free()
 
 	check(GameState.save_game_state(fixture), "Failed to write blocked-motion fixture")
@@ -514,10 +534,10 @@ func _check_stuck_loss() -> void:
 	Input.action_press("move_right")
 	for frame in 225:
 		await get_tree().physics_frame
-		if main.is_game_over:
+		if main.session_mode == main.SessionMode.GAME_OVER:
 			break
 	Input.action_release("move_right")
-	check(main.is_game_over and player.position.x < 0.5, "Holding movement against a blocker bypassed the stuck timeout")
+	check(main.session_mode == main.SessionMode.GAME_OVER and player.position.x < 0.5, "Holding movement against a blocker bypassed the stuck timeout")
 	main.free()
 	Engine.time_scale = 1.0
 
@@ -665,7 +685,7 @@ func _check_handling() -> void:
 		"Releasing the input canceled too much forward momentum")
 	check(player.linear_velocity.length() < 0.2 and coast_distance > 4.4 and coast_distance < 5.5,
 		"The head did not roll to a gradual stop")
-	check(not main.is_game_over and player.food_eaten == 0, "The handling fixture hit a wall or picked up food")
+	check(main.session_mode != main.SessionMode.GAME_OVER and player.food_eaten == 0, "The handling fixture hit a wall or picked up food")
 	print("Handling regression: cruise %.2f, turn minimum %.2f, turn drift %.2f, coast speed %.2f, coast distance %.2f" %
 		[cruise_speed, min_turn_speed, turn_drift, coast_speed, coast_distance])
 	main.free()
@@ -751,7 +771,7 @@ func _check_rock_impacts() -> void:
 			await get_tree().physics_frame
 			if impact_case == "cruise" and is_instance_valid(rock):
 				saw_flash = saw_flash or rock.mesh.material_override != null
-			if main.is_game_over:
+			if main.session_mode == main.SessionMode.GAME_OVER:
 				break
 		Input.action_release("move_right")
 		if boosted:
@@ -760,12 +780,12 @@ func _check_rock_impacts() -> void:
 			check(main.player.pickup_speed_bonus == 0.0, "The oncoming-rock fixture still had a pickup boost")
 		match impact_case:
 			"hard_boost":
-				check(not main.is_game_over, "Shattering a gray rock ended the run")
+				check(main.session_mode != main.SessionMode.GAME_OVER, "Shattering a gray rock ended the run")
 				check(get_tree().get_nodes_in_group("rock").is_empty(), "A hard boosted hit did not break the gray rock")
 				main.save_game_state()
 				check(GameState.load_game_state().rocks.is_empty(), "A broken rock reappeared in the save")
 			"dangerous":
-				check(main.is_game_over and is_instance_valid(rock), "A boosted hit broke a red rock instead of ending the run")
+				check(main.session_mode == main.SessionMode.GAME_OVER and is_instance_valid(rock), "A boosted hit broke a red rock instead of ending the run")
 			_:
 				check(is_instance_valid(rock) and not rock.is_shattering and rock.position.x > 0.3,
 					"%s: the rock should have rolled away intact" % impact_case)
@@ -830,9 +850,9 @@ func _check_arena_fall() -> void:
 	add_child(main)
 	for frame in 85:
 		await get_tree().physics_frame
-		if main.is_game_over and get_tree().get_nodes_in_group("rock").is_empty():
+		if main.session_mode == main.SessionMode.GAME_OVER and get_tree().get_nodes_in_group("rock").is_empty():
 			break
-	check(main.is_game_over and not GameState.has_saved_game(), "Falling out of the arena left a live or resumable run")
+	check(main.session_mode == main.SessionMode.GAME_OVER and not GameState.has_saved_game(), "Falling out of the arena left a live or resumable run")
 	check(get_tree().get_nodes_in_group("rock").is_empty(), "A fallen rock remained in the game")
 	main.free()
 	Engine.time_scale = 1.0
@@ -849,7 +869,7 @@ func _check_body_spawn_clearance() -> void:
 	for food in get_tree().get_nodes_in_group("food"):
 		fixture.player_state.segments.append({"position": {"x": food.position.x, "y": 0.35, "z": food.position.z}})
 	seed(88)
-	check(main.spawn_rock(true), "Could not place the reference rock")
+	check(main.spawner.spawn_rock(main.player, main.score, true), "Could not place the reference rock")
 	var rock: Rock = get_tree().get_first_node_in_group("rock")
 	if rock:
 		fixture.player_state.segments.append({"position": {"x": rock.position.x, "y": 0.35, "z": rock.position.z}})
@@ -860,12 +880,12 @@ func _check_body_spawn_clearance() -> void:
 	main = MAIN.instantiate()
 	add_child(main)
 	seed(88)
-	check(main.spawn_rock(true), "Body clearance prevented all rock placement")
-	check(get_tree().get_nodes_in_group("food").size() == main.MIN_FOOD_COUNT, "Body clearance prevented food refill")
+	check(main.spawner.spawn_rock(main.player, main.score, true), "Body clearance prevented all rock placement")
+	check(get_tree().get_nodes_in_group("food").size() == ArenaSpawner.MIN_FOOD_COUNT, "Body clearance prevented food refill")
 	for group in ["rock", "food"]:
 		for item in get_tree().get_nodes_in_group(group):
 			for segment in main.player.segments:
-				check(main._horizontal_distance(item.position, segment.position) >= main.MIN_BODY_SPAWN_DISTANCE, "A %s spawned over the body" % group)
+				check(_horizontal_distance(item.position, segment.position) >= ArenaSpawner.MIN_BODY_SPAWN_DISTANCE, "A %s spawned over the body" % group)
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear spawn clearance fixture")
 
@@ -880,12 +900,12 @@ func _check_failed_exit_save() -> void:
 	GameState.save_file_path = blocked_path
 
 	main.return_to_main_menu()
-	check(main.is_paused and main.is_inside_tree(), "Failed menu save discarded the live game")
+	check(main.session_mode == main.SessionMode.MENU_PAUSED and main.is_inside_tree(), "Failed menu save discarded the live game")
 	check(main.ui.save_error_label.is_visible_in_tree(), "Pause menu hid the failed save")
 	main.toggle_pause()
 	check(not main.ui.save_error_label.visible, "Resuming left a stale save error")
 	main.notification(NOTIFICATION_WM_CLOSE_REQUEST)
-	check(main.is_paused and not main.is_quitting, "Failed window-close save discarded the live game")
+	check(main.session_mode == main.SessionMode.MENU_PAUSED and not main.is_quitting, "Failed window-close save discarded the live game")
 	check(main.ui.save_error_label.is_visible_in_tree(), "Failed window-close save did not explain the pause")
 	main.save_and_quit()
 	check(not main.is_quitting, "Failed Quit save exited the game")
@@ -917,7 +937,7 @@ func _check_empty_food_resume() -> void:
 			"position": {"x": food.position.x, "y": 0.5, "z": food.position.z},
 			"is_dangerous": true,
 		})
-	check(fixture.rocks.size() >= main.MIN_FOOD_COUNT, "Empty-food fixture failed to generate food")
+	check(fixture.rocks.size() >= ArenaSpawner.MIN_FOOD_COUNT, "Empty-food fixture failed to generate food")
 	main.free()
 	check(GameState.save_game_state(fixture), "Failed to write saved-hazard fixture")
 	seed(42)
@@ -929,8 +949,8 @@ func _check_empty_food_resume() -> void:
 			continue
 		food_count += 1
 		for rock in get_tree().get_nodes_in_group("rock"):
-			check(main._horizontal_distance(food.position, rock.position) >= 1.0, "Replacement food overlapped a restored hazard")
-	check(food_count >= main.MIN_FOOD_COUNT, "Resume did not replenish an empty food list")
+			check(_horizontal_distance(food.position, rock.position) >= 1.0, "Replacement food overlapped a restored hazard")
+	check(food_count >= ArenaSpawner.MIN_FOOD_COUNT, "Resume did not replenish an empty food list")
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear saved-hazard fixture")
 
@@ -952,13 +972,13 @@ func _check_crowded_food_refill() -> void:
 			hazard.add_to_group("dangerous")
 			var parent = edge_hazards if absi(x) == 8 or absi(z) == 8 else hazards
 			parent.add_child(hazard)
-	main._refill_food()
+	main.spawner.refill_food(main.player)
 	var food = get_tree().get_nodes_in_group("food").filter(func(item): return not item.is_queued_for_deletion())
 	check(food.is_empty(), "Crowded arena spawned food on a hazard")
 	edge_hazards.free()
 	main._process(main.AUTOSAVE_INTERVAL)
 	food = get_tree().get_nodes_in_group("food").filter(func(item): return not item.is_queued_for_deletion())
-	check(food.size() == main.MIN_FOOD_COUNT, "Active game did not refill food in the free space outside a crowded center")
+	check(food.size() == ArenaSpawner.MIN_FOOD_COUNT, "Active game did not refill food in the free space outside a crowded center")
 	for item: Food in food:
 		check(maxf(absf(item.position.x), absf(item.position.z)) == 9.0, "Fallback food did not stay on the cleared outer ring")
 	main.free()
@@ -976,7 +996,7 @@ func _check_covered_food_refill() -> void:
 	add_child(main)
 	var original_food: Food = get_tree().get_first_node_in_group("food")
 	var rock: Rock = get_tree().get_first_node_in_group("rock")
-	check(get_tree().get_node_count_in_group("food") == main.MIN_FOOD_COUNT, "Resume left a partial food supply")
+	check(get_tree().get_node_count_in_group("food") == ArenaSpawner.MIN_FOOD_COUNT, "Resume left a partial food supply")
 
 	main._process(main.AUTOSAVE_INTERVAL)
 	check(not original_food.is_queued_for_deletion(), "Food moved after a single observation of cover")
@@ -992,9 +1012,12 @@ func _check_covered_food_refill() -> void:
 	var food_count = 0
 	for food: Food in get_tree().get_nodes_in_group("food"):
 		if not food.is_queued_for_deletion():
-			check(main._horizontal_distance(food.position, rock.position) > main.MIN_FOOD_ROCK_DISTANCE, "Replacement food collided with the covering rock")
+			check(_horizontal_distance(food.position, rock.position) > ArenaSpawner.MIN_FOOD_ROCK_DISTANCE, "Replacement food collided with the covering rock")
 			food_count += 1
-	check(food_count == main.MIN_FOOD_COUNT, "Covered food replacement changed the available supply")
-	check(GameState.load_game_state().food_positions.size() == main.MIN_FOOD_COUNT, "Covered food replacement did not persist")
+	check(food_count == ArenaSpawner.MIN_FOOD_COUNT, "Covered food replacement changed the available supply")
+	check(GameState.load_game_state().food_positions.size() == ArenaSpawner.MIN_FOOD_COUNT, "Covered food replacement did not persist")
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear covered-food fixture")
+
+func _horizontal_distance(first: Vector3, second: Vector3) -> float:
+	return Vector2(first.x, first.z).distance_to(Vector2(second.x, second.z))

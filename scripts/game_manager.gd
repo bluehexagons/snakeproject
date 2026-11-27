@@ -1,37 +1,15 @@
 extends Node3D
 
+enum SessionMode { PLAYING, QUICK_PAUSED, MENU_PAUSED, GAME_OVER }
+
 const PLAYER_SCENE = preload("res://scenes/player.tscn")
-const FOOD_SCENE = preload("res://scenes/food.tscn")
-const ROCK_SCENE = preload("res://scenes/rock.tscn")
 const SCORE_POPUP = preload("res://scenes/score_popup.tscn")
-const SPAWN_AREA_SIZE = Vector2(8, 8)
-const PLAYER_SPAWN_HEIGHT = 0.5
 
 const INITIAL_ROCKS = 10
 const ROCKS_SPAWN_INTERVAL = 2
-const DANGER_START_SCORE = 50
-const DANGER_MAX_SCORE = 300
-const MAX_DANGER_PROBABILITY = 0.8
-
-const SAFE_SPAWN_DISTANCE = 4.0
-const SAFE_FORWARD_ANGLE = 60.0
-
-const MIN_FOOD_COUNT = 3
-const MIN_FOOD_DISTANCE = 3.0
-const PREFERRED_PLAYER_DISTANCE = 8.0
-const MIN_PLAYER_DISTANCE = 2.0
-const MIN_FOOD_DANGER_DISTANCE = 1.5
-const MIN_FOOD_ROCK_DISTANCE = 1.0
-const MIN_ROCK_PLAYER_DISTANCE = 2.5
-const MIN_BODY_SPAWN_DISTANCE = 1.0
-const MAX_FOOD_SPAWN_ATTEMPTS = 30
-const FALLBACK_FOOD_SPAWN_LIMIT = 9 # The barriers sit at +/-11.
-const MAX_ROCK_SPAWN_ATTEMPTS = 30
 const AUTOSAVE_INTERVAL = 5.0
 
-var is_paused: bool = false
-var is_gameplay_paused: bool = false
-var is_game_over: bool = false
+var session_mode := SessionMode.PLAYING
 
 var score: int = 0
 var is_new_best: bool = false
@@ -45,6 +23,7 @@ var score_popup: ScorePopup
 @onready var ui: GameUI = $UI
 @onready var score_popups: Control = $UI/ScorePopups
 @onready var gameplay_container: Node3D = $GameplayContainer
+@onready var spawner := ArenaSpawner.new(gameplay_container)
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
 
 func _enter_tree() -> void:
@@ -63,7 +42,7 @@ func _ready() -> void:
 	_configure_renderer_features()
 	_connect_ui()
 	load_game_state()
-	update_pause_state()
+	_apply_session_mode()
 	update_score(0)
 	DebugTelemetry.start_capture()
 
@@ -82,7 +61,7 @@ func _connect_ui() -> void:
 	ui.main_menu_requested.connect(return_to_main_menu)
 
 func _process(delta: float) -> void:
-	if is_game_over or is_paused or is_gameplay_paused or not is_instance_valid(player):
+	if session_mode != SessionMode.PLAYING or not is_instance_valid(player):
 		return
 
 	autosave_elapsed += maxf(delta, 0.0)
@@ -91,27 +70,27 @@ func _process(delta: float) -> void:
 
 	autosave_elapsed = fmod(autosave_elapsed, AUTOSAVE_INTERVAL)
 	# Rocks can open or cover pickup locations even when the snake hasn't eaten.
-	_refill_food(true)
+	spawner.refill_food(player, true)
 	# Browser tabs can be refreshed or closed without sending a reliable close
 	# notification, so keep the resumable session reasonably current.
 	save_game_state()
 
 func _physics_process(delta: float) -> void:
-	if not is_paused and not is_gameplay_paused and not is_game_over:
+	if session_mode == SessionMode.PLAYING:
 		DebugTelemetry.sample_gameplay(delta, player, score)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_echo() or is_game_over:
+	if event.is_echo() or session_mode == SessionMode.GAME_OVER:
 		return
 	if event.is_action_pressed("ui_cancel") or event.is_action_pressed("gameplay_menu"):
 		toggle_pause(true)
-	elif event.is_action_pressed("gameplay_pause") and not is_paused:
+	elif event.is_action_pressed("gameplay_pause") and session_mode != SessionMode.MENU_PAUSED:
 		toggle_gameplay_pause()
-	elif event.is_action_pressed("toggle_camera_angle") and not is_paused:
+	elif event.is_action_pressed("toggle_camera_angle") and session_mode != SessionMode.MENU_PAUSED:
 		_toggle_camera()
 
 func _on_pause_requested() -> void:
-	if is_gameplay_paused:
+	if session_mode == SessionMode.QUICK_PAUSED:
 		toggle_gameplay_pause()
 	else:
 		toggle_pause(true)
@@ -121,50 +100,52 @@ func _toggle_camera() -> void:
 	SoundFx.play(SoundFx.Cue.UI, 0.39, 1.20)
 
 func toggle_gameplay_pause() -> void:
-	if is_game_over:
+	if session_mode not in [SessionMode.PLAYING, SessionMode.QUICK_PAUSED]:
 		return
 
-	is_gameplay_paused = not is_gameplay_paused
-	_play_pause_cue(is_gameplay_paused)
-	update_pause_state()
-	if ui:
-		ui.set_gameplay_paused(is_gameplay_paused)
-	if is_gameplay_paused:
-		DebugTelemetry.publish_trace()
-	else:
-		DebugTelemetry.start_capture()
+	var next := SessionMode.PLAYING if session_mode == SessionMode.QUICK_PAUSED else SessionMode.QUICK_PAUSED
+	_play_pause_cue(next == SessionMode.QUICK_PAUSED)
+	_set_session_mode(next)
 
 func toggle_pause(play_cue: bool = false) -> void:
-	if is_game_over:
+	if session_mode == SessionMode.GAME_OVER:
 		return
 
-	is_paused = !is_paused
+	var next := SessionMode.PLAYING if session_mode == SessionMode.MENU_PAUSED else SessionMode.MENU_PAUSED
 	if play_cue:
-		_play_pause_cue(is_paused)
-	if is_paused and is_gameplay_paused:
-		is_gameplay_paused = false
-		ui.set_gameplay_paused(false)
-	update_pause_state()
-	ui.toggle_pause_menu(is_paused)
+		_play_pause_cue(next == SessionMode.MENU_PAUSED)
+	_set_session_mode(next)
 
 func _play_pause_cue(paused: bool) -> void:
 	SoundFx.play(SoundFx.Cue.UI, 0.48, 0.81 if paused else 1.12)
 
-func update_pause_state() -> void:
-	var paused = is_paused or is_gameplay_paused
-	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if paused else Node.PROCESS_MODE_INHERIT
-	ui.steering.set_steering_enabled(not paused and not is_game_over)
+func _set_session_mode(next: SessionMode) -> void:
+	if next == session_mode:
+		return
+
+	var previous := session_mode
+	session_mode = next
+	_apply_session_mode()
+	if next == SessionMode.QUICK_PAUSED:
+		DebugTelemetry.publish_trace()
+	elif next == SessionMode.PLAYING and previous == SessionMode.QUICK_PAUSED:
+		DebugTelemetry.start_capture()
+
+func _apply_session_mode() -> void:
+	var quick_paused := session_mode == SessionMode.QUICK_PAUSED
+	var menu_paused := session_mode == SessionMode.MENU_PAUSED
+	# The snake and debris still simulate in slow motion after a loss.
+	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if quick_paused or menu_paused else Node.PROCESS_MODE_INHERIT
+	ui.steering.set_steering_enabled(session_mode == SessionMode.PLAYING)
+	ui.set_gameplay_paused(quick_paused)
+	ui.toggle_pause_menu(menu_paused)
 
 func spawn_player() -> Player:
 	player = PLAYER_SCENE.instantiate()
 	gameplay_container.add_child(player)
 	_bind_player(player)
 	
-	var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
-	var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-	# Start the sphere clear of the floor instead of half-embedded, which can
-	# make the solver resolve the initial overlap through the ground.
-	player.position = Vector3(random_x, PLAYER_SPAWN_HEIGHT, random_z)
+	player.position = spawner.initial_player_position()
 	player.rebuild_trail()
 	return player
 
@@ -176,172 +157,18 @@ func _bind_player(new_player: Player) -> void:
 	player.player_lost.connect(_on_player_lost)
 	ui.set_player(player)
 
-func _refill_food(check_covered: bool = false) -> void:
-	var foods = get_tree().get_nodes_in_group("food").filter(
-		func(food: Food): return food.is_available()
-	)
-	if not check_covered and foods.size() >= MIN_FOOD_COUNT:
-		return
-
-	var hazards = get_tree().get_nodes_in_group("dangerous").filter(
-		func(node): return not node.is_queued_for_deletion()
-	)
-	var rocks = get_tree().get_nodes_in_group("rock").filter(
-		func(rock): return not rock.is_queued_for_deletion()
-	)
-	if check_covered:
-		for index in foods.size():
-			var food: Food = foods[index]
-			var cover_id = _covering_rock_id(food.get_pickup_position(), rocks)
-			# Give moving rocks a chance to clear the pickup on their own.
-			if cover_id != 0 and cover_id == food.covering_rock_id:
-				var replacement: Variant = _find_food_spawn_position(foods, hazards, rocks)
-				if replacement != null:
-					foods[index] = _spawn_food_at(replacement)
-					food.queue_free()
-			food.covering_rock_id = cover_id
-
-	while foods.size() < MIN_FOOD_COUNT:
-		var spawn_position: Variant = _find_food_spawn_position(foods, hazards, rocks)
-		if spawn_position == null:
-			break
-		foods.append(_spawn_food_at(spawn_position))
-
-func _spawn_food_at(spawn_position: Vector3) -> Food:
-	var food: Food = FOOD_SCENE.instantiate()
-	food.position = spawn_position
-	gameplay_container.add_child(food)
-	return food
-
-func _covering_rock_id(point: Vector3, rocks: Array) -> int:
-	for rock: Rock in rocks:
-		if rock.covers_pickup(point):
-			return rock.get_instance_id()
-	return 0
-
-func _find_food_spawn_position(foods: Array, hazards: Array, rocks: Array) -> Variant:
-	var best_position: Variant = null
-	var best_score = 0.0
-	var area = SPAWN_AREA_SIZE * 0.9
-	for attempt in MAX_FOOD_SPAWN_ATTEMPTS:
-		var candidate = Vector3(randf_range(-area.x, area.x), 0, randf_range(-area.y, area.y))
-		var candidate_score = _food_spawn_score(candidate, foods, hazards, rocks, MIN_FOOD_DISTANCE)
-		if candidate_score > best_score:
-			best_score = candidate_score
-			best_position = candidate
-	if best_position != null:
-		return best_position
-
-	# Cover the wider arena if the random sample finds nothing. Only the
-	# spacing between food pickups can relax.
-	for x in range(-FALLBACK_FOOD_SPAWN_LIMIT, FALLBACK_FOOD_SPAWN_LIMIT + 1):
-		for z in range(-FALLBACK_FOOD_SPAWN_LIMIT, FALLBACK_FOOD_SPAWN_LIMIT + 1):
-			var candidate = Vector3(x, 0, z)
-			var candidate_score = _food_spawn_score(candidate, foods, hazards, rocks, MIN_FOOD_DISTANCE * 0.5)
-			if candidate_score > best_score:
-				best_score = candidate_score
-				best_position = candidate
-	return best_position
-
-func _food_spawn_score(candidate: Vector3, foods: Array, hazards: Array, rocks: Array, food_spacing: float) -> float:
-	var player_distance = _horizontal_distance(player.global_position, candidate)
-	if player_distance < MIN_PLAYER_DISTANCE or _nearest_horizontal_distance(candidate, player.segments) < MIN_BODY_SPAWN_DISTANCE:
-		return 0.0
-	var hazard_distance = _nearest_horizontal_distance(candidate, hazards)
-	if hazard_distance <= MIN_FOOD_DANGER_DISTANCE:
-		return 0.0
-	var rock_distance = _nearest_horizontal_distance(candidate, rocks)
-	if rock_distance <= MIN_FOOD_ROCK_DISTANCE:
-		return 0.0
-	var food_distance = _nearest_horizontal_distance(candidate, foods)
-	if food_distance <= food_spacing:
-		return 0.0
-
-	var spacing = minf(hazard_distance, minf(rock_distance, food_distance))
-	var distance_factor = maxf(1.0 - absf(player_distance - PREFERRED_PLAYER_DISTANCE) / PREFERRED_PLAYER_DISTANCE, 0.0)
-	return (1.0 if is_inf(spacing) else spacing) * (1.0 + distance_factor)
-
-func _nearest_horizontal_distance(position: Vector3, nodes: Array) -> float:
-	var nearest = INF
-	for node in nodes:
-		nearest = minf(nearest, _horizontal_distance(node.global_position, position))
-	return nearest
-
-func spawn_initial_rocks() -> void:
-	for i in range(INITIAL_ROCKS):
-		spawn_rock(true)
-
-func spawn_rock(force_safe: bool = false) -> bool:
-	var current_player: Player = player if is_instance_valid(player) else null
-	for _attempt in range(MAX_ROCK_SPAWN_ATTEMPTS):
-		var random_x = randf_range(-SPAWN_AREA_SIZE.x, SPAWN_AREA_SIZE.x)
-		var random_z = randf_range(-SPAWN_AREA_SIZE.y, SPAWN_AREA_SIZE.y)
-		var spawn_pos = Vector3(random_x, 0, random_z)
-		if current_player and _horizontal_distance(current_player.global_position, spawn_pos) < MIN_ROCK_PLAYER_DISTANCE:
-			continue
-		if current_player and _nearest_horizontal_distance(spawn_pos, current_player.segments) < MIN_BODY_SPAWN_DISTANCE:
-			continue
-
-		var overlaps_rock = false
-		for other_rock in get_tree().get_nodes_in_group("rock"):
-			if not other_rock.is_queued_for_deletion() and _horizontal_distance(other_rock.position, spawn_pos) < 2.0:
-				overlaps_rock = true
-				break
-		if overlaps_rock:
-			continue
-		var overlaps_food = false
-		for food in get_tree().get_nodes_in_group("food"):
-			if food.is_available() and _horizontal_distance(food.position, spawn_pos) < MIN_FOOD_ROCK_DISTANCE:
-				overlaps_food = true
-				break
-		if overlaps_food:
-			continue
-
-		var rock = ROCK_SCENE.instantiate()
-		gameplay_container.add_child(rock)
-		rock.setup_rock(spawn_pos)
-
-		var should_be_dangerous = false
-		if !force_safe && score >= DANGER_START_SCORE:
-			var score_factor = clamp(float(score - DANGER_START_SCORE) / (DANGER_MAX_SCORE - DANGER_START_SCORE), 0.0, 1.0)
-			if randf() < score_factor * MAX_DANGER_PROBABILITY:
-				var is_safe_position = true
-				if current_player:
-					var dist_to_player = _horizontal_distance(current_player.global_position, spawn_pos)
-					if dist_to_player < SAFE_SPAWN_DISTANCE:
-						is_safe_position = false
-					else:
-						var to_rock = spawn_pos - current_player.global_position
-						to_rock.y = 0.0
-						to_rock = to_rock.normalized()
-						var facing = current_player.facing_direction
-						facing.y = 0.0
-						facing = facing.normalized() if facing.length_squared() > 0.001 else Vector3.FORWARD
-						var angle = rad_to_deg(acos(clampf(to_rock.dot(facing), -1.0, 1.0)))
-						if angle < SAFE_FORWARD_ANGLE:
-							is_safe_position = false
-				should_be_dangerous = is_safe_position
-
-		if should_be_dangerous:
-			rock.make_dangerous()
-
-		return true
-
-	push_warning("Failed to spawn a rock after %d attempts" % MAX_ROCK_SPAWN_ATTEMPTS)
-	return false
-
 func _on_player_food_collected(total_food_eaten: int) -> void:
-	if is_game_over:
+	if session_mode == SessionMode.GAME_OVER:
 		return
 
 	SoundFx.pickup(total_food_eaten)
 	if total_food_eaten % ROCKS_SPAWN_INTERVAL == 0:
-		spawn_rock()
+		spawner.spawn_rock(player, score)
 	
-	_refill_food()
+	spawner.refill_food(player)
 
 func _on_player_score_earned(points: int, popup_position: Vector3) -> void:
-	if is_game_over:
+	if session_mode == SessionMode.GAME_OVER:
 		return
 	update_score(points)
 	if not is_instance_valid(score_popup) or not score_popup.can_combine(popup_position):
@@ -355,8 +182,9 @@ func _on_player_lost() -> void:
 	game_over()
 
 func _on_resume_requested() -> void:
-	Engine.time_scale = 1.0
-	toggle_pause(true)
+	if session_mode == SessionMode.MENU_PAUSED:
+		Engine.time_scale = 1.0
+		toggle_pause(true)
 
 func _on_retry_requested() -> void:
 	if not GameState.delete_save_game():
@@ -378,17 +206,15 @@ func update_score(points: int) -> void:
 		ui.update_score(score)
 
 func game_over() -> void:
-	if is_game_over:
+	if session_mode == SessionMode.GAME_OVER:
 		return
 
-	is_game_over = true
+	_set_session_mode(SessionMode.GAME_OVER)
 	SoundFx.play(SoundFx.Cue.LOSS)
 	GameState.delete_save_game()
 	if not GameState.save_best_score(score):
 		push_warning("Unable to save the best score")
 	Engine.time_scale = 0.5
-	is_gameplay_paused = false
-	update_pause_state()
 	ui.show_game_over(score, GameState.get_best_score(), is_new_best)
 
 func return_to_main_menu() -> void:
@@ -397,7 +223,6 @@ func return_to_main_menu() -> void:
 	SoundFx.play(SoundFx.Cue.UI, 0.49, 0.89)
 	Engine.time_scale = 1.0
 	get_tree().paused = false
-	is_paused = false
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 func save_and_quit() -> void:
@@ -406,19 +231,17 @@ func save_and_quit() -> void:
 	is_quitting = true
 	Engine.time_scale = 1.0
 	get_tree().paused = false
-	is_paused = false
 	get_tree().quit()
 
 func _save_before_leaving() -> bool:
 	if save_game_state():
 		return true
-	if not is_paused:
-		toggle_pause()
+	_set_session_mode(SessionMode.MENU_PAUSED)
 	ui.show_save_error()
 	return false
 
 func save_game_state() -> bool:
-	if is_game_over or not is_instance_valid(player) or player.is_dead:
+	if session_mode == SessionMode.GAME_OVER or not is_instance_valid(player) or player.is_dead:
 		return true
 		
 	var foods = get_tree().get_nodes_in_group("food")
@@ -454,8 +277,9 @@ func load_game_state() -> bool:
 	var save_data = GameState.load_game_state()
 	if save_data.is_empty():
 		spawn_player()
-		_refill_food()
-		spawn_initial_rocks()
+		spawner.refill_food(player)
+		for _index in INITIAL_ROCKS:
+			spawner.spawn_rock(player, score, true)
 		return false
 		
 	player = PLAYER_SCENE.instantiate()
@@ -464,31 +288,26 @@ func load_game_state() -> bool:
 	_bind_player(player)
 
 	for rock_data: Dictionary in save_data.get("rocks", []):
-		var rock: Rock = ROCK_SCENE.instantiate()
-		gameplay_container.add_child(rock)
-		rock.restore_from_save_data(rock_data)
+		spawner.restore_rock(rock_data)
 
 	# Replacement food must account for every restored hazard and rock.
 	for food_pos: Dictionary in save_data.get("food_positions", []):
 		var food_position := SaveVector.decode(food_pos)
 		food_position.y = 0.0
-		_spawn_food_at(food_position)
-	_refill_food()
+		spawner.spawn_food_at(food_position)
+	spawner.refill_food(player)
 
 	score = int(save_data.score)
 	return true
-
-func _horizontal_distance(first: Vector3, second: Vector3) -> float:
-	return Vector2(first.x, first.z).distance_to(Vector2(second.x, second.z))
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		# Alt-Tab and minimizing must not leave a live snake in danger. Resume
 		# remains an explicit choice when the player returns to the window.
-		if is_node_ready() and not is_game_over:
-			if not is_paused and not is_gameplay_paused:
-				toggle_pause()
-			if not save_game_state() and is_paused:
+		if is_node_ready() and session_mode != SessionMode.GAME_OVER:
+			if session_mode == SessionMode.PLAYING:
+				_set_session_mode(SessionMode.MENU_PAUSED)
+			if not save_game_state() and session_mode == SessionMode.MENU_PAUSED:
 				ui.show_save_error()
 	elif what == NOTIFICATION_WM_CLOSE_REQUEST and is_node_ready():
 		save_and_quit()

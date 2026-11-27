@@ -118,6 +118,7 @@ func is_valid_save_data(data: Dictionary) -> bool:
 		return false
 	if not is_valid_saved_vector(player_state.get("position")):
 		return false
+	# Older saves can still contain the two position aliases.
 	for key in ["physics_pos", "visual_pos", "velocity", "facing_direction"]:
 		if player_state.has(key) and not is_valid_saved_vector(player_state.get(key)):
 			return false

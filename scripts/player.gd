@@ -371,7 +371,6 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 	pending_pickup_impulse = 0.0
 	if horizontal.length_squared() > 0.01:
 		facing_direction = horizontal.normalized()
-	physics_pos = state.transform.origin
 
 func _check_lunge_contacts(state: PhysicsDirectBodyState3D) -> void:
 	for index in state.get_contact_count():
