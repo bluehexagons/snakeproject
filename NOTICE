@@ -1,6 +1,10 @@
 Snake 3D
 Copyright 2025–2026 bluehexagons llc
 
+The project software and documentation are licensed under Apache-2.0.
+The original assets listed in ASSETS.md are dedicated to the public domain
+under CC0 1.0 Universal. See LICENSE and LICENSE-CC0.txt for the terms.
+
 This project uses Godot Engine, which is distributed under the MIT License.
 Godot Engine license: https://godotengine.org/license/
 Godot 4.7.2 third-party notices:

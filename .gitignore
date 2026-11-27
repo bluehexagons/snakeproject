@@ -5,5 +5,13 @@
 /build/*
 !/build/.gdignore
 
+# Player data and recovery files from local test overrides
+save_game.dat
+save_game.dat.bak
+save_game.dat.tmp
+best_score.dat
+best_score.dat.bak
+best_score.dat.tmp
+
 # Python verification
 __pycache__/

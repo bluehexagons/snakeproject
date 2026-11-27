@@ -4,6 +4,15 @@ Use the standard [Godot 4.7.2 editor](https://godotengine.org/download/archive/4
 and Python 3.10 or newer. Open `project.godot` and press **F5** to start at the
 main menu.
 
+For bug reports, include the game version, platform or browser, input device
+if relevant, and steps to reproduce the problem. For a pull request, describe
+the change and the checks you ran. See the [issue tracker](https://github.com/bluehexagons/snakeproject/issues).
+
+Software and documentation contributions use [Apache-2.0](LICENSE). Original
+asset contributions use [CC0 1.0 Universal](LICENSE-CC0.txt). When adding an
+asset, record its source and license in the [asset inventory](ASSETS.md), and
+include any required third-party attribution in [NOTICE](NOTICE).
+
 ## Project structure
 
 - [GameManager](scripts/game_manager.gd) connects the arena and HUD, handles
@@ -139,7 +148,10 @@ bash scripts/package_release.sh v0.5.0
 ```
 
 The script prints the fresh `build/release.*` directory containing the Windows
-ZIP and the `web/` site. Both include the project and Godot notices.
+ZIP and the `web/` site. Each contains `LICENSE`, `LICENSE-CC0.txt`,
+`ASSETS.md`, `NOTICE`, `GODOT_LICENSE.txt`, and `GODOT_COPYRIGHT.txt`.
+Use the packaged output when redistributing a build so the license files
+stay with the game.
 
 ## Publishing a release
 
@@ -165,7 +177,8 @@ The `github-pages` environment allows tags matching
 `v[0-9]*.[0-9]*.[0-9]*`.
 
 Check the Actions run, the Windows ZIP in Releases, and the version shown in
-the Web game's main menu. The site also publishes
+the Web game's main menu. Confirm the license files are present in the ZIP
+and accessible alongside the Web build. The site also publishes
 [`version.txt`](https://bluehexagons.github.io/snakeproject/version.txt) for an
 HTTP check.
 

@@ -4,6 +4,7 @@ A 3D survival game built with Godot 4.7.2.
 
 [Play in your browser](https://bluehexagons.github.io/snakeproject/) or
 [download the Windows build](https://github.com/bluehexagons/snakeproject/releases/latest).
+On Windows, extract the ZIP and run `snake3d.exe` beside `snake3d.pck`.
 
 ## Getting started
 
@@ -62,10 +63,8 @@ tests, manual exports, and tagged releases.
 
 ## License
 
-The game code and assets are licensed under the [Apache License 2.0](LICENSE).
-See [NOTICE](NOTICE) for attribution.
-
-When distributing builds, include the project license and notice, the
-[Godot Engine license](https://godotengine.org/license/), and the
-[third-party notices for Godot 4.7.2](https://github.com/godotengine/godot/blob/4.7.2-stable/COPYRIGHT.txt).
-For a hosted Web build, make these files available alongside the game.
+The project software and documentation use the [Apache License 2.0](LICENSE).
+Original artwork and sound assets are dedicated to the public domain under
+[CC0 1.0 Universal](LICENSE-CC0.txt). See the [asset inventory](ASSETS.md)
+for the scope of the dedication and [NOTICE](NOTICE) for third-party attribution.
+The Windows and Web release packages include the project and Godot license files.
