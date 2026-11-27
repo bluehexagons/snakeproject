@@ -1,8 +1,8 @@
 # Snake 3D repository guidance
 
 This is a GDScript project targeting the standard Godot 4.7.2 editor,
-Compatibility rendering, and Jolt physics. The [contributor guide](CONTRIBUTING.md)
-covers local setup, CI, exports, and release verification.
+Compatibility rendering, and Jolt physics. The [documentation index](docs/README.md)
+links to local setup, architecture, testing, and release verification.
 
 ## Testing
 

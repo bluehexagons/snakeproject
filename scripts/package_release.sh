@@ -55,12 +55,14 @@ test -s "$web_dir/index.pck"
 godot_source=https://raw.githubusercontent.com/godotengine/godot/ed1daf0bf001b61586d9930840f2f1394092c079
 curl -fsSL --retry 4 "$godot_source/LICENSE.txt" -o "$windows_dir/GODOT_LICENSE.txt"
 curl -fsSL --retry 4 "$godot_source/COPYRIGHT.txt" -o "$windows_dir/GODOT_COPYRIGHT.txt"
-project_notices=(LICENSE LICENSE-CC0.txt ASSETS.md NOTICE)
+project_notices=(LICENSE LICENSE-CC0.txt NOTICE docs/distribution/assets.md)
 godot_notices=(GODOT_LICENSE.txt GODOT_COPYRIGHT.txt)
-cp "${project_notices[@]}" "$windows_dir/"
+for notice in "${project_notices[@]}"; do
+  install -D -m 0644 "$notice" "$windows_dir/$notice"
+done
 for notice in "${project_notices[@]}" "${godot_notices[@]}"; do
   test -s "$windows_dir/$notice"
-  cp "$windows_dir/$notice" "$web_dir/"
+  install -D -m 0644 "$windows_dir/$notice" "$web_dir/$notice"
 done
 printf '%s\n' "$tag" > "$web_dir/version.txt"
 
