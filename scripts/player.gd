@@ -185,27 +185,30 @@ func _collect_food() -> void:
 
 func _update_body(delta: float) -> void:
 	var head = Vector3(global_position.x, SegmentConstants.CENTER_HEIGHT, global_position.z)
-	if trail.is_empty():
-		trail.append(head)
-	if head.distance_to(trail[0]) >= TRAIL_STEP:
+	if trail.is_empty() or head.distance_to(trail[0]) >= TRAIL_STEP:
 		trail.push_front(head)
-	# Sample the recorded path by distance, not by frame count or spring force.
-	var path: Array[Vector3] = [head]
-	path.append_array(trail)
-	var edge = 0
+	# Walk from the live head through the recorded points once, sharing the
+	# current edge across segments whose slots fall on the same stretch.
+	var next_point = 0
+	var edge_start = head
+	var edge_end = trail[0]
+	var edge_length = edge_start.distance_to(edge_end)
 	var traversed = 0.0
 	for index in segments.size():
 		var wanted = (index + 1) * SegmentConstants.TARGET_DISTANCE
-		while edge + 1 < path.size() and traversed + path[edge].distance_to(path[edge + 1]) < wanted:
-			traversed += path[edge].distance_to(path[edge + 1])
-			edge += 1
-		var destination = path[edge]
-		if edge + 1 < path.size():
-			var length = path[edge].distance_to(path[edge + 1])
-			destination = path[edge].lerp(path[edge + 1], (wanted - traversed) / maxf(length, 0.0001))
+		while next_point < trail.size() and traversed + edge_length < wanted:
+			traversed += edge_length
+			next_point += 1
+			edge_start = edge_end
+			if next_point < trail.size():
+				edge_end = trail[next_point]
+				edge_length = edge_start.distance_to(edge_end)
 		# With no older path, new growth stays at the tail until we move.
+		var destination = edge_start
+		if next_point < trail.size():
+			destination = edge_start.lerp(edge_end, (wanted - traversed) / maxf(edge_length, 0.0001))
 		segments[index].set_path_target(destination, delta)
-	var keep = maxi(edge + 3, 3)
+	var keep = next_point + 3
 	if trail.size() > keep:
 		trail.resize(keep)
 
