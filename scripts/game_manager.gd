@@ -187,13 +187,7 @@ func _on_resume_requested() -> void:
 		toggle_pause(true)
 
 func _on_retry_requested() -> void:
-	if not GameState.delete_save_game():
-		push_warning("Unable to clear the saved game for retry")
-		return
-	SoundFx.play(SoundFx.Cue.UI, 0.53, 1.27)
-	Engine.time_scale = 1.0
-	get_tree().paused = false
-	get_tree().reload_current_scene()
+	ArenaLoading.open_arena(false)
 
 func update_score(points: int) -> void:
 	var previous_best = GameState.get_best_score()

@@ -18,6 +18,7 @@ const LOAD_TARGETS = [
 	"res://scenes/rock.tscn",
 	"res://scenes/main.tscn",
 	"res://scenes/main_menu.tscn",
+	"res://scenes/arena_loading.tscn",
 ]
 
 const ROCK_SCENE = preload("res://scenes/rock.tscn")
@@ -149,8 +150,51 @@ func run() -> void:
 		get_tree().quit(1)
 		return
 
+	if not await _check_arena_loading():
+		get_tree().quit(1)
+		return
+
 	print("Smoke test passed")
 	get_tree().quit(0)
+
+func _check_arena_loading() -> bool:
+	var tree := get_tree()
+	# Keep the runner in the tree while the game's entry points change scenes.
+	tree.current_scene = null
+	if tree.change_scene_to_file("res://scenes/main_menu.tscn") != OK:
+		push_error("Could not open the main menu for the loading transition check")
+		return false
+	await tree.scene_changed
+	tree.current_scene.on_new_game_pressed()
+	if not ArenaLoading.screen.visible or not tree.paused:
+		push_error("New Game did not show the loading screen and suspend the old scene")
+		return false
+	await tree.scene_changed
+	await tree.process_frame
+	var arena := tree.current_scene
+	if ArenaLoading.screen.visible or tree.paused or arena.score != 0:
+		push_error("New Game did not hand control to a fresh arena")
+		return false
+
+	arena.update_score(87)
+	arena.return_to_main_menu()
+	await tree.scene_changed
+	tree.current_scene.continue_button.pressed.emit()
+	await tree.scene_changed
+	await tree.process_frame
+	arena = tree.current_scene
+	if arena.score != 87 or tree.paused:
+		push_error("Continue did not restore the saved run through the loading screen")
+		return false
+
+	arena.game_over()
+	arena.ui.on_retry_pressed()
+	await tree.scene_changed
+	await tree.process_frame
+	if ArenaLoading.screen.visible or tree.paused or tree.current_scene.score != 0 or Engine.time_scale != 1.0:
+		push_error("Retry did not hand control to a fresh arena at normal speed")
+		return false
+	return true
 
 
 func _check_impact_audio() -> bool:

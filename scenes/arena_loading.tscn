@@ -1,0 +1,100 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/arena_loading.gd" id="1_script"]
+[ext_resource type="Theme" path="res://resources/arena_theme.tres" id="2_theme"]
+[ext_resource type="Shader" path="res://shaders/menu_backdrop.gdshader" id="3_backdrop"]
+[ext_resource type="Material" path="res://resources/menu_glass.tres" id="4_glass"]
+[ext_resource type="Shader" path="res://shaders/loading_beads.gdshader" id="5_beads"]
+
+[sub_resource type="ShaderMaterial" id="Background"]
+shader = ExtResource("3_backdrop")
+
+[sub_resource type="ShaderMaterial" id="Beads"]
+shader = ExtResource("5_beads")
+
+[node name="ArenaLoading" type="CanvasLayer"]
+process_mode = 3
+layer = 10
+script = ExtResource("1_script")
+
+[node name="Screen" type="Control" parent="."]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+
+[node name="Background" type="ColorRect" parent="Screen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+material = SubResource("Background")
+
+[node name="Center" type="CenterContainer" parent="Screen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="Panel" parent="Screen/Center"]
+custom_minimum_size = Vector2(288, 166)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="GlassReflection" type="ColorRect" parent="Screen/Center/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 3.0
+offset_right = -7.0
+offset_bottom = -7.0
+mouse_filter = 2
+material = ExtResource("4_glass")
+
+[node name="Content" type="VBoxContainer" parent="Screen/Center/Panel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_right = -16.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Title" type="Label" parent="Screen/Center/Panel/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "SNAKE 3D"
+horizontal_alignment = 1
+
+[node name="Status" type="Label" parent="Screen/Center/Panel/Content"]
+layout_mode = 2
+text = "Preparing the arena…"
+horizontal_alignment = 1
+
+[node name="Activity" type="ColorRect" parent="Screen/Center/Panel/Content"]
+custom_minimum_size = Vector2(132, 32)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+material = SubResource("Beads")
+
+[node name="Back" type="Button" parent="Screen/Center/Panel/Content"]
+visible = false
+custom_minimum_size = Vector2(132, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Back"

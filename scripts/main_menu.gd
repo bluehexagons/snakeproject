@@ -52,17 +52,12 @@ func _refresh_continue_button() -> void:
 		continue_button.visible = GameState.has_saved_game()
 
 func on_new_game_pressed() -> void:
-	if not GameState.delete_save_game():
-		push_warning("Unable to clear the saved game")
-		return
-	SoundFx.play(SoundFx.Cue.UI, 0.53, 1.27)
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	ArenaLoading.open_arena(false)
 
 func on_quit_pressed() -> void:
 	get_tree().quit()
 
 func _on_continue_button_pressed() -> void:
 	if GameState.has_saved_game():
-		SoundFx.play(SoundFx.Cue.UI, 0.53, 1.12)
-		get_tree().change_scene_to_file("res://scenes/main.tscn")
+		ArenaLoading.open_arena(true)
 			

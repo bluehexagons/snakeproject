@@ -23,6 +23,7 @@ DisplayScale="*res://scripts/display_scale.gd"
 GameState="*res://scripts/game_state.gd"
 DebugTelemetry="*res://scripts/debug_telemetry.gd"
 SoundFx="*res://scripts/sound_fx.gd"
+ArenaLoading="*res://scenes/arena_loading.tscn"
 
 [display]
 

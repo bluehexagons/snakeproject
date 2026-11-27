@@ -3,8 +3,12 @@
 [project.godot](../../project.godot) defines the startup scene, input actions,
 autoloads, physics settings, and renderer. The game starts in the
 [main menu](../../scenes/main_menu.tscn). **New Game** and **Continue** both
-open the [arena scene](../../scenes/main.tscn). New Game clears the current
-run, and Continue loads a valid save.
+open the [arena scene](../../scenes/main.tscn) through the
+[loading overlay](../../scenes/arena_loading.tscn). Retry uses the same loader.
+New Game and Retry clear the current run after the arena resource is ready.
+Continue loads a valid save. Desktop loads the resource on a worker thread.
+The single-threaded Web export draws the overlay before loading on the main
+thread.
 
 ## Arena and session
 
