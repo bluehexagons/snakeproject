@@ -24,8 +24,9 @@ const DRIVE_RESPONSE = 10.0
 const COAST_DECELERATION = 6.5
 const DEATH_DECELERATION = 14.0
 const OVERSPEED_DECELERATION = 16.0
-const REVERSE_BRAKE_ACCELERATION = 40.0
-const REVERSE_ALIGNMENT = -0.866
+const REVERSE_BRAKE_ACCELERATION = 54.0
+const REVERSE_BRAKE_ALIGNMENT = 0.94
+const REVERSE_TURN_FADE_START = 0.84
 const TURN_RATE = 6.0
 const DIGESTION_DURATION = 0.16
 const TRAIL_STEP = 0.08
@@ -387,19 +388,29 @@ func _drive_velocity(velocity: Vector3, step: float) -> Vector3:
 	if input_dir.is_zero_approx():
 		return velocity.move_toward(Vector3.ZERO, COAST_DECELERATION * step)
 
-	var direction = input_dir.normalized()
-	var speed = velocity.length()
-	var heading = velocity / speed if speed > 0.01 else direction
-	# Brake a direct reversal before changing heading. A half-turn would
-	# choose a side arbitrarily and could steer the head into a hazard.
-	if heading.dot(direction) <= REVERSE_ALIGNMENT:
-		return velocity.move_toward(Vector3.ZERO, REVERSE_BRAKE_ACCELERATION * step)
+	var direction := input_dir.normalized()
+	var speed := velocity.length()
+	var heading := velocity / speed if speed > 0.01 else direction
+	var opposition := -heading.dot(direction)
+	var braking := smoothstep(0.0, REVERSE_BRAKE_ALIGNMENT, opposition)
+	var target_speed := (max_speed + pickup_speed_bonus) * input_dir.length()
+	var deceleration := lerpf(OVERSPEED_DECELERATION, REVERSE_BRAKE_ACCELERATION, braking)
+	# For near-straight reversals, stop on the current line and spend any
+	# time left in the step accelerating in the requested direction.
+	if opposition >= REVERSE_TURN_FADE_START:
+		var time_to_stop := speed / deceleration
+		if time_to_stop <= step:
+			var launch_acceleration := minf(DRIVE_ACCELERATION, target_speed * DRIVE_RESPONSE)
+			return direction * minf(target_speed, launch_acceleration * (step - time_to_stop))
 
-	var turn_limit = TURN_RATE * step
-	var angle = heading.signed_angle_to(direction, Vector3.UP)
+	var turn_fraction := 1.0 - smoothstep(REVERSE_TURN_FADE_START, REVERSE_BRAKE_ALIGNMENT, opposition)
+	var turn_limit := TURN_RATE * step * turn_fraction
+	var angle := heading.signed_angle_to(direction, Vector3.UP)
 	heading = heading.rotated(Vector3.UP, clampf(angle, -turn_limit, turn_limit))
-	var target_speed = (max_speed + pickup_speed_bonus) * input_dir.length()
-	var speed_error = target_speed - speed
-	var acceleration = minf(DRIVE_ACCELERATION, speed_error * DRIVE_RESPONSE) if speed_error > 0.0 else OVERSPEED_DECELERATION
+	# Rearward diagonals trade speed for a tighter turn. Forward and
+	# perpendicular steering keep their normal speed.
+	target_speed *= 1.0 - braking
+	var speed_error := target_speed - speed
+	var acceleration := minf(DRIVE_ACCELERATION, speed_error * DRIVE_RESPONSE) if speed_error > 0.0 else deceleration
 	speed = move_toward(speed, target_speed, acceleration * step)
 	return heading * minf(speed, max_speed + MAX_PICKUP_BOOST)

@@ -27,10 +27,10 @@ menus with the arrow keys, Tab, and Enter, or the D-pad and A / Cross.
   shatter gray rocks. Red rocks, arena walls, and falling off the arena end
   the run. Blue body pieces can block you, and pieces that hit a wall turn
   red and become lethal to the head.
-- Release steering to coast or steer in the opposite direction to brake and
-  reverse. Once you start moving, keep making progress. If you stop or get
-  pinned, the head changes color and a countdown warns you before the
-  three-second timeout.
+- Release steering to coast. Steer straight back to brake and reverse, or
+  aim diagonally back to slow down and make a tighter turn. Once you start
+  moving, keep making progress. If you stop or get pinned, the head changes
+  color and a countdown warns you before the three-second timeout.
 
 ## Saved games
 

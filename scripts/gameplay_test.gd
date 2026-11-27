@@ -182,6 +182,7 @@ func run() -> void:
 	await _check_speed_scoring()
 	await _check_resume_momentum()
 	await _check_handling()
+	await _check_oblique_reversal()
 	await _check_passive_momentum()
 	await _check_rock_impacts()
 	await _check_pickup_clearance()
@@ -410,19 +411,19 @@ func _check_body_contacts() -> void:
 	var forward_speed := player.linear_velocity.x
 	check(forward_speed > 6.0, "The snake never reached speed before braking")
 	var touched_own_body = false
-	var furthest_x := player.position.x
+	var reversed_before_contact := false
 	Input.action_press("move_left")
 	for frame in 38:
 		await get_tree().physics_frame
-		furthest_x = maxf(furthest_x, player.position.x)
 		if frame == 4:
 			check(player.linear_velocity.x > 0.0 and player.linear_velocity.x < forward_speed - 1.0,
 				"Opposite input did not brake forward motion before reversing")
 		if player.get_colliding_bodies().has(segment):
 			touched_own_body = true
 			break
+		reversed_before_contact = reversed_before_contact or player.linear_velocity.x < -0.05
 	Input.action_release("move_left")
-	check(touched_own_body and furthest_x - player.position.x > 0.08 and not player.has_lost,
+	check(touched_own_body and reversed_before_contact and not player.has_lost,
 		"Reversing into a blue piece failed to produce a safe collision")
 	check(player.position.x > segment.position.x, "The head crossed through the solid body piece")
 	Input.action_press("move_down")
@@ -659,10 +660,17 @@ func _check_handling() -> void:
 		"The head did not track the expected wider cornering arc")
 
 	var reverse_start = player.position
+	var reverse_frame := 0
+	var reverse_drift := 0.0
 	Input.action_press("move_up")
 	for frame in 22:
 		await get_tree().physics_frame
+		reverse_drift = maxf(reverse_drift, player.position.z - reverse_start.z)
+		if reverse_frame == 0 and player.linear_velocity.z < -0.05:
+			reverse_frame = frame + 1
 	Input.action_release("move_up")
+	check(reverse_frame >= 7 and reverse_frame <= 12 and reverse_drift < 0.82,
+		"A direct reversal did not brake promptly before accelerating back")
 	check(player.linear_velocity.z < -2.0 and absf(player.position.x - reverse_start.x) < 0.1, "A direct reversal was slow or pulled the head sideways")
 
 	main.camera.toggle_view()
@@ -693,8 +701,42 @@ func _check_handling() -> void:
 	check(main.session_mode != main.SessionMode.GAME_OVER and player.food_eaten == 0, "The handling fixture hit a wall or picked up food")
 	print("Handling regression: cruise %.2f, turn minimum %.2f, turn drift %.2f, coast speed %.2f, coast distance %.2f" %
 		[cruise_speed, min_turn_speed, turn_drift, coast_speed, coast_distance])
+	print("Direct reversal: %d ticks to reverse, %.2f units of forward travel while braking" %
+		[reverse_frame, reverse_drift])
 	main.free()
 	check(GameState.delete_save_game(), "Failed to clear handling fixture")
+
+func _check_oblique_reversal() -> void:
+	var fixture = {
+		"score": 0,
+		"player_state": {
+			"position": {"x": -2, "y": 0.4, "z": 0},
+			"velocity": {"x": Player.BASE_MAX_SPEED, "y": 0, "z": 0},
+		},
+		"food_positions": [{"x": -7, "y": 0, "z": -7}, {"x": 7, "y": 0, "z": 7}, {"x": 7, "y": 0, "z": -7}],
+	}
+	check(GameState.save_game_state(fixture), "Failed to write oblique reversal fixture")
+	var main = MAIN.instantiate()
+	add_child(main)
+	var player: Player = main.player
+	var start := player.position
+	var forward_drift := 0.0
+	var minimum_speed := Player.BASE_MAX_SPEED
+	Input.action_press("move_left")
+	Input.action_press("move_down")
+	for frame in 22:
+		await get_tree().physics_frame
+		forward_drift = maxf(forward_drift, player.position.x - start.x)
+		minimum_speed = minf(minimum_speed, Vector2(player.linear_velocity.x, player.linear_velocity.z).length())
+	Input.action_release("move_left")
+	Input.action_release("move_down")
+	check(forward_drift < 1.30 and minimum_speed < 7.5,
+		"A rearward diagonal carried too much speed and traveled too far forward")
+	check(player.position.z - start.z > 1.25 and player.linear_velocity.x < -2.5 and not player.has_lost,
+		"A rearward diagonal did not turn toward the requested side")
+	print("Diagonal reversal: %.2f units of forward travel, %.2f minimum speed" % [forward_drift, minimum_speed])
+	main.free()
+	check(GameState.delete_save_game(), "Failed to clear oblique reversal fixture")
 
 func _check_passive_momentum() -> void:
 	var fixture = {
