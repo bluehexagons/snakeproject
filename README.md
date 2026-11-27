@@ -47,61 +47,18 @@ fails, the game stays paused so you can try again. Active games autosave every
 five seconds, and best scores persist across runs. Focus loss also saves
 when already paused. Holding a pause or camera key does not repeatedly toggle it.
 
-## Gameplay systems
+## Saved games
 
-The head builds speed gradually and carries it through wider turns. Pressing the
-opposite direction brakes before reversing. Body pieces retain some sideways
-motion from hits as they return to the recorded path. Rocks and detached pieces
-keep rolling after impact. A new piece becomes solid once it has grown and has
-room for its collider. The body breaks apart on death.
-Godot physics interpolation smooths transforms. Both camera views keep the arena
-visible and control axes stable.
-
-## Rendering
-
-The arena uses procedural PBR materials, emissive rails, a moving backdrop,
-screen-space ambient occlusion, and glow. Gold rings and local lighting mark
-pickups. Red rails and rocks mark hazards, and the snake's eyes show its
-heading. The angled view uses transparent hazard walls to keep the floor visible.
-
-The default Compatibility renderer shares this presentation with the web build.
-On desktop, launch Godot with `--rendering-method forward_plus` to render the
-arena with volumetric fog.
-
-## Sound
-
-The game synthesizes glassy bells for pickups, impacts, shattering, warnings,
-and menus. Pickups cycle through a pentatonic scale. Heavy knocks ring louder
-and lower, with different tones for body and rock contacts. `SoundFx` caches
-the generated clips and limits simultaneous voices during busy collisions.
-
-## Runtime
-
-`GameManager` owns the session, spawning, scoring, and save/resume lifecycle.
-`Player` emits gameplay signals and owns the body path. `Segment` handles body
-movement, collisions, and growth. `GameState` handles persistence. `DebugTelemetry`
-is inert in release builds. Saved paths preserve turns on resume, and older
-saves reconstruct the path from segment positions. Fallen segments return to
-the playing surface. Saves preserve queued lunges, active pickup boosts, the
-digestion pulse, and the current inactivity sample. Solid segments keep their
-collision and velocity when resumed.
-Rocks saved mid-drop resume with their position, velocity, and ground marker.
-When resuming, the game refills food after restoring the rocks. If the center
-is crowded, placement searches farther out while keeping clear of obstacles.
-Active play retries any missing spawns on the five-second autosave interval.
-New rocks and food leave room around the snake's body.
-
-On Windows, saves live in `%APPDATA%\Godot\app_userdata\snake3d`. Save
-replacement retains a `.bak` recovery copy before promoting the new file.
-Continuing a run or loading a best score uses a valid backup if the primary
-file is missing or damaged. Later writes preserve that backup until a valid
-primary is available. Starting or ending a run clears the old session's
-backup and temporary files.
+Use **Continue** on the main menu to pick up where you left off. **New Game**
+replaces the saved run and keeps your best score. The browser build keeps
+saves in site storage, so use the same site and browser profile to continue.
+On Windows, saves live in `%APPDATA%\Godot\app_userdata\snake3d`. If a save
+or best-score file is missing or damaged, the game tries its backup.
 
 ## Contributing
 
-See the [contributor guide](CONTRIBUTING.md) for local tests, GitHub Actions,
-manual exports, and the tagged release process.
+See the [contributor guide](CONTRIBUTING.md) for the project structure, local
+tests, manual exports, and tagged releases.
 
 ## License
 

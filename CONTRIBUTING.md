@@ -4,6 +4,35 @@ Use the standard [Godot 4.7.2 editor](https://godotengine.org/download/archive/4
 and Python 3.10 or newer. Open `project.godot` and press **F5** to start at the
 main menu.
 
+## Project structure
+
+- [GameManager](scripts/game_manager.gd) connects the arena and HUD, handles
+  scoring and pause, and coordinates spawning, autosave, and resume. On
+  resume, it places saved rocks before refilling food so placement accounts
+  for restored hazards.
+- [Player](scripts/player.gd) handles head movement, pickups, and the recorded
+  body path. Each physics tick it walks the path from the head and assigns
+  slots at fixed distances. [Segment](scripts/segment.gd) follows those slots,
+  controls when growing pieces become solid, and handles body collisions.
+- [GameState](scripts/game_state.gd) validates and stores runs and best
+  scores. [SaveVector](scripts/save_vector.gd) defines the shared
+  `{x, y, z}` representation and validates vector components. The player
+  restores its own body and trail. Older saves without a recorded trail
+  reconstruct it from the saved segment positions. Fallen pieces and their
+  trail points are placed back at body height.
+- [GameplaySteering](scripts/gameplay_steering.gd) handles gameplay input
+  from keyboard, gamepad, mouse, and touch. [GameUI](scripts/ui.gd) adapts
+  the HUD to the viewport and signals the playable area to the camera.
+- [DebugTelemetry](scripts/debug_telemetry.gd) samples physics and aggregates
+  contacts in Web debug exports. [SoundFx](scripts/sound_fx.gd) synthesizes
+  and caches clips and limits simultaneous voices.
+
+Save files use Godot's `user://` directory. A write stages a temporary file
+before replacing the primary. If a valid backup is the only readable copy,
+the next write preserves it. Test resume changes with older saves that omit
+optional fields and with current saves that contain in-progress state such
+as queued lunges and falling rocks.
+
 ## Local tests
 
 Run the same headless checks as CI from the project root. On Linux or macOS,
@@ -50,6 +79,9 @@ Rendered mode uses native graphics for the two test scenes and requires a
 working display. For visual, audio, or input changes, also play the affected
 flow in a normal game window or in the relevant export.
 
+The project uses Compatibility rendering and Jolt physics. On desktop, add
+`--rendering-method forward_plus` to a game launch to enable volumetric fog.
+
 ## GitHub Actions
 
 [CI](.github/workflows/ci.yml) runs the headless suite on GitHub-hosted Linux
@@ -92,15 +124,18 @@ python3 -m http.server --bind 127.0.0.1 --directory build/web
 ```
 
 Open `http://127.0.0.1:8000/`. Keep the Web export files together on the host.
-A Web export made with `--export-debug` exposes a local physics sample buffer
-in `window.__godotPhysicsTrace` when Space pauses a capture.
+A Web export made with `--export-debug` records physics samples every 0.1
+seconds. Use Space for quick pause to publish the current capture, or wait
+for the 120-sample limit. Read the JSON string from
+`window.__godotPhysicsTrace` in browser developer tools. Resuming from
+quick pause starts a new capture.
 
 The release packager can also run locally on Linux with Bash, `curl`, `zip`,
 and matching Godot templates. Pass a tag-shaped version that matches the current
 checkout. This only creates local artifacts.
 
 ```sh
-bash scripts/package_release.sh v0.4.0
+bash scripts/package_release.sh v0.5.0
 ```
 
 The script prints the fresh `build/release.*` directory containing the Windows

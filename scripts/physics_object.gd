@@ -231,56 +231,26 @@ func _update_base_physics(delta: float) -> void:
 		current_color = current_color.lerp(state_color, delta * color_change_speed)
 		apply_color(current_color, state_emission, state_emission_energy)
 
-func _process(_delta):
-	pass
-
 func get_save_data() -> Dictionary:
-	var base_data = {
-		"position": {
-			"x": global_position.x,
-			"y": global_position.y,
-			"z": global_position.z
-		},
-		"physics_pos": {
-			"x": physics_pos.x,
-			"y": physics_pos.y,
-			"z": physics_pos.z
-		},
-		"visual_pos": {
-			"x": visual_pos.x,
-			"y": visual_pos.y,
-			"z": visual_pos.z
-		},
-		"velocity": {
-			"x": cached_velocity.x,
-			"y": cached_velocity.y,
-			"z": cached_velocity.z
-		},
-		"current_scale": current_scale
+	return {
+		"position": SaveVector.encode(global_position),
+		"physics_pos": SaveVector.encode(physics_pos),
+		"visual_pos": SaveVector.encode(visual_pos),
+		"velocity": SaveVector.encode(cached_velocity),
+		"current_scale": current_scale,
+		"is_grounded": is_grounded,
+		"ground_contact_timer": ground_contact_timer,
 	}
-	base_data["is_grounded"] = is_grounded
-	base_data["ground_contact_timer"] = ground_contact_timer
-	return base_data
 
 func restore_from_save_data(data: Dictionary) -> void:
-	global_position = _vector_from_data(data.get("position"), global_position)
-	physics_pos = _vector_from_data(data.get("physics_pos"), physics_pos)
-	visual_pos = _vector_from_data(data.get("visual_pos"), visual_pos)
-	cached_velocity = _vector_from_data(data.get("velocity"), cached_velocity)
+	global_position = SaveVector.decode(data.get("position"), global_position)
+	physics_pos = SaveVector.decode(data.get("physics_pos"), physics_pos)
+	visual_pos = SaveVector.decode(data.get("visual_pos"), visual_pos)
+	cached_velocity = SaveVector.decode(data.get("velocity"), cached_velocity)
 	if data.has("current_scale"):
 		apply_physics_scale(float(data.get("current_scale", current_scale)), true)
 	is_grounded = bool(data.get("is_grounded", false))
 	ground_contact_timer = maxf(float(data.get("ground_contact_timer", 0.0)), 0.0)
-
-func _vector_from_data(data: Variant, fallback: Vector3) -> Vector3:
-	if not data is Dictionary:
-		return fallback
-	var value = Vector3(
-		float(data.get("x", fallback.x)),
-		float(data.get("y", fallback.y)),
-		float(data.get("z", fallback.z))
-	)
-	return value if value.is_finite() and value.length() <= 1000.0 else fallback
 
 func _flash_contacts(state: PhysicsDirectBodyState3D) -> void:
 	var peak_impulse = 0.0

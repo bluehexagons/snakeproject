@@ -27,10 +27,7 @@ const MIN_BODY_SPAWN_DISTANCE = 1.0
 const MAX_FOOD_SPAWN_ATTEMPTS = 30
 const FALLBACK_FOOD_SPAWN_LIMIT = 9 # The barriers sit at +/-11.
 const MAX_ROCK_SPAWN_ATTEMPTS = 30
-const MAX_SCORE = 2147483647
 const AUTOSAVE_INTERVAL = 5.0
-const DEBUG_TRACE_SAMPLE_INTERVAL = 0.1
-const DEBUG_RANDOM_SEED = 1337
 
 var is_paused: bool = false
 var is_gameplay_paused: bool = false
@@ -41,8 +38,6 @@ var is_new_best: bool = false
 var is_quitting: bool = false
 var previous_auto_accept_quit: bool
 var autosave_elapsed: float = 0.0
-var debug_trace_elapsed: float = 0.0
-var debug_trace_time: float = 0.0
 var player: Player
 var score_popup: ScorePopup
 
@@ -61,14 +56,16 @@ func _exit_tree() -> void:
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
-	if DebugTelemetry.can_capture():
-		seed(DEBUG_RANDOM_SEED)
+	var capture_available := DebugTelemetry.can_capture()
+	set_physics_process(capture_available)
+	if capture_available:
+		seed(DebugTelemetry.RANDOM_SEED)
 	_configure_renderer_features()
 	_connect_ui()
 	load_game_state()
 	update_pause_state()
 	update_score(0)
-	_start_debug_trace()
+	DebugTelemetry.start_capture()
 
 func _configure_renderer_features() -> void:
 	if world_environment and world_environment.environment:
@@ -100,16 +97,8 @@ func _process(delta: float) -> void:
 	save_game_state()
 
 func _physics_process(delta: float) -> void:
-	if not DebugTelemetry.enabled or is_paused or is_gameplay_paused or is_game_over:
-		return
-
-	debug_trace_elapsed += maxf(delta, 0.0)
-	debug_trace_time += maxf(delta, 0.0)
-	if debug_trace_elapsed < DEBUG_TRACE_SAMPLE_INTERVAL:
-		return
-
-	debug_trace_elapsed = fmod(debug_trace_elapsed, DEBUG_TRACE_SAMPLE_INTERVAL)
-	DebugTelemetry.record_sample(_build_debug_trace_sample())
+	if not is_paused and not is_gameplay_paused and not is_game_over:
+		DebugTelemetry.sample_gameplay(delta, player, score)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_echo() or is_game_over:
@@ -143,7 +132,7 @@ func toggle_gameplay_pause() -> void:
 	if is_gameplay_paused:
 		DebugTelemetry.publish_trace()
 	else:
-		_start_debug_trace()
+		DebugTelemetry.start_capture()
 
 func toggle_pause(play_cue: bool = false) -> void:
 	if is_game_over:
@@ -165,86 +154,6 @@ func update_pause_state() -> void:
 	var paused = is_paused or is_gameplay_paused
 	gameplay_container.process_mode = Node.PROCESS_MODE_DISABLED if paused else Node.PROCESS_MODE_INHERIT
 	ui.steering.set_steering_enabled(not paused and not is_game_over)
-
-func _start_debug_trace() -> void:
-	if not DebugTelemetry.can_capture():
-		return
-
-	debug_trace_elapsed = 0.0
-	debug_trace_time = 0.0
-	var run_id = "%d-%d" % [int(Time.get_unix_time_from_system()), Time.get_ticks_msec()]
-	DebugTelemetry.start_capture(run_id, {
-		"project_version": ProjectSettings.get_setting("application/config/version", "unversioned"),
-		"godot": Engine.get_version_info().get("string", "unknown"),
-		"physics_backend": ProjectSettings.get_setting("physics/3d/physics_engine", "unknown"),
-		"physics_ticks_per_second": Engine.physics_ticks_per_second,
-		"debug_build": OS.is_debug_build(),
-		"max_bodies": DebugTelemetry.MAX_BODIES,
-		"max_contacts_reported": Player.HEAD_MAX_CONTACTS,
-		"random_seed": DEBUG_RANDOM_SEED,
-	})
-
-func _build_debug_trace_sample() -> Dictionary:
-	var bodies: Array[Dictionary] = []
-	var physics_objects = get_tree().get_nodes_in_group("physics_object")
-	physics_objects.sort_custom(func(first, second): return first.get_instance_id() < second.get_instance_id())
-	for body in physics_objects.slice(0, DebugTelemetry.MAX_BODIES):
-		if not body is PhysicsObject or not is_instance_valid(body):
-			continue
-		bodies.append({
-			"id": str(body.get_instance_id()),
-			"kind": _debug_body_kind(body),
-			"position": DebugTelemetry.encode_vector(body.global_position, "bodies.%s.position" % body.get_instance_id()),
-			"linear_velocity": DebugTelemetry.encode_vector(body.linear_velocity, "bodies.%s.linear_velocity" % body.get_instance_id()),
-			"angular_velocity": DebugTelemetry.encode_vector(body.angular_velocity, "bodies.%s.angular_velocity" % body.get_instance_id()),
-		})
-
-	var links: Array[Dictionary] = []
-	if is_instance_valid(player):
-		for segment in player.segments:
-			if not is_instance_valid(segment) or not is_instance_valid(segment.target):
-				continue
-			var distance = segment.global_position.distance_to(segment.target.global_position)
-			links.append({
-				"segment_id": str(segment.get_instance_id()),
-				"target_id": str(segment.target.get_instance_id()),
-				"distance": DebugTelemetry.encode_number(distance, "links.%s.distance" % segment.get_instance_id()),
-				"rest_length": SegmentConstants.TARGET_DISTANCE,
-				"error": DebugTelemetry.encode_number(distance - SegmentConstants.TARGET_DISTANCE, "links.%s.error" % segment.get_instance_id()),
-			})
-
-	var foods: Array[Dictionary] = []
-	for food in get_tree().get_nodes_in_group("food"):
-		if not is_instance_valid(food) or food.is_queued_for_deletion() or not food.is_available():
-			continue
-		foods.append({
-			"id": str(food.get_instance_id()),
-			"position": DebugTelemetry.encode_vector(food.global_position, "foods.%s.position" % food.get_instance_id()),
-		})
-
-	return {
-		"physics_tick": Engine.get_physics_frames(),
-		"capture_time": debug_trace_time,
-		"bodies": bodies,
-		"links": links,
-		"foods": foods,
-		"gameplay": {
-			"score": score,
-			"paused": is_paused or is_gameplay_paused,
-			"lost": is_game_over,
-			"active_input": is_instance_valid(player) and not player.input_dir.is_zero_approx(),
-			"inactivity": player.stuck_elapsed if is_instance_valid(player) else 0.0,
-		},
-	}
-
-func _debug_body_kind(body: PhysicsObject) -> String:
-	if body.is_in_group("player"):
-		return "player"
-	if body.is_in_group("segment"):
-		return "segment"
-	if body.is_in_group("rock"):
-		return "rock"
-	return "physics_object"
 
 func spawn_player() -> Player:
 	player = PLAYER_SCENE.instantiate()
@@ -269,7 +178,7 @@ func _bind_player(new_player: Player) -> void:
 
 func _refill_food(check_covered: bool = false) -> void:
 	var foods = get_tree().get_nodes_in_group("food").filter(
-		func(food): return not food.is_queued_for_deletion() and food.is_available()
+		func(food: Food): return food.is_available()
 	)
 	if not check_covered and foods.size() >= MIN_FOOD_COUNT:
 		return
@@ -382,7 +291,7 @@ func spawn_rock(force_safe: bool = false) -> bool:
 			continue
 		var overlaps_food = false
 		for food in get_tree().get_nodes_in_group("food"):
-			if not food.is_queued_for_deletion() and food.is_available() and _horizontal_distance(food.position, spawn_pos) < MIN_FOOD_ROCK_DISTANCE:
+			if food.is_available() and _horizontal_distance(food.position, spawn_pos) < MIN_FOOD_ROCK_DISTANCE:
 				overlaps_food = true
 				break
 		if overlaps_food:
@@ -421,12 +330,6 @@ func spawn_rock(force_safe: bool = false) -> bool:
 	push_warning("Failed to spawn a rock after %d attempts" % MAX_ROCK_SPAWN_ATTEMPTS)
 	return false
 
-func add_score(points: int):
-	if is_game_over:
-		return
-	
-	update_score(points)
-
 func _on_player_food_collected(total_food_eaten: int) -> void:
 	if is_game_over:
 		return
@@ -440,7 +343,7 @@ func _on_player_food_collected(total_food_eaten: int) -> void:
 func _on_player_score_earned(points: int, popup_position: Vector3) -> void:
 	if is_game_over:
 		return
-	add_score(points)
+	update_score(points)
 	if not is_instance_valid(score_popup) or not score_popup.can_combine(popup_position):
 		score_popup = SCORE_POPUP.instantiate()
 		score_popup.camera = camera
@@ -466,7 +369,7 @@ func _on_retry_requested() -> void:
 
 func update_score(points: int) -> void:
 	var previous_best = GameState.get_best_score()
-	score = clampi(score + points, 0, MAX_SCORE)
+	score = clampi(score + points, 0, GameState.MAX_SAVED_SCORE)
 	if score > previous_best:
 		is_new_best = true
 		if not GameState.save_best_score(score):
@@ -474,7 +377,7 @@ func update_score(points: int) -> void:
 	if ui:
 		ui.update_score(score)
 
-func game_over():
+func game_over() -> void:
 	if is_game_over:
 		return
 
@@ -522,21 +425,16 @@ func save_game_state() -> bool:
 	var rocks = get_tree().get_nodes_in_group("rock")
 	
 	var food_positions: Array[Dictionary] = []
-	for food in foods:
-		if food.is_queued_for_deletion() or not food.is_available():
+	for food: Food in foods:
+		if not food.is_available():
 			continue
-		food_positions.append({
-			"x": food.position.x,
-			"y": 0.0,
-			"z": food.position.z
-		})
+		food_positions.append(SaveVector.encode(Vector3(food.position.x, 0.0, food.position.z)))
 	
 	var rock_data: Array[Dictionary] = []
-	for rock in rocks:
+	for rock: Rock in rocks:
 		if rock.is_queued_for_deletion() or rock.is_shattering:
 			continue
-		if rock.has_method("get_save_data"):
-			rock_data.append(rock.get_save_data())
+		rock_data.append(rock.get_save_data())
 	
 	var save_data = {
 		"score": score,
@@ -562,65 +460,26 @@ func load_game_state() -> bool:
 		
 	player = PLAYER_SCENE.instantiate()
 	gameplay_container.add_child(player)
-	player.restore_from_save(save_data)
+	player.restore_from_save_data(save_data.player_state)
 	_bind_player(player)
 
-	var player_state: Dictionary = save_data["player_state"]
-	if player_state.has("segments") and player_state["segments"] is Array:
-		var segments: Array = player_state["segments"]
-		for i in range(segments.size()):
-			var segment_data: Dictionary = segments[i] if segments[i] is Dictionary else {}
-			var segment = player.add_segment(0.0, _vector_from_data(segment_data.get("position")), true)
-			if not segment:
-				continue
-			segment.init_from_save_data(segment_data)
-	
-	player.rebuild_trail()
-	if player_state.has("trail") and not player_state.trail.is_empty():
-		player.trail.clear()
-		for point in player_state.trail:
-			var restored_point = _vector_from_data(point)
-			# Segment restore repairs fallen pieces; repair their path too so
-			# the next physics tick cannot send them underground again.
-			restored_point.y = SegmentConstants.CENTER_HEIGHT
-			player.trail.append(restored_point)
-
-	var saved_rocks: Variant = save_data.get("rocks", [])
-	if saved_rocks is Array:
-		for rock_data in saved_rocks:
-			if not rock_data is Dictionary:
-				continue
-			var rock = ROCK_SCENE.instantiate()
-			gameplay_container.add_child(rock)
-			rock.restore_from_save_data(rock_data)
+	for rock_data: Dictionary in save_data.get("rocks", []):
+		var rock: Rock = ROCK_SCENE.instantiate()
+		gameplay_container.add_child(rock)
+		rock.restore_from_save_data(rock_data)
 
 	# Replacement food must account for every restored hazard and rock.
-	var saved_food_positions: Variant = save_data.get("food_positions", [])
-	if saved_food_positions is Array and not saved_food_positions.is_empty():
-		for food_pos in saved_food_positions:
-			if not food_pos is Dictionary:
-				continue
-			var food_position = _vector_from_data(food_pos)
-			food_position.y = 0.0
-			_spawn_food_at(food_position)
+	for food_pos: Dictionary in save_data.get("food_positions", []):
+		var food_position := SaveVector.decode(food_pos)
+		food_position.y = 0.0
+		_spawn_food_at(food_position)
 	_refill_food()
-	
 
-	score = max(int(save_data.get("score", 0)), 0)
-	update_score(0)
+	score = int(save_data.score)
 	return true
 
 func _horizontal_distance(first: Vector3, second: Vector3) -> float:
 	return Vector2(first.x, first.z).distance_to(Vector2(second.x, second.z))
-
-func _vector_from_data(data: Variant) -> Vector3:
-	if not data is Dictionary:
-		return Vector3.ZERO
-	return Vector3(
-		float(data.get("x", 0.0)),
-		float(data.get("y", 0.0)),
-		float(data.get("z", 0.0))
-	)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:

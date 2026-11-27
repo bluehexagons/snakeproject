@@ -4,7 +4,6 @@ var save_file_path = "user://save_game.dat"
 var best_score_file_path = "user://best_score.dat"
 const SAVE_VERSION = 1
 const MAX_SAVED_SCORE = 2147483647
-const MAX_SAVED_POSITION = 1000.0
 const MAX_SAVED_SEGMENTS = 1000
 const MAX_SAVED_FOOD = 100
 const MAX_SAVED_ROCKS = 1000
@@ -36,12 +35,7 @@ func is_valid_saved_score(score: Variant) -> bool:
 	return not is_nan(numeric_score) and not is_inf(numeric_score) and numeric_score == floor(numeric_score) and numeric_score >= 0.0 and numeric_score <= MAX_SAVED_SCORE
 
 func is_valid_saved_vector(data: Variant) -> bool:
-	if not data is Dictionary or not data.has("x") or not data.has("y") or not data.has("z"):
-		return false
-	if not _is_finite_number(data.x) or not _is_finite_number(data.y) or not _is_finite_number(data.z):
-		return false
-	var value = Vector3(float(data.x), float(data.y), float(data.z))
-	return value.is_finite() and value.length() <= MAX_SAVED_POSITION
+	return SaveVector.is_valid(data)
 
 func _is_finite_number(value: Variant) -> bool:
 	if typeof(value) not in [TYPE_INT, TYPE_FLOAT]:

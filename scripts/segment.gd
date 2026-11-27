@@ -115,17 +115,17 @@ func get_save_data() -> Dictionary:
 	data["growth"] = growth_timer / SegmentConstants.GROWTH_DURATION
 	data["is_dangerous"] = is_dangerous
 	data["is_solid"] = not freeze
-	data["path_target"] = {"x": path_target.x, "y": path_target.y, "z": path_target.z}
+	data["path_target"] = SaveVector.encode(path_target)
 	return data
 
 func init_from_save_data(data: Dictionary) -> void:
-	global_position = _vector_from_data(data.get("position"), global_position)
+	global_position = SaveVector.decode(data.get("position"), global_position)
 	global_position.y = SegmentConstants.CENTER_HEIGHT
-	path_target = _vector_from_data(data.get("path_target"), global_position)
+	path_target = SaveVector.decode(data.get("path_target"), global_position)
 	path_target.y = SegmentConstants.CENTER_HEIGHT
 	init_with_growth(float(data.get("growth", 1.0)))
 	if data.get("is_solid", false) and growth_timer >= SegmentConstants.GROWTH_DURATION:
-		path_velocity = _vector_from_data(data.get("velocity"), Vector3.ZERO)
+		path_velocity = SaveVector.decode(data.get("velocity"))
 		path_velocity.y = 0.0
 		_enable_collisions(path_velocity)
 	if data.get("is_dangerous", false):

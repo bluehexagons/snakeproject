@@ -168,22 +168,14 @@ func get_save_data() -> Dictionary:
 	base_data["is_dangerous"] = is_dangerous
 	base_data["is_spawning"] = is_spawning
 	base_data["spawn_timer"] = spawn_timer
-	base_data["rotation"] = {
-		"x": rotation.x,
-		"y": rotation.y,
-		"z": rotation.z
-	}
-	base_data["angular_velocity"] = {
-		"x": angular_velocity.x,
-		"y": angular_velocity.y,
-		"z": angular_velocity.z
-	}
+	base_data["rotation"] = SaveVector.encode(rotation)
+	base_data["angular_velocity"] = SaveVector.encode(angular_velocity)
 	return base_data
 
 func restore_from_save_data(data: Dictionary) -> void:
 	super.restore_from_save_data(data)
-	rotation = _vector_from_data(data.get("rotation"), rotation)
-	angular_velocity = _vector_from_data(data.get("angular_velocity"), angular_velocity)
+	rotation = SaveVector.decode(data.get("rotation"), rotation)
+	angular_velocity = SaveVector.decode(data.get("angular_velocity"), angular_velocity)
 	is_initialized = true
 	# Older drops grew their collider as well as the mesh.
 	apply_physics_scale(1.0, true)

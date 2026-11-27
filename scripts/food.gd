@@ -51,7 +51,7 @@ func _process(delta: float) -> void:
 	mesh.scale = Vector3.ONE * scale_factor
 
 func eat(target: Node3D) -> float:
-	if is_consumed:
+	if not is_available():
 		return 0.0
 	is_consumed = true
 	consume_timer = 0.0
@@ -59,10 +59,10 @@ func eat(target: Node3D) -> float:
 	return 10.0
 
 func dead_eat() -> float:
-	if is_consumed:
+	if not is_available():
 		return 0.0
 	queue_free()
 	return 20.0
 
 func is_available() -> bool:
-	return not is_consumed
+	return not is_consumed and not is_queued_for_deletion()

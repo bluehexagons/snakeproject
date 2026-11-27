@@ -236,19 +236,15 @@ func add_segment(growth_state: float = 0.0, saved_pos: Vector3 = Vector3.ZERO, u
 	segment.reset_physics_interpolation()
 	return segment
 
-func get_segment_positions() -> Array:
-	var positions = []
+func get_segment_save_data() -> Array[Dictionary]:
+	var data: Array[Dictionary] = []
 	for segment in segments:
-		positions.append(segment.get_save_data())
-	return positions
+		data.append(segment.get_save_data())
+	return data
 
 func get_save_data() -> Dictionary:
 	var base_data = super.get_save_data()
-	base_data["facing_direction"] = {
-		"x": facing_direction.x,
-		"y": facing_direction.y,
-		"z": facing_direction.z
-	}
+	base_data["facing_direction"] = SaveVector.encode(facing_direction)
 	base_data["food_eaten"] = food_eaten
 	base_data["current_speed_boost"] = current_speed_boost
 	base_data["pending_pickup_impulse"] = pending_pickup_impulse
@@ -260,21 +256,17 @@ func get_save_data() -> Dictionary:
 	if motion_sample_elapsed > 0.0:
 		base_data["motion_sample"] = {
 			"elapsed": motion_sample_elapsed,
-			"start": {"x": motion_sample_start.x, "y": 0.0, "z": motion_sample_start.y},
+			"start": SaveVector.encode(Vector3(motion_sample_start.x, 0.0, motion_sample_start.y)),
 		}
-	base_data["segments"] = get_segment_positions()
+	base_data["segments"] = get_segment_save_data()
 	var saved_trail: Array[Dictionary] = []
 	for point in trail:
-		saved_trail.append({"x": point.x, "y": point.y, "z": point.z})
+		saved_trail.append(SaveVector.encode(point))
 	base_data["trail"] = saved_trail
 	return base_data
 
-func restore_from_save(data: Dictionary) -> void:
-	var state: Dictionary = data.get("player_state", {})
-	if state.is_empty():
-		return
-
-	restore_from_save_data(state)
+func restore_from_save_data(state: Dictionary) -> void:
+	super.restore_from_save_data(state)
 	# Old digestion saves may contain a pulsing collider or a fallen head.
 	apply_physics_scale(1.0, true)
 	if global_position.y < 0.3:
@@ -283,7 +275,7 @@ func restore_from_save(data: Dictionary) -> void:
 	facing_direction.y = 0.0
 	var saved_facing_direction: Variant = state.get("facing_direction")
 	if saved_facing_direction is Dictionary:
-		var restored_direction = _vector_from_save(saved_facing_direction, Vector3.FORWARD)
+		var restored_direction = SaveVector.decode(saved_facing_direction, Vector3.FORWARD)
 		if restored_direction.length_squared() > 0.001:
 			facing_direction = Vector3(restored_direction.x, 0.0, restored_direction.z).normalized()
 			if facing_direction.is_zero_approx():
@@ -303,15 +295,23 @@ func restore_from_save(data: Dictionary) -> void:
 		var sample: Dictionary = state.motion_sample
 		motion_sample_elapsed = float(sample.elapsed)
 		motion_sample_start = Vector2(sample.start.x, sample.start.z)
+	_restore_body(state)
 
-func _vector_from_save(data: Variant, fallback: Vector3) -> Vector3:
-	if not data is Dictionary:
-		return fallback
-	return Vector3(
-		float(data.get("x", fallback.x)),
-		float(data.get("y", fallback.y)),
-		float(data.get("z", fallback.z))
-	)
+func _restore_body(state: Dictionary) -> void:
+	for segment_data: Dictionary in state.get("segments", []):
+		var segment := add_segment(0.0, SaveVector.decode(segment_data.get("position")), true)
+		segment.init_from_save_data(segment_data)
+
+	rebuild_trail()
+	var saved_trail: Array = state.get("trail", [])
+	if saved_trail.is_empty():
+		return
+	trail.clear()
+	for point in saved_trail:
+		var restored_point := SaveVector.decode(point)
+		# Repair the path as well as any fallen pieces from older saves.
+		restored_point.y = SegmentConstants.CENTER_HEIGHT
+		trail.append(restored_point)
 
 func lose() -> void:
 	if has_lost or unkillable:

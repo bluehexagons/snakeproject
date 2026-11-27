@@ -35,6 +35,13 @@ func run() -> void:
 	player.rebuild_trail()
 	for frame in 30:
 		await get_tree().physics_frame
+	# A retired pickup can still be in the tree until the frame ends.
+	var retired_food: Food = FOOD.instantiate()
+	retired_food.position = Vector3(player.position.x, 0, player.position.z)
+	main.gameplay_container.add_child(retired_food)
+	retired_food.queue_free()
+	player._collect_food()
+	check(player.food_eaten == 0 and main.score == 0, "A retired pickup still awarded points")
 	# Several pickups inside one digestion period must each grow exactly once.
 	for index in 6:
 		var food = FOOD.instantiate()
@@ -108,7 +115,7 @@ func run() -> void:
 	check(is_equal_approx(player.segments[0].growth_timer, paused_growth), "Pause did not freeze growth")
 	main.toggle_gameplay_pause()
 	main.save_game_state()
-	var saved_positions = player.get_segment_positions()
+	var saved_positions := player.get_segment_save_data()
 	# Legacy recovery must repair the recorded path as well as each piece.
 	var fallen_save = GameState.load_game_state()
 	for segment_data in fallen_save.player_state.segments:
